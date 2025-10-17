@@ -1,1 +1,11 @@
-
+node_modules/
+functions/node_modules/
+functions/lib/
+lib/
+coverage/
+.firebase/
+firebase-debug.log
+firebase-debug.*.log
+.env
+.env.*
+.DS_Store
