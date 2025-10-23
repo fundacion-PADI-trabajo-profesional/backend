@@ -11,6 +11,10 @@ export class EvaluacionesService {
   async list(): Promise<Evaluacion[]> {
     return this.repo.list();
   }
+
+  async getById(id: string): Promise<Evaluacion | null> {
+    return this.repo.getById(id);
+  }
 }
 
 

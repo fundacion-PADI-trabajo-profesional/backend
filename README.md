@@ -24,53 +24,54 @@ interfaces/*: contratos y tipos compartidos (e.g., CommonResponse<T>).
 
 
 Resumen
-- Stack: Firebase Functions (Node 22), Express, TypeScript, Vitest, Firebase Emulator.
-- Proyecto del front vive aparte; en dev el front consume este backend vía URL del emulador.
+- Stack: Firebase Functions (Node 22), Express, TypeScript, Prisma (Postgres), Vitest, Firebase Emulator.
+- El frontend vive aparte; en dev el front consume este backend vía la URL del emulador.
 
 Prerrequisitos
 - Node.js 22.x
 - Firebase CLI (instalar: `curl -sL https://firebase.tools | bash`)
+- URL de Postgres (p. ej., Supabase). Recomendado usar Session Pooler.
 
-Instalación
+1) Instalación
 ```bash
 cd /TPP-PADI/backend
 npm install
 npm --prefix functions install
 ```
 
-Desarrollo (watch + emulador)
+2) Configurar base de datos (Prisma)
+- Te voy a enviar el archivo `.env` por WhatsApp.
+- Ubícalo exactamente en: `/home/nishy/TPP-PADI/backend/functions/prisma/.env` (mismo nombre, sin comillas en el valor y en una sola línea).
+- No lo comitees.
+- Generar cliente y sincronizar schema:
 ```bash
-npm run dev
-```
-- UI del emulador: http://127.0.0.1:4000/functions
-- Base URL API local: http://127.0.0.1:5001/fundacionpadi-41cb2/us-central1/api
-  - Healthcheck: GET /health → http://127.0.0.1:5001/fundacionpadi-41cb2/us-central1/api/health
-
-Integración con frontend (dev)
-- Define la base en tu front (ej. Vite): `frontend/.env.local`
-```
-VITE_API_BASE=http://127.0.0.1:5001/fundacionpadi-41cb2/us-central1/api
-```
-- Consumo ejemplo (TS):
-```ts
-const res = await fetch(`${import.meta.env.VITE_API_BASE}/health`);
+cd /home/nishy/TPP-PADI/backend/functions
+export NODE_OPTIONS=--dns-result-order=ipv4first
+set -a; source prisma/.env; set +a
+npx prisma generate --schema=prisma/schema.prisma
+npx prisma db push --schema=prisma/schema.prisma
 ```
 
-Build
+
+3) Tests
 ```bash
-npm --prefix functions run build
+npm --prefix TPP-PADI/backend/functions run test
 ```
 
-Tests
-```bash
-npm --prefix functions run test
-```
-
-Deploy (solo Functions)
+5) Levantar en desarrollo (emulador + watcher)
 ```bash
 cd /home/nishy/TPP-PADI/backend
-firebase deploy --only functions
+# exporta DB si vas a usar Prisma en dev
+set -a; source functions/prisma/.env; set +a
+npm run dev
+# UI emulador: http://127.0.0.1:4000/functions
+# Base API:    http://127.0.0.1:5001/fundacionpadi-41cb2/us-central1/api
 ```
+
+Endpoints actuales
+- GET `/health` → `{ success: true, message: "ok", data: null }`
+- GET `/evaluaciones` → lista (Prisma si hay DB, caso contrario fallback → array vacío)
+- GET `/evaluaciones/:id` → 200 con objeto o 404 con `{ success: false, error: { code: "NOT_FOUND" } }`
 
 Estructura
 ```
@@ -79,33 +80,29 @@ backend/
   firebase.json              # runtime nodejs22, emuladores, functions
   package.json               # orquesta dev/build/test
   functions/
-    package.json             # proyecto de Cloud Functions
+    package.json             # proyecto Cloud Functions
     tsconfig.json
-    src/index.ts             # Express + rutas (api)
+    prisma/
+      schema.prisma
+      .env                   # DATABASE_URL (no commitear)
+    src/
+      index.ts               # entrypoint Firebase
+      server.ts              # Express app (middlewares + routers)
+      routes/
+      controllers/
+      services/
+      repositories/
+      interfaces/
+      config/
+        prismaClient.ts      # Prisma singleton
+        supabaseClient.ts    # Supabase (opcional)
     test/*.test.ts           # Vitest
-    lib/                     # (salida build)
 ```
 
 Troubleshooting
-- Tipos TS ("Cannot find type definition file for 'node'"):
-  1) `npm --prefix functions i -D @types/node@^22`
-  2) En `functions/tsconfig.json`:
-  ```json
-  {
-    "compilerOptions": {
-      "types": ["node"],
-      "typeRoots": ["./node_modules/@types"]
-    }
-  }
-  ```
-  3) Limpiar y reconstruir: `cd functions && rm -rf lib node_modules && npm install && npm run build`
+- Prisma P1001 (no conecta):
+  - Usa el Session Pooler de Supabase (`...pooler.supabase.com:5432`) y `sslmode=require`.
+  - Asegúrate de exportar `DATABASE_URL`: `set -a; source prisma/.env; set +a`.
 
-- Emulador runtime:
-  - `backend/firebase.json` contiene `"runtime": "nodejs22"`. Actualiza Firebase CLI si ves advertencias.
-
-- Git: no versionar artefactos
-  - `node_modules/`, `functions/lib/`, `.firebase/` están en `.gitignore`.
-  - Comitea los `package-lock.json`.
-
-# backend
-repositorio con la logica de backend para la plataforma web PADI
+- Módulo faltante `@supabase/supabase-js`
+  - Instalar en Functions: `npm --prefix /home/nishy/TPP-PADI/backend/functions i @supabase/supabase-js`
