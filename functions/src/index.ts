@@ -1,15 +1,7 @@
 import * as functions from "firebase-functions";
-import express, { Request, Response } from "express";
-import cors from "cors";
+import { createApp } from "./server";
 
-const app = express();
-app.use(cors({ origin: true }));
-app.use(express.json());
-
-app.get("/health", (_req: Request, res: Response) => {
-  res.status(200).json({ ok: true });
-});
-
+const app = createApp();
 export const api = functions.https.onRequest(app);
 
 

@@ -11,7 +11,7 @@ Prerrequisitos
 
 Instalación
 ```bash
-cd /home/nishy/TPP-PADI/backend
+cd /TPP-PADI/backend
 npm install
 npm --prefix functions install
 ```
