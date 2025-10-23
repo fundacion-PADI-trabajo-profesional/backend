@@ -1,14 +1,13 @@
-import express, { Request, Response } from "express";
+import express from "express";
 import cors from "cors";
+import { createHealthRouter } from "./routes/health.router";
 
 export function createApp() {
   const app = express();
   app.use(cors({ origin: true }));
   app.use(express.json());
 
-  app.get("/health", (_req: Request, res: Response) => {
-    res.status(200).json({ ok: true });
-  });
+  app.use(createHealthRouter());
 
   return app;
 }
