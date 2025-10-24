@@ -106,3 +106,5 @@ Troubleshooting
 
 - Módulo faltante `@supabase/supabase-js`
   - Instalar en Functions: `npm --prefix /home/nishy/TPP-PADI/backend/functions i @supabase/supabase-js`
+
+
