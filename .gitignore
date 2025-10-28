@@ -9,3 +9,4 @@ firebase-debug.*.log
 .env
 .env.*
 .DS_Store
+install_nvm.sh

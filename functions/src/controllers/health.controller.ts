@@ -4,13 +4,20 @@ import { commonResponse } from "../interfaces/common-response.interface";
 
 const healthService = new HealthService();
 
-// functions/src/controllers/health.controller.ts
-// Controlador HTTP: valida/parcea la request, llama al servicio y formatea la response.
-// Usa commonResponse() para respuestas consistentes.
+// Controlador HTTP: llama al servicio y formatea la response.
 
 export async function getHealth(_req: Request, res: Response) {
-  await healthService.getHealth();
-  res.status(200).json(commonResponse(true, "ok", null));
+  try {
+    await healthService.getHealth();
+
+    //si wait healthService no lanza error, la conexión es exitosa.
+    res.status(200).json(commonResponse(true, "OK: Database connection is healthy.", null));
+
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("Health check failed:", message);
+
+    //standar response code for unavailable service.
+    res.status(503).json(commonResponse(false, "Service Unavailable: Database connection failed.", null));
+  }
 }
-
-

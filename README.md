@@ -67,9 +67,10 @@ npm run dev
 # UI emulador: http://127.0.0.1:4000/functions
 # Base API:    http://127.0.0.1:5001/fundacionpadi-41cb2/us-central1/api
 ```
+Frente a cambios en el backend no es necesario volver a levantar el sistema con npm run dev. Si el sistema esta corriendo, se recompila automaticamente.
 
 Endpoints actuales
-- GET `/health` → `{ success: true, message: "ok", data: null }`
+- GET `/health` → devuelve un estatus de la base de datos. Puede correrse con el comando: curl http://127.0.0.1:5001/fundacionpadi-41cb2/us-central1/api/health | jq
 - GET `/evaluaciones` → lista (Prisma si hay DB, caso contrario fallback → array vacío)
 - GET `/evaluaciones/:id` → 200 con objeto o 404 con `{ success: false, error: { code: "NOT_FOUND" } }`
 

@@ -4,6 +4,7 @@ import { HealthRepository } from "../repositories/health.repository";
 // functions/src/services/health.service.ts
 // Servicio (reglas de negocio): orquesta repositorios y aplica la lógica.
 // No conoce HTTP; devuelve datos puros para que el controlador los formatee.
+//su trabajo es delegar la llamada al repository
 
 export class HealthService {
   private readonly repo: HealthRepository;
