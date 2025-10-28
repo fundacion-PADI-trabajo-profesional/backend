@@ -18,3 +18,10 @@ model Evaluacion {
   id     String @id @default(uuid())
   titulo String
 }
+
+model Usuario {
+  id        String   @id @default(uuid())
+  username     String   @unique
+  password  String   // Hash con bcrypt
+  createdAt DateTime @default(now())
+}
