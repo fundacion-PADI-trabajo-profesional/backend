@@ -52,6 +52,65 @@ export class EvaluacionRepository {
 
     return null;
   }
+
+  // ----- Evaluaciones realizadas (instancias) -----
+  // Tipado mínimo para evitar depender de la generación local
+  async listInstancias(): Promise<{
+    id: string;
+    estudianteId: string;
+    salaId: number;
+    tipoId: string;
+    estadoId: string;
+    puntaje?: number | null;
+    createdAt: Date;
+  }[]> {
+    const prisma = getPrisma();
+    if (!prisma) return [];
+    return (prisma as any).evaluacionEstudiante.findMany({
+      orderBy: { createdAt: "desc" },
+      select: { id: true, estudianteId: true, salaId: true, tipoId: true, estadoId: true, puntaje: true, createdAt: true },
+    });
+  }
+
+  async getInstanciaById(id: string): Promise<{
+    id: string;
+    estudianteId: string;
+    salaId: number;
+    tipoId: string;
+    estadoId: string;
+    puntaje?: number | null;
+    createdAt: Date;
+  } | null> {
+    const prisma = getPrisma();
+    if (!prisma) return null;
+    return (prisma as any).evaluacionEstudiante.findUnique({
+      where: { id },
+      select: { id: true, estudianteId: true, salaId: true, tipoId: true, estadoId: true, puntaje: true, createdAt: true },
+    });
+  }
+
+  async createInstancia(input: {
+    estudianteId: string;
+    salaId: number;
+    tipoId: string;
+    estadoId: string;
+    puntaje?: number | null;
+  }): Promise<{
+    id: string;
+    estudianteId: string;
+    salaId: number;
+    tipoId: string;
+    estadoId: string;
+    puntaje?: number | null;
+    createdAt: Date;
+  }> {
+    const prisma = getPrisma();
+    if (!prisma) throw new Error("DB not available");
+    return (prisma as any).evaluacionEstudiante.create({
+      data: input,
+      select: { id: true, estudianteId: true, salaId: true, tipoId: true, estadoId: true, puntaje: true, createdAt: true },
+    });
+  }
 }
 
 

@@ -14,6 +14,7 @@ datasource db {
 }
 
 
+// Plantilla/catálogo de evaluaciones (definiciones, no instancias realizadas)
 model Evaluacion {
   id     String @id @default(uuid())
   titulo String
@@ -24,4 +25,17 @@ model Usuario {
   username     String   @unique
   password  String   // Hash con bcrypt
   createdAt DateTime @default(now())
+}
+
+// Instancia de evaluación realizada por un estudiante (quién/cuándo/estado/puntaje)
+model EvaluacionEstudiante {
+  id           String   @id @default(uuid()) @db.Uuid
+  estudianteId String   @db.Uuid
+  salaId       Int      @db.SmallInt
+  tipoId       String
+  estadoId     String
+  puntaje      Float?
+  createdAt    DateTime @default(now())
+
+  @@map("evaluaciones_estudiante")
 }
