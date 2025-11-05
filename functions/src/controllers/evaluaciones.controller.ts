@@ -34,12 +34,17 @@ export async function getEvaluacionInstanciaById(req: Request, res: Response) {
 }
 
 export async function createEvaluacionInstancia(req: Request, res: Response) {
-  const { estudianteId, salaId, tipoId, estadoId, puntaje } = req.body ?? {};
-  if (!estudianteId || !salaId || !tipoId || !estadoId) {
-    return res.status(400).json(commonResponse(false, "validation_error", null, { code: "VALIDATION_ERROR" }));
+  try {
+    const { estudianteId, salaId, tipoId, estadoId, puntaje } = req.body ?? {};
+    if (!estudianteId || !salaId || !tipoId || !estadoId) {
+      return res.status(400).json(commonResponse(false, "validation_error", null, { code: "VALIDATION_ERROR" }));
+    }
+    const data = await service.createInstancia({ estudianteId, salaId: Number(salaId), tipoId, estadoId, puntaje });
+    res.status(201).json(commonResponse(true, "ok", data));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(500).json(commonResponse(false, "internal_error", null, { code: "INTERNAL_ERROR", description: message }));
   }
-  const data = await service.createInstancia({ estudianteId, salaId: Number(salaId), tipoId, estadoId, puntaje });
-  res.status(201).json(commonResponse(true, "ok", data));
 }
 
 
