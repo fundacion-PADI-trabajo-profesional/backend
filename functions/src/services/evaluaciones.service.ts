@@ -15,6 +15,25 @@ export class EvaluacionesService {
   async getById(id: string): Promise<Evaluacion | null> {
     return this.repo.getById(id);
   }
+
+  // Instancias (evaluaciones realizadas)
+  listInstancias() {
+    return this.repo.listInstancias();
+  }
+
+  getInstanciaById(id: string) {
+    return this.repo.getInstanciaById(id);
+  }
+
+  createInstancia(input: {
+    estudianteId: string;
+    salaId: number;
+    tipoId: string;
+    estadoId: string;
+    puntaje?: number | null;
+  }) {
+    return this.repo.createInstancia(input);
+  }
 }
 
 
