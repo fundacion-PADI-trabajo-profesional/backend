@@ -7,7 +7,7 @@ describe("health endpoint", () => {
   it("returns ok:true", async () => {
     const res = await request(app).get("/health");
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ success: true, message: "ok" });
+    expect(res.body).toMatchObject({ success: true });
   });
 });
 

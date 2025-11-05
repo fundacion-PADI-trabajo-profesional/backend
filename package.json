@@ -2,7 +2,7 @@
   "name": "tpp-padi-backend",
   "private": true,
   "scripts": {
-    "dev": "concurrently -k -n tsc,emul \"npm --prefix functions run build:watch\" \"firebase emulators:start --only functions\"",
+    "dev": "concurrently -k -n tsc,emul \"npm --prefix functions run build:watch\" \"npm --prefix functions run dev:emul\"",
     "build": "npm --prefix functions run build",
     "test": "npm --prefix functions run test"
   },

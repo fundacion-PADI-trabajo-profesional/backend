@@ -10,6 +10,7 @@
     "build": "rimraf lib && tsc -p tsconfig.json",
     "build:watch": "tsc -w -p tsconfig.json",
     "test": "vitest run",
+    "dev:emul": "dotenv -e .env.local -- firebase emulators:start --only functions",
     "prisma:gen": "NODE_OPTIONS=--dns-result-order=ipv4first dotenv -e prisma/.env -- prisma generate --schema=prisma/schema.prisma",
     "prisma:push": "NODE_OPTIONS=--dns-result-order=ipv4first dotenv -e prisma/.env -- prisma db push --schema=prisma/schema.prisma",
     "prisma:setup": "npm run prisma:gen && npm run prisma:push"
