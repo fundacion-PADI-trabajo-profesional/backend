@@ -14,10 +14,17 @@ describe("auth endpoints", () => {
     vi.spyOn(supabaseClient, "getSupabase").mockReturnValue({
       auth: {
         signInWithPassword: vi.fn().mockResolvedValue({
-          data: { user: { id: "user-1", email: "test@example.com" } },
+          data: { user: { id: "user-1", email: "test@example.com" }, session: { access_token: "t" } },
           error: null,
         }),
       },
+      from: () => ({
+        select: () => ({
+          eq: () => ({
+            single: vi.fn().mockResolvedValue({ data: { id: "user-1", rol: "docente" }, error: null }),
+          }),
+        }),
+      }),
     } as any);
 
     const res = await request(app)
@@ -37,6 +44,7 @@ describe("auth endpoints", () => {
           error: { message: "Invalid login" },
         }),
       },
+      from: () => ({ select: () => ({ eq: () => ({ single: vi.fn() }) }) }),
     } as any);
 
     const res = await request(app)

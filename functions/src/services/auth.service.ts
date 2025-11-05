@@ -13,8 +13,22 @@ export class AuthService {
       password,
     });
 
-    if (error) throw new Error("Credenciales inválidas");
-    return data;
+    if (error || !data?.user) throw new Error("Credenciales inválidas");
+
+    // Obtener perfil desde public.usuarios
+    let profile: any = null;
+    try {
+      const { data: profileData } = await (supabase as any)
+        .from("usuarios")
+        .select("*")
+        .eq("id", data.user.id)
+        .single();
+      profile = profileData ?? null;
+    } catch (_e) {
+      profile = null;
+    }
+
+    return { user: data.user, session: data.session, profile };
   }
 
   /**

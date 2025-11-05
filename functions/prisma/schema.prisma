@@ -20,11 +20,22 @@ model Evaluacion {
   titulo String
 }
 
-model Usuario {
-  id        String   @id @default(uuid())
-  username     String   @unique
-  password  String   // Hash con bcrypt
+enum Rol {
+  docente
+  director
+  encargado_zona
+  equipo_padi
+}
+
+model UsuarioPerfil {
+  id        String   @id @db.Uuid
+  email     String   @unique
+  nombre    String
+  apellido  String
+  rol       Rol
   createdAt DateTime @default(now())
+
+  @@map("usuarios") // mapea a la tabla public.usuarios de Supabase
 }
 
 // Instancia de evaluación realizada por un estudiante (quién/cuándo/estado/puntaje)
