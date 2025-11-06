@@ -34,6 +34,18 @@ export class EvaluacionesService {
   }) {
     return this.repo.createInstancia(input);
   }
+  actualizarInstancia(id: string, input: {
+    estudianteId?: string;
+    salaId?: number;
+    tipoId?: string;
+    estadoId?: string;
+    puntaje?: number | null;
+  }) {
+    return this.repo.actualizarInstancia(id, input);
+  }
+  eliminarInstancia(id: string) {
+    return this.repo.eliminarInstancia(id);
+  }
 }
 
 

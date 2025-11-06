@@ -66,7 +66,7 @@ export class EvaluacionRepository {
   }[]> {
     const prisma = getPrisma();
     if (!prisma) return [];
-    return (prisma as any).evaluacionEstudiante.findMany({
+    return (prisma as any).EvaluacionEstudiante.findMany({
       orderBy: { createdAt: "desc" },
       select: { id: true, estudianteId: true, salaId: true, tipoId: true, estadoId: true, puntaje: true, createdAt: true },
     });
@@ -83,7 +83,7 @@ export class EvaluacionRepository {
   } | null> {
     const prisma = getPrisma();
     if (!prisma) return null;
-    return (prisma as any).evaluacionEstudiante.findUnique({
+    return (prisma as any).EvaluacionEstudiante.findUnique({
       where: { id },
       select: { id: true, estudianteId: true, salaId: true, tipoId: true, estadoId: true, puntaje: true, createdAt: true },
     });
@@ -106,10 +106,42 @@ export class EvaluacionRepository {
   }> {
     const prisma = getPrisma();
     if (!prisma) throw new Error("DB not available");
-    return (prisma as any).evaluacionEstudiante.create({
+    return (prisma as any).EvaluacionEstudiante.create({
       data: input,
       select: { id: true, estudianteId: true, salaId: true, tipoId: true, estadoId: true, puntaje: true, createdAt: true },
     });
+  }
+  async actualizarInstancia(id: string, input: {
+    estudianteId?: string;
+    salaId?: number;
+    tipoId?: string;
+    estadoId?: string;
+    puntaje?: number | null;
+  }): Promise<{
+    id: string;
+    estudianteId: string;
+    salaId: number;
+    tipoId: string;
+    estadoId: string;
+    puntaje?: number | null;
+    createdAt: Date;
+  } | null> {
+    const prisma = getPrisma();
+    if (!prisma) throw new Error("DB not available");
+    const updated = await (prisma as any).EvaluacionEstudiante.updateMany({
+      where: { id },
+      data: input,
+    });
+    if (updated.count === 0) return null;
+    return this.getInstanciaById(id);
+  }
+  async eliminarInstancia(id: string): Promise<boolean> {
+    const prisma = getPrisma();
+    if (!prisma) throw new Error("DB not available");
+    const deleted = await (prisma as any).EvaluacionEstudiante.deleteMany({
+      where: { id },
+    });
+    return deleted.count > 0;
   }
 }
 
