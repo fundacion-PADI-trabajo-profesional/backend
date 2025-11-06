@@ -57,10 +57,30 @@ npx prisma db push --schema=prisma/schema.prisma
 ```bash
 npm --prefix TPP-PADI/backend/functions run test
 ```
-
-5) Levantar en desarrollo (emulador + watcher)
+4) Crear un cliente de Prisma al correr el proyecto por primera vez
 ```bash
-cd /home/nishy/TPP-PADI/backend
+cd backend/fuctions/prisma
+npx dotenv -e .env -- npx prisma generate
+```
+
+5) Incializar el cliente de Supabase al correr el proyecto por primera vez
+```bash
+cd backend/functions
+```
+Crear un archivo .env.local con el siguiente contenido:
+```bash
+SUPABASE_URL= url
+SUPABASE_KEY= key de supabase
+```
+
+Luego, correr desde /backend:
+```bash
+npm install && npm --prefix functions install
+```
+
+6) Levantar en desarrollo (emulador + watcher)
+```bash
+cd backend
 # exporta DB si vas a usar Prisma en dev
 set -a; source functions/prisma/.env; set +a
 npm run dev
