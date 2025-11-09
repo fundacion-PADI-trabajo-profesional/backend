@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import { createHealthRouter } from "./routes/health.router";
 import { createEvaluacionesRouter } from "./routes/evaluaciones.router";
+import { createEstudiantesRouter } from "./routes/estudiantes.router"
 import authRouter from "./routes/auth.router";
 
 export function createApp() {
@@ -11,6 +12,7 @@ export function createApp() {
 
   app.use(createHealthRouter());
   app.use(createEvaluacionesRouter());
+  app.use(createEstudiantesRouter());
   app.use("/auth", authRouter);
 
   return app;

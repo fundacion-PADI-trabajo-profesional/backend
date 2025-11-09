@@ -105,7 +105,7 @@ export class EvaluacionRepository {
     createdAt: Date;
   }> {
     const prisma = getPrisma();
-    if (!prisma) throw new Error("DB not available");
+    if (!prisma) throw new Error("DB not available to create Evaluacion");
     return (prisma as any).EvaluacionEstudiante.create({
       data: input,
       select: { id: true, estudianteId: true, salaId: true, tipoId: true, estadoId: true, puntaje: true, createdAt: true },
