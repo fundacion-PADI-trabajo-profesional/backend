@@ -1,3 +1,5 @@
+// Archivo: estudiante.repository.ts
+
 import { Prisma, PrismaClient } from "@prisma/client"
 import { getPrisma } from "../config/prismaClient"
 
@@ -19,10 +21,12 @@ export const EstudianteRepository = {
         if (!prisma) throw new Error("DB not available to create Estudiante")
 
         try {
+            // Esta función ya usaba transacción y nombres plurales,
+            // por eso probablemente siempre funcionó.
             const result = await prisma.$transaction(async (tx) => {
                 const txAny = tx as any
 
-                //cCrear la persona
+                // Crear la persona (plural)
                 const nuevaPersona = await txAny.personas.create({
                     data: {
                         dni,
@@ -32,7 +36,7 @@ export const EstudianteRepository = {
                     },
                 })
 
-                //obtener la sala
+                // obtener la sala (plural)
                 const sala = await txAny.salas.findUnique({
                     where: { id: sala_id },
                     select: { grado: true },
@@ -42,7 +46,7 @@ export const EstudianteRepository = {
                     throw new Error("La sala seleccionada no existe")
                 }
 
-                //crear el estudiante
+                // crear el estudiante (plural)
                 const nuevoEstudiante = await txAny.estudiantes.create({
                     data: {
                         persona_id: nuevaPersona.id,
@@ -74,29 +78,34 @@ export const EstudianteRepository = {
         if (!prisma) throw new Error("DB not available to fetch Estudiantes")
 
         try {
-            const txAny = prisma as any
-            const estudiantes = await txAny.estudiantes.findMany({
-                include: {
-                    personas: {
-                        select: {
-                            nombre: true,
-                            primer_apellido: true,
-                            segundo_apellido: true,
-                            dni: true,
+            // Mantenemos la transacción...
+            const estudiantes = await prisma.$transaction(async (tx) => {
+                const txAny = tx as any
+
+                // ...pero usamos el nombre PLURAL correcto
+                return await txAny.estudiantes.findMany({
+                    include: {
+                        personas: {
+                            select: {
+                                nombre: true,
+                                primer_apellido: true,
+                                segundo_apellido: true,
+                                dni: true,
+                            },
+                        },
+                        salas: {
+                            select: {
+                                nombre: true,
+                                grado: true,
+                            },
+                        },
+                        generos: {
+                            select: {
+                                descripcion: true,
+                            },
                         },
                     },
-                    salas: {
-                        select: {
-                            nombre: true,
-                            grado: true,
-                        },
-                    },
-                    generos: {
-                        select: {
-                            nombre: true,
-                        },
-                    },
-                },
+                })
             })
             return estudiantes
         } catch (error) {
@@ -110,8 +119,12 @@ export const EstudianteRepository = {
         if (!prisma) throw new Error("DB not available to fetch Géneros")
 
         try {
-            const txAny = prisma as any
-            return await txAny.generos.findMany()
+            // Mantenemos la transacción...
+            return await prisma.$transaction(async (tx) => {
+                const txAny = tx as any
+                // ...pero usamos el nombre PLURAL correcto
+                return await txAny.generos.findMany()
+            })
         } catch (error) {
             console.error("Error en getGeneros:", error)
             throw new Error("Error al obtener géneros.")
@@ -123,13 +136,17 @@ export const EstudianteRepository = {
         if (!prisma) throw new Error("DB not available to fetch Salas")
 
         try {
-            const txAny = prisma as any
-            return await txAny.salas.findMany({
-                select: {
-                    id: true,
-                    nombre: true,
-                    grado: true,
-                },
+            // Mantenemos la transacción...
+            return await prisma.$transaction(async (tx) => {
+                const txAny = tx as any
+                // ...pero usamos el nombre PLURAL correcto
+                return await txAny.salas.findMany({
+                    select: {
+                        id: true,
+                        nombre: true,
+                        grado: true,
+                    },
+                })
             })
         } catch (error) {
             console.error("Error en getSalas:", error)
