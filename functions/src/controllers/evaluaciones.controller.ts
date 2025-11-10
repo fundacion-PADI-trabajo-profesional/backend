@@ -23,7 +23,18 @@ export async function getEvaluacionById(req: Request, res: Response) {
 // ---- Instancias ----
 export async function listEvaluacionesInstancias(_req: Request, res: Response) {
   try { 
-    const data = await service.listInstancias();
+    const { estudianteId, salaId, tipoId, estadoId, limit, offset } = (_req.query ?? {}) as Record<string, string>;
+
+    const parsed = {
+      estudianteId: estudianteId || undefined,
+      salaId: salaId !== undefined ? Number(salaId) : undefined,
+      tipoId: tipoId || undefined,
+      estadoId: estadoId || undefined,
+      limit: limit !== undefined ? Number(limit) : undefined,
+      offset: offset !== undefined ? Number(offset) : undefined,
+    };
+
+    const data = await service.listInstancias(parsed);
     res.status(200).json(commonResponse(true, "ok", data));
   } catch (error) { 
     const message = error instanceof Error ? error.message : String(error);

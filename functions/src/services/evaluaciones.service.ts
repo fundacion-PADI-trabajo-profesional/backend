@@ -17,8 +17,15 @@ export class EvaluacionesService {
   }
 
   // Instancias (evaluaciones realizadas)
-  listInstancias() {
-    return this.repo.listInstancias();
+  listInstancias(filters?: {
+    estudianteId?: string;
+    salaId?: number;
+    tipoId?: string;
+    estadoId?: string;
+    limit?: number;
+    offset?: number;
+  }) {
+    return this.repo.listInstancias(filters);
   }
 
   getInstanciaById(id: string) {

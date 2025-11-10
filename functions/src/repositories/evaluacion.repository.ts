@@ -55,7 +55,14 @@ export class EvaluacionRepository {
 
   // ----- Evaluaciones realizadas (instancias) -----
   // Tipado mínimo para evitar depender de la generación local
-  async listInstancias(): Promise<{
+  async listInstancias(filters?: {
+    estudianteId?: string;
+    salaId?: number;
+    tipoId?: string;
+    estadoId?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{
     id: string;
     estudiante_id: string; 
     profesor_id: string;   
@@ -67,7 +74,16 @@ export class EvaluacionRepository {
   }[]> {
     const prisma = getPrisma();
     if (!prisma) return [];
+    const where: any = {};
+    if (filters?.estudianteId) where.estudiante_id = filters.estudianteId;
+    if (typeof filters?.salaId === "number") where.sala_id = filters.salaId;
+    if (filters?.tipoId) where.tipo_id = filters.tipoId;
+    if (filters?.estadoId) where.estado_id = filters.estadoId;
+
     return prisma.evaluacionEstudiante.findMany({ // <-- 'e' minúscula
+      where,
+      skip: filters?.offset ?? 0,
+      take: filters?.limit ?? 50,
       orderBy: { 
         fecha_creacion: "desc" 
       },
@@ -79,7 +95,21 @@ export class EvaluacionRepository {
         tipo_id: true,       
         estado_id: true,     
         puntaje: true, 
-        fecha_creacion: true 
+        fecha_creacion: true,
+        // Incluimos datos mínimos del estudiante para mostrar en el front
+        estudiantes: {
+          select: {
+            id: true,
+            personas: {
+              select: {
+                nombre: true,
+                primer_apellido: true,
+                segundo_apellido: true,
+                dni: true,
+              },
+            },
+          },
+        },
       },
     });
   }
@@ -106,7 +136,20 @@ export class EvaluacionRepository {
         tipo_id: true,       
         estado_id: true,     
         puntaje: true, 
-        fecha_creacion: true 
+        fecha_creacion: true,
+        estudiantes: {
+          select: {
+            id: true,
+            personas: {
+              select: {
+                nombre: true,
+                primer_apellido: true,
+                segundo_apellido: true,
+                dni: true,
+              },
+            },
+          },
+        },
       },
     });
   }
