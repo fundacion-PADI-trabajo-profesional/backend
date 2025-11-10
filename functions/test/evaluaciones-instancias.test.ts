@@ -105,6 +105,54 @@ describe("evaluaciones instancias", () => {
     expect(res.body.data).toBeTruthy();
   });
 
+  it("PATCH /evaluaciones-instancias/:id updates and returns 200", async () => {
+    const spy = vi
+      .spyOn(evaluacionRepo.EvaluacionRepository.prototype, "actualizarInstancia")
+      .mockResolvedValue({
+        id: "e1",
+        estudiante_id: "s1",
+        profesor_id: "p1",
+        sala_id: 2,
+        tipo_id: "seguimiento",
+        estado_id: "C",
+        puntaje: 90,
+        fecha_creacion: new Date(),
+      } as any);
+
+    const res = await request(app)
+      .patch("/evaluaciones-instancias/e1")
+      .send({ salaId: 2, tipoId: "seguimiento", estadoId: "C", puntaje: 90 })
+      .set("Content-Type", "application/json");
+    expect(spy).toHaveBeenCalledWith("e1", {
+      estudianteId: undefined,
+      salaId: 2,
+      tipoId: "seguimiento",
+      estadoId: "C",
+      puntaje: 90,
+    });
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ success: true });
+  });
+
+  it("PATCH /evaluaciones-instancias/:id returns 404 when instance does not exist", async () => {
+    vi.spyOn(evaluacionRepo.EvaluacionRepository.prototype, "actualizarInstancia").mockResolvedValue(null);
+    const res = await request(app)
+      .patch("/evaluaciones-instancias/not-found")
+      .send({ estadoId: "C" })
+      .set("Content-Type", "application/json");
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ success: false });
+  });
+
+  it("DELETE /evaluaciones-instancias/:id returns 204 on success", async () => {
+    const spy = vi
+      .spyOn(evaluacionRepo.EvaluacionRepository.prototype, "eliminarInstancia")
+      .mockResolvedValue(true);
+    const res = await request(app).delete("/evaluaciones-instancias/e1");
+    expect(spy).toHaveBeenCalledWith("e1");
+    expect(res.status).toBe(204);
+  });
+
   it("POST /evaluaciones-instancias returns 400 when required fields are missing", async () => {
     const payload = {
       // estudianteId falta
