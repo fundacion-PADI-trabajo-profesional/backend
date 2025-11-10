@@ -57,84 +57,182 @@ export class EvaluacionRepository {
   // Tipado mínimo para evitar depender de la generación local
   async listInstancias(): Promise<{
     id: string;
-    estudianteId: string;
-    salaId: number;
-    tipoId: string;
-    estadoId: string;
+    estudiante_id: string; 
+    profesor_id: string;   
+    sala_id: number;       
+    tipo_id: string;       
+    estado_id: string;     
     puntaje?: number | null;
-    createdAt: Date;
+    fecha_creacion: Date;  
   }[]> {
     const prisma = getPrisma();
     if (!prisma) return [];
-    return (prisma as any).EvaluacionEstudiante.findMany({
-      orderBy: { createdAt: "desc" },
-      select: { id: true, estudianteId: true, salaId: true, tipoId: true, estadoId: true, puntaje: true, createdAt: true },
+    return prisma.evaluacionEstudiante.findMany({ // <-- 'e' minúscula
+      orderBy: { 
+        fecha_creacion: "desc" 
+      },
+      select: { 
+        id: true, 
+        estudiante_id: true, 
+        profesor_id: true,  
+        sala_id: true,       
+        tipo_id: true,       
+        estado_id: true,     
+        puntaje: true, 
+        fecha_creacion: true 
+      },
     });
   }
 
   async getInstanciaById(id: string): Promise<{
     id: string;
-    estudianteId: string;
-    salaId: number;
-    tipoId: string;
-    estadoId: string;
+    estudiante_id: string; 
+    profesor_id: string;  
+    sala_id: number;       
+    tipo_id: string;       
+    estado_id: string;     
     puntaje?: number | null;
-    createdAt: Date;
+    fecha_creacion: Date;  
   } | null> {
     const prisma = getPrisma();
     if (!prisma) return null;
-    return (prisma as any).EvaluacionEstudiante.findUnique({
+    return prisma.evaluacionEstudiante.findUnique({ // <-- 'e' minúscula
       where: { id },
-      select: { id: true, estudianteId: true, salaId: true, tipoId: true, estadoId: true, puntaje: true, createdAt: true },
+      select: { 
+        id: true, 
+        estudiante_id: true, 
+        profesor_id: true,  
+        sala_id: true,       
+        tipo_id: true,       
+        estado_id: true,     
+        puntaje: true, 
+        fecha_creacion: true 
+      },
     });
   }
 
   async createInstancia(input: {
     estudianteId: string;
+    profesorId: string;
     salaId: number;
     tipoId: string;
     estadoId: string;
     puntaje?: number | null;
   }): Promise<{
     id: string;
-    estudianteId: string;
-    salaId: number;
-    tipoId: string;
-    estadoId: string;
+    estudiante_id: string;
+    profesor_id: string;
+    sala_id: number;
+    tipo_id: string;
+    estado_id: string;
     puntaje?: number | null;
-    createdAt: Date;
+    fecha_creacion: Date;  
   }> {
     const prisma = getPrisma();
     if (!prisma) throw new Error("DB not available to create Evaluacion");
-    return (prisma as any).EvaluacionEstudiante.create({
-      data: input,
-      select: { id: true, estudianteId: true, salaId: true, tipoId: true, estadoId: true, puntaje: true, createdAt: true },
+
+    return prisma.evaluacionEstudiante.create({
+      data: {
+        // Campo escalar (el único que no es una relación directa)
+        puntaje: input.puntaje,
+        estudiantes: {
+          connect: { id: input.estudianteId }
+        },
+        profesores: {
+          connect: { id: input.profesorId } // <-- AÑADIDO
+        },
+        salas: {
+          connect: { id: input.salaId } // <-- AÑADIDO
+        },        
+        tipos_evaluacion: {
+          connect: { id: input.tipoId } // <-- AÑADIDO
+        },
+        estados_evaluacion: {
+          connect: { id: input.estadoId } 
+        }
+      },  
+      
+      // El 'select' estaba bien, pero no es necesario si las columnas
+      // del 'input' se llamaran igual que en el schema (ej: estudiante_id)
+      // Lo dejamos como estaba porque funciona.
+      select: { 
+        id: true, 
+        estudiante_id: true, 
+        profesor_id: true,   
+        sala_id: true,       
+        tipo_id: true,       
+        estado_id: true,     
+        puntaje: true, 
+        fecha_creacion: true 
+      },
     });
   }
+
+//  async actualizarInstancia(id: string, input: {
+//    estudianteId?: string;
+//    salaId?: number;
+//    tipoId?: string;
+//    estadoId?: string;
+//    puntaje?: number | null;
+//  }): Promise<{
+//    id: string;
+//    estudianteId: string;
+//    salaId: number;
+//    tipoId: string;
+//    estadoId: string;
+//    puntaje?: number | null;
+//    createdAt: Date;
+//  } | null> {
+//    const prisma = getPrisma();
+//    if (!prisma) throw new Error("DB not available");
+//    const updated = await (prisma as any).EvaluacionEstudiante.updateMany({
+//      where: { id },
+//      data: input,
+//    });
+//    if (updated.count === 0) return null;
+//      return this.getInstanciaById(id);
+//  }
+
+  // En evaluacion.repository.ts
+
   async actualizarInstancia(id: string, input: {
     estudianteId?: string;
+    profesorId?: string; 
     salaId?: number;
     tipoId?: string;
     estadoId?: string;
     puntaje?: number | null;
-  }): Promise<{
+  }): Promise<{ 
     id: string;
-    estudianteId: string;
-    salaId: number;
-    tipoId: string;
-    estadoId: string;
+    estudiante_id: string;   
+    profesor_id: string;   
+    sala_id: number;       
+    tipo_id: string;       
+    estado_id: string;     
     puntaje?: number | null;
-    createdAt: Date;
+    fecha_creacion: Date;  
   } | null> {
     const prisma = getPrisma();
     if (!prisma) throw new Error("DB not available");
-    const updated = await (prisma as any).EvaluacionEstudiante.updateMany({
+
+    const dataToUpdate: any = {};
+    if (input.estudianteId !== undefined) dataToUpdate.estudiante_id = input.estudianteId;
+    if (input.profesorId !== undefined) dataToUpdate.profesor_id = input.profesorId;
+    if (input.salaId !== undefined) dataToUpdate.sala_id = input.salaId;
+    if (input.tipoId !== undefined) dataToUpdate.tipo_id = input.tipoId;
+    if (input.estadoId !== undefined) dataToUpdate.estado_id = input.estadoId;
+    if (input.puntaje !== undefined) dataToUpdate.puntaje = input.puntaje;
+    
+    const updated = await prisma.evaluacionEstudiante.updateMany({
       where: { id },
-      data: input,
+      data: dataToUpdate,
     });
+    
     if (updated.count === 0) return null;
+    
     return this.getInstanciaById(id);
   }
+
   async eliminarInstancia(id: string): Promise<boolean> {
     const prisma = getPrisma();
     if (!prisma) throw new Error("DB not available");

@@ -22,10 +22,10 @@ export async function getEvaluacionById(req: Request, res: Response) {
 
 // ---- Instancias ----
 export async function listEvaluacionesInstancias(_req: Request, res: Response) {
-  try { // <--- Añadir try
+  try { 
     const data = await service.listInstancias();
     res.status(200).json(commonResponse(true, "ok", data));
-  } catch (error) { // <--- Añadir catch
+  } catch (error) { 
     const message = error instanceof Error ? error.message : String(error);
     console.error("ERROR en listEvaluacionesInstancias:", error); // <-- ¡Verías esto!
     res.status(500).json(commonResponse(false, "internal_error", null, { code: "INTERNAL_ERROR", description: message }));
@@ -41,9 +41,15 @@ export async function getEvaluacionInstanciaById(req: Request, res: Response) {
 
 export async function createEvaluacionInstancia(req: Request, res: Response) {
   try {
+
+    const hardcodedProfesorId = "8394048f-2a1f-4874-93e6-6465fa804543"; // Reemplaza con un ID válido si es necesario
     const { estudianteId, salaId, tipoId, estadoId, puntaje } = req.body ?? {};
+    
     if (!estudianteId || !salaId || !tipoId || !estadoId) {
-      return res.status(400).json(commonResponse(false, "validation_error", null, { code: "VALIDATION_ERROR" }));
+      return res.status(400).json(commonResponse(false, "validation_error", null, { 
+        code: "VALIDATION_ERROR", 
+        description: "Faltan campos obligatorios (estudiante, sala, tipo, o estado)" 
+      }));
     }
 
     // Convierte 'puntaje' a número o null.
@@ -57,11 +63,25 @@ export async function createEvaluacionInstancia(req: Request, res: Response) {
       return res.status(400).json(commonResponse(false, "validation_error", null, { code: "INVALID_PUNTAJE", description: "El puntaje debe ser un número válido" }));
     }
 
-    const data = await service.createInstancia({ estudianteId, salaId: Number(salaId), tipoId, estadoId, puntaje: puntajeAsNumber });
+    //cambio const data = await service.createInstancia({ estudianteId, salaId: Number(salaId), tipoId, estadoId, puntaje: puntajeAsNumber });
+    const data = await service.createInstancia({ 
+      estudianteId,
+      profesorId: hardcodedProfesorId,
+      salaId: Number(salaId),
+      tipoId,
+      estadoId,
+      puntaje: puntajeAsNumber
+    });
+
     res.status(201).json(commonResponse(true, "ok", data));
   } catch (error) {
+    console.error("Error en createEvaluacionInstancia:", error);
     const message = error instanceof Error ? error.message : String(error);
-    res.status(500).json(commonResponse(false, "internal_error", null, { code: "INTERNAL_ERROR", description: message }));
+    res.status(500).json(commonResponse(false, "internal_error", null, { 
+      code: "INTERNAL_ERROR", 
+      // @ts-ignore
+      description: message || error.meta?.cause // <-- Esto enviará el error P2025 al front
+    }));
   }
 }
 
@@ -93,6 +113,7 @@ export async function actualizarEvaluacionInstancia(req: Request, res: Response)
     res.status(200).json(commonResponse(true, "ok", data));
 
   } catch (error) {
+    console.error("Error en actualizarEvaluacionInstancia:", error);
     const message = error instanceof Error ? error.message : String(error);
     res.status(500).json(commonResponse(false, "internal_error", null, { code: "INTERNAL_ERROR", description: message }));
   }
@@ -111,6 +132,7 @@ export async function eliminarEvaluacionInstancia(req: Request, res: Response) {
     res.status(204).send(); 
 
   } catch (error) {
+    console.error("Error en eliminarEvaluacionInstancia:", error);
     const message = error instanceof Error ? error.message : String(error);
     res.status(500).json(commonResponse(false, "internal_error", null, { code: "INTERNAL_ERROR", description: message }));
   }

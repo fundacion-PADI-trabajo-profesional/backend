@@ -27,6 +27,7 @@ export class EvaluacionesService {
 
   createInstancia(input: {
     estudianteId: string;
+    profesorId: string; // <-- AÑADIDO
     salaId: number;
     tipoId: string;
     estadoId: string;
