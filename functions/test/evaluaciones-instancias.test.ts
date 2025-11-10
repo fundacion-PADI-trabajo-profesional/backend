@@ -14,12 +14,13 @@ beforeEach(() => {
   vi.spyOn(evaluacionRepo.EvaluacionRepository.prototype, "listInstancias").mockResolvedValue([
     {
       id: "e1",
-      estudianteId: "s1",
-      salaId: 1,
-      tipoId: "diagnostico",
-      estadoId: "N",
+      estudiante_id: "s1",
+      profesor_id: "p1",
+      sala_id: 1,
+      tipo_id: "diagnostico",
+      estado_id: "N",
       puntaje: null,
-      createdAt: new Date(),
+      fecha_creacion: new Date(),
     },
   ]);
   
@@ -27,8 +28,13 @@ beforeEach(() => {
   
   vi.spyOn(evaluacionRepo.EvaluacionRepository.prototype, "createInstancia").mockImplementation(async (input: any) => ({
     id: "new-id",
-    createdAt: new Date(),
-    ...input,
+    estudiante_id: input.estudianteId,
+    profesor_id: input.profesorId ?? "p1",
+    sala_id: input.salaId,
+    tipo_id: input.tipoId,
+    estado_id: input.estadoId,
+    puntaje: input.puntaje ?? null,
+    fecha_creacion: new Date(),
   }));
 });
 
@@ -38,6 +44,42 @@ describe("evaluaciones instancias", () => {
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ success: true });
     expect(Array.isArray(res.body.data)).toBe(true);
+  });
+
+  it("GET /evaluaciones-instancias passes filters to repository", async () => {
+    const spy = vi
+      .spyOn(evaluacionRepo.EvaluacionRepository.prototype, "listInstancias")
+      .mockResolvedValue([]);
+
+    const res = await request(app).get(
+      "/evaluaciones-instancias?estudianteId=s1&salaId=2&tipoId=diagnostico&estadoId=N&limit=10&offset=5",
+    );
+    expect(res.status).toBe(200);
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith({
+      estudianteId: "s1",
+      salaId: 2,
+      tipoId: "diagnostico",
+      estadoId: "N",
+      limit: 10,
+      offset: 5,
+    });
+  });
+
+  it("GET /evaluaciones-instancias without filters still calls repo with undefineds", async () => {
+    const spy = vi
+      .spyOn(evaluacionRepo.EvaluacionRepository.prototype, "listInstancias")
+      .mockResolvedValue([]);
+    const res = await request(app).get("/evaluaciones-instancias");
+    expect(res.status).toBe(200);
+    expect(spy).toHaveBeenCalledWith({
+      estudianteId: undefined,
+      salaId: undefined,
+      tipoId: undefined,
+      estadoId: undefined,
+      limit: undefined,
+      offset: undefined,
+    });
   });
 
   it("GET /evaluaciones-instancias/:id returns 404 when missing", async () => {
