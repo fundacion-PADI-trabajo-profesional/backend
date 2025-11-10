@@ -104,6 +104,53 @@ describe("evaluaciones instancias", () => {
     expect(res.body).toMatchObject({ success: true });
     expect(res.body.data).toBeTruthy();
   });
+
+  it("POST /evaluaciones-instancias returns 400 when required fields are missing", async () => {
+    const payload = {
+      // estudianteId falta
+      salaId: 1,
+      tipoId: "diagnostico",
+      estadoId: "N",
+    };
+    const res = await request(app)
+      .post("/evaluaciones-instancias")
+      .send(payload)
+      .set("Content-Type", "application/json");
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      success: false,
+      error: { code: "VALIDATION_ERROR" },
+    });
+  });
+
+  it("POST /evaluaciones-instancias returns 400 when puntaje is invalid", async () => {
+    const payload = {
+      estudianteId: "s1",
+      salaId: 1,
+      tipoId: "diagnostico",
+      estadoId: "N",
+      puntaje: "no-numero",
+    } as any;
+    const res = await request(app)
+      .post("/evaluaciones-instancias")
+      .send(payload)
+      .set("Content-Type", "application/json");
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      success: false,
+      error: { code: "INVALID_PUNTAJE" },
+    });
+  });
+
+  it("DELETE /evaluaciones-instancias/:id returns 404 when instance does not exist", async () => {
+    const spy = vi
+      .spyOn(evaluacionRepo.EvaluacionRepository.prototype, "eliminarInstancia")
+      .mockResolvedValue(false);
+    const res = await request(app).delete("/evaluaciones-instancias/not-found-id");
+    expect(spy).toHaveBeenCalledWith("not-found-id");
+    expect(res.status).toBe(404);
+    expect(res.body).toMatchObject({ success: false });
+  });
 });
 
 
