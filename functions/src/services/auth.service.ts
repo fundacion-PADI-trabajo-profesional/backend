@@ -1,4 +1,5 @@
 import { getSupabase } from "../config/supabaseClient";
+import { getPrisma } from "../config/prismaClient";
 
 export class AuthService {
   /**
@@ -66,6 +67,37 @@ export class AuthService {
       // Importante: Si esto falla, deberíamos borrar el usuario de Auth para evitar datos inconsistentes.
       await supabase.auth.admin.deleteUser(authData.user.id);
       throw new Error(`No se pudo guardar el perfil de usuario: ${profileError.message}`);
+    }
+
+    // 3. Si es docente, crear persona + profesor vinculados (para que evaluaciones se asocien correctamente)
+    if (userData.rol === "docente") {
+      const prisma = getPrisma();
+      if (prisma) {
+        try {
+          // Si ya existe el profesor con ese id, no duplicar
+          const existing = await (prisma as any).profesores.findUnique({ where: { id: authData.user.id } });
+          if (!existing) {
+            const persona = await (prisma as any).personas.create({
+              data: {
+                nombre: userData.nombre ?? null,
+                primer_apellido: userData.apellido ?? null,
+              },
+            });
+            await (prisma as any).profesores.create({
+              data: {
+                id: authData.user.id,
+                persona_id: persona.id,
+              },
+            });
+          }
+        } catch (e: any) {
+          // En caso de error, limpiamos el usuario creado para no dejar datos inconsistentes
+          await supabase.auth.admin.deleteUser(authData.user.id);
+          // y tratamos de eliminar el perfil insertado
+          try { await (supabase as any).from("usuarios").delete().eq("id", authData.user.id); } catch {}
+          throw new Error(`No se pudo crear el registro de profesor: ${e?.message || String(e)}`);
+        }
+      }
     }
 
     return authData;
