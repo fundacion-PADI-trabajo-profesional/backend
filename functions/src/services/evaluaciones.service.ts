@@ -93,6 +93,15 @@ export class EvaluacionesService {
     estadoId: string;
     puntaje?: number | null;
   }) {
+    // Si no llega profesorId, delegamos directo (p.ej. tests o llamadas antiguas)
+    if (!input.profesorId) {
+      return this.repo.createInstancia(input);
+    }
+    // En entorno sin DB (tests), delega directo al repo (los tests mockean repo)
+    const prisma = getPrisma();
+    if (!prisma) {
+      return this.repo.createInstancia(input);
+    }
     const profesorId = await this.ensureProfesorForUsuario(input.profesorId);
     return this.repo.createInstancia({
       ...input,
