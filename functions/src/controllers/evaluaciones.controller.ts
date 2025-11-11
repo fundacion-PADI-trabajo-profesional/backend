@@ -23,10 +23,11 @@ export async function getEvaluacionById(req: Request, res: Response) {
 // ---- Instancias ----
 export async function listEvaluacionesInstancias(_req: Request, res: Response) {
   try { 
-    const { estudianteId, salaId, tipoId, estadoId, limit, offset } = (_req.query ?? {}) as Record<string, string>;
+    const { estudianteId, profesorId, salaId, tipoId, estadoId, limit, offset } = (_req.query ?? {}) as Record<string, string>;
 
     const parsed = {
       estudianteId: estudianteId || undefined,
+      profesorId: profesorId || undefined,
       salaId: salaId !== undefined ? Number(salaId) : undefined,
       tipoId: tipoId || undefined,
       estadoId: estadoId || undefined,
@@ -53,8 +54,7 @@ export async function getEvaluacionInstanciaById(req: Request, res: Response) {
 export async function createEvaluacionInstancia(req: Request, res: Response) {
   try {
 
-    const hardcodedProfesorId = "8394048f-2a1f-4874-93e6-6465fa804543"; // Reemplaza con un ID válido si es necesario
-    const { estudianteId, salaId, tipoId, estadoId, puntaje } = req.body ?? {};
+    const { estudianteId, profesorId, salaId, tipoId, estadoId, puntaje } = req.body ?? {};
     
     if (!estudianteId || !salaId || !tipoId || !estadoId) {
       return res.status(400).json(commonResponse(false, "validation_error", null, { 
@@ -74,10 +74,10 @@ export async function createEvaluacionInstancia(req: Request, res: Response) {
       return res.status(400).json(commonResponse(false, "validation_error", null, { code: "INVALID_PUNTAJE", description: "El puntaje debe ser un número válido" }));
     }
 
-    //cambio const data = await service.createInstancia({ estudianteId, salaId: Number(salaId), tipoId, estadoId, puntaje: puntajeAsNumber });
+    // Si no llega profesorId, se podría resolver desde la sesión en futuro
     const data = await service.createInstancia({ 
       estudianteId,
-      profesorId: hardcodedProfesorId,
+      profesorId: profesorId,
       salaId: Number(salaId),
       tipoId,
       estadoId,

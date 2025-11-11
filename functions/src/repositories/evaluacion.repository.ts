@@ -57,6 +57,7 @@ export class EvaluacionRepository {
   // Tipado mínimo para evitar depender de la generación local
   async listInstancias(filters?: {
     estudianteId?: string;
+    profesorId?: string;
     salaId?: number;
     tipoId?: string;
     estadoId?: string;
@@ -76,6 +77,7 @@ export class EvaluacionRepository {
     if (!prisma) return [];
     const where: any = {};
     if (filters?.estudianteId) where.estudiante_id = filters.estudianteId;
+    if (filters?.profesorId) where.profesor_id = filters.profesorId;
     if (typeof filters?.salaId === "number") where.sala_id = filters.salaId;
     if (filters?.tipoId) where.tipo_id = filters.tipoId;
     if (filters?.estadoId) where.estado_id = filters.estadoId;
