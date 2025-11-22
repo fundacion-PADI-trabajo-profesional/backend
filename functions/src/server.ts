@@ -5,6 +5,7 @@ import { createEvaluacionesRouter } from "./routes/evaluaciones.router";
 import { createEstudiantesRouter } from "./routes/estudiantes.router"
 import { createDocentesRouter } from "./routes/docentes.router"
 import { createEncargadosRouter } from "./routes/encargado-zona.router";
+import { createDirectivosRouter } from "./routes/directivos.router"
 import authRouter from "./routes/auth.router";
 
 export function createApp() {
@@ -16,6 +17,7 @@ export function createApp() {
   app.use(createEvaluacionesRouter());
   app.use(createEstudiantesRouter());
   app.use(createDocentesRouter());
+  app.use(createDirectivosRouter());
   app.use(createEncargadosRouter());
   app.use("/auth", authRouter);
 

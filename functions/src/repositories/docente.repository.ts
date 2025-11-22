@@ -1,10 +1,5 @@
 import { getPrisma } from "../config/prismaClient";
-
-export interface DocenteItem {
-  id: string;
-  nombre: string;
-  apellido: string;
-}
+import { DocenteItem } from "../interfaces/docente.interface";
 
 export const DocenteRepository = {
   async list(): Promise<DocenteItem[]> {
