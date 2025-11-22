@@ -32,8 +32,8 @@ export class AuthService {
     return { user: data.user, session: data.session, profile };
   }
 
-  /**
-   * Registra un nuevo usuario en Auth y guarda su perfil en la tabla 'usuarios'.
+  /*
+   * Registra usuario completo: Auth + UsuarioPerfil + (Persona o Encargado según rol)
    */
   static async register(userData: {
     email: string;
@@ -41,63 +41,92 @@ export class AuthService {
     nombre: string;
     apellido: string;
     rol: string;
+    zona?: string; // <--- 1. Agregamos el parámetro opcional ZONA
   }) {
     const supabase = getSupabase();
-    if (!supabase) throw new Error("Supabase client no está disponible.");
+    const prisma = getPrisma();
 
-    // 1. Crear el usuario en Supabase Auth
+    if (!supabase || !prisma) throw new Error("Clientes de DB no disponibles.");
+
+    // ---------------------------------------------------------
+    // PASO 1: Crear la CUENTA (Supabase Auth)
+    // ---------------------------------------------------------
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: userData.email,
       password: userData.password,
     });
 
     if (authError) throw new Error(authError.message);
-    if (!authData.user) throw new Error("No se pudo crear el usuario en el sistema de autenticación.");
+    if (!authData.user) throw new Error("Error crítico al crear usuario en Auth.");
 
-    // 2. Guardar los datos extra en la tabla 'usuarios'
-    const { error: profileError } = await supabase.from("usuarios").insert({
-      id: authData.user.id, // Vincula el perfil al usuario de Auth
-      email: userData.email,
-      nombre: userData.nombre,
-      apellido: userData.apellido,
-      rol: userData.rol,
-    });
+    const userId = authData.user.id;
 
-    if (profileError) {
-      // Importante: Si esto falla, deberíamos borrar el usuario de Auth para evitar datos inconsistentes.
-      await supabase.auth.admin.deleteUser(authData.user.id);
-      throw new Error(`No se pudo guardar el perfil de usuario: ${profileError.message}`);
-    }
+    try {
+      // ---------------------------------------------------------
+      // PASO 2: Crear el PERFIL BÁSICO (Tabla 'usuarios')
+      // ---------------------------------------------------------
+      const { error: profileError } = await supabase.from("usuarios").insert({
+        id: userId,
+        email: userData.email,
+        nombre: userData.nombre,
+        apellido: userData.apellido,
+        rol: userData.rol,
+      });
 
-    // 3. Si es docente, crear persona + profesor vinculados (para que evaluaciones se asocien correctamente)
-    if (userData.rol === "docente") {
-      const prisma = getPrisma();
-      if (prisma) {
-        try {
-          // Si ya existe el profesor con ese id, no duplicar
-          const existing = await (prisma as any).profesores.findUnique({ where: { id: authData.user.id } });
-          if (!existing) {
-            const persona = await (prisma as any).personas.create({
-              data: {
-                nombre: userData.nombre ?? null,
-                primer_apellido: userData.apellido ?? null,
-              },
-            });
-            await (prisma as any).profesores.create({
-              data: {
-                id: authData.user.id,
-                persona_id: persona.id,
-              },
-            });
+      if (profileError) throw new Error(`Error en perfil: ${profileError.message}`);
+
+      // ---------------------------------------------------------
+      // PASO 3: LÓGICA SEGÚN ROL
+      // ---------------------------------------------------------
+
+      // --- CASO A: ENCARGADO DE ZONA ---
+      if (userData.rol === "encargado_zona") {
+        await (prisma as any).encargados.create({
+          data: {
+            usuario_id: userId, // Vinculamos con la cuenta creada
+            zona: userData.zona || "A definir" // Guardamos la zona que vino del front
           }
-        } catch (e: any) {
-          // En caso de error, limpiamos el usuario creado para no dejar datos inconsistentes
-          await supabase.auth.admin.deleteUser(authData.user.id);
-          // y tratamos de eliminar el perfil insertado
-          try { await (supabase as any).from("usuarios").delete().eq("id", authData.user.id); } catch {}
-          throw new Error(`No se pudo crear el registro de profesor: ${e?.message || String(e)}`);
-        }
+        });
       }
+
+      // --- CASO B: DOCENTE (Opcionalmente Directivos) ---
+      else if (userData.rol === "docente") {
+
+        // 1. Crear la Persona (Entidad Humana) vinculada al Usuario
+        const nuevaPersona = await (prisma as any).personas.create({
+          data: {
+            usuario_id: userId, // Vinculamos Persona con Usuario
+            nombre: userData.nombre,
+            primer_apellido: userData.apellido,
+
+          }
+        });
+
+        // 2. Crear el registro Profesional (Profesor) vinculado a la Persona
+        await (prisma as any).profesores.create({
+          data: {
+            id: userId, // Mantenemos ID consistente si es útil para tu lógica vieja
+            persona_id: nuevaPersona.id // Vinculamos con la persona física
+          }
+        });
+      }
+
+      // --- CASO C: EQUIPO PADI ---
+      // No hace nada extra, solo queda en la tabla 'usuarios'.
+
+    } catch (error: any) {
+      // ---------------------------------------------------------
+      // ROLLBACK (Limpieza en caso de error)
+      // ---------------------------------------------------------
+      console.error("🛑 Error en registro, deshaciendo cambios:", error.message);
+
+      // 1. Borrar usuario de Auth (lo más importante para que no queden zombies)
+      await supabase.auth.admin.deleteUser(userId);
+
+      // 2. Intentar borrar el perfil de usuario si se creó
+      try { await (supabase as any).from("usuarios").delete().eq("id", userId); } catch { }
+
+      throw new Error(`No se pudo completar el registro: ${error.message}`);
     }
 
     return authData;

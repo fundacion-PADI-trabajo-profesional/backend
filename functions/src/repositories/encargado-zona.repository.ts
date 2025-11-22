@@ -1,11 +1,5 @@
 import { getPrisma } from "../config/prismaClient";
-
-export interface EncargadoItem {
-    id: string;
-    nombre: string;
-    apellido: string;
-    email: string;
-}
+import { EncargadoItem } from "../interfaces/encargado-zona.interface";
 
 export const EncargadoRepository = {
     async list(): Promise<EncargadoItem[]> {
@@ -18,11 +12,22 @@ export const EncargadoRepository = {
                 id: true,
                 nombre: true,
                 apellido: true,
-                email: true, // Agregué email porque es útil verlo en la tabla
+                email: true,
+                encargado_data: {
+                    select: {
+                        zona: true
+                    }
+                }
             },
             orderBy: [{ apellido: "asc" }, { nombre: "asc" }],
         });
 
-        return rows as EncargadoItem[];
+        return rows.map((r: any) => ({
+            id: r.id,
+            nombre: r.nombre,
+            apellido: r.apellido,
+            email: r.email,
+            zona: r.encargado_data?.zona || "Sin asignar" // Si no tiene, ponemos default
+        }));
     },
 };

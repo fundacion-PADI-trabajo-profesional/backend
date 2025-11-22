@@ -12,7 +12,7 @@ export class EncargadosService {
         email: string;
         nombre: string;
         apellido: string;
-        // password: ya no viene del front obligatoriamente
+        zona: string;
     }) {
 
         // 1. Generar contraseña aleatoria de 8 caracteres
@@ -21,6 +21,7 @@ export class EncargadosService {
 
         console.log("----------------------------------------------------");
         console.log(`📧 SIMULANDO ENVÍO DE EMAIL A: ${data.email}`);
+        console.log(`📍 ZONA ASIGNADA: ${data.zona}`);
         console.log(`🔑 CONTRASEÑA GENERADA: ${generatedPassword}`);
         console.log("----------------------------------------------------");
 
@@ -31,6 +32,7 @@ export class EncargadosService {
             nombre: data.nombre,
             apellido: data.apellido,
             rol: "encargado_zona",
+            zona: data.zona,
         });
 
         // 3. Aquí llamaríamos al servicio de email real

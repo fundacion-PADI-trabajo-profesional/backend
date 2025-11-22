@@ -19,15 +19,15 @@ export async function listEncargados(_req: Request, res: Response) {
 export async function createEncargado(req: Request, res: Response) {
     try {
         // Ya no extraemos password del body
-        const { email, nombre, apellido } = req.body;
+        const { email, nombre, apellido, zona } = req.body;
 
         // Validación: No pedimos password
-        if (!email || !nombre || !apellido) {
-            res.status(400).json(commonResponse(false, "Faltan datos obligatorios (email, nombre, apellido)", null));
+        if (!email || !nombre || !apellido || !zona) {
+            res.status(400).json(commonResponse(false, "Faltan datos obligatorios (email, nombre, apellido, zona)", null));
             return;
         }
 
-        const result = await service.create({ email, nombre, apellido });
+        const result = await service.create({ email, nombre, apellido, zona });
 
         res.status(201).json(commonResponse(true, "Encargado invitado con éxito", result));
     } catch (error: any) {
