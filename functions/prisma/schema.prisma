@@ -20,47 +20,52 @@ model UsuarioPerfil {
   rol       Rol
   createdAt DateTime @default(now())
 
+  // Si es Rol Director:
+  escuela_id String?
+  escuela    Escuelas? @relation(fields: [escuela_id], references: [id])
+
   encargado_data Encargados?
-  persona_data Personas?
+  persona_data   Personas?
 
   @@map("usuarios")
 }
 
 model Encargados {
-  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  usuario_id   String        @unique @db.Uuid // @unique es clave para la relación 1 a 1
-  zona         String        // Acá guardás "Norte", "Sur", etc.
-  
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  usuario_id String @unique @db.Uuid // @unique es clave para la relación 1 a 1
+  zona       String // Acá guardás "Norte", "Sur", etc.
+
   // Relación: Si borrás el usuario, se borra el encargado (Cascade)
-  usuario      UsuarioPerfil @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  usuario  UsuarioPerfil @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  escuelas Escuelas[]
 
   @@map("encargados")
 }
 
 model EvaluacionEstudiante {
-  id                           String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  estudiante_id                String                         @db.Uuid
-  profesor_id                  String                         @db.Uuid
-  sala_id                      Int                            @db.SmallInt
+  id                           String                       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  estudiante_id                String                       @db.Uuid
+  profesor_id                  String                       @db.Uuid
+  sala_id                      Int                          @db.SmallInt
   tipo_id                      String
-  puntaje                      Float?                         @db.Real
+  puntaje                      Float?                       @db.Real
   estado_id                    String
-  fecha_creacion               DateTime                       @default(now()) @db.Timestamptz(6)
-  estados_evaluacion           EstadosEvaluacion              @relation(fields: [estado_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "evaluaciones_estudiante_estado_fkey")
-  estudiantes                  Estudiantes                    @relation(fields: [estudiante_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "evaluaciones_estudiante_estudiante_fkey")
-  profesores                   Profesores                     @relation(fields: [profesor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "evaluaciones_estudiante_profesor_fkey")
-  salas                        Salas                          @relation(fields: [sala_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "evaluaciones_estudiante_sala_fkey")
-  tipos_evaluacion             TiposEvaluacion                @relation(fields: [tipo_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "evaluaciones_estudiante_tipo_fkey")
+  fecha_creacion               DateTime                     @default(now()) @db.Timestamptz(6)
+  estados_evaluacion           EstadosEvaluacion            @relation(fields: [estado_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "evaluaciones_estudiante_estado_fkey")
+  estudiantes                  Estudiantes                  @relation(fields: [estudiante_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "evaluaciones_estudiante_estudiante_fkey")
+  profesores                   Profesores                   @relation(fields: [profesor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "evaluaciones_estudiante_profesor_fkey")
+  salas                        Salas                        @relation(fields: [sala_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "evaluaciones_estudiante_sala_fkey")
+  tipos_evaluacion             TiposEvaluacion              @relation(fields: [tipo_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "evaluaciones_estudiante_tipo_fkey")
   evaluaciones_estudiante_area EvaluacionesEstudianteArea[]
 
   @@map("evaluaciones_estudiante")
 }
 
 model Areas {
-  id                           String                         @id
-  nombre                       String?                        @db.VarChar
-  descripcion                  String?                        @db.VarChar
-  orden                        Int                            @db.SmallInt
+  id                           String                       @id
+  nombre                       String?                      @db.VarChar
+  descripcion                  String?                      @db.VarChar
+  orden                        Int                          @db.SmallInt
   evaluaciones_estudiante_area EvaluacionesEstudianteArea[]
   preguntas                    Preguntas[]
   reglas_aprobacion            ReglasAprobacion[]
@@ -68,14 +73,14 @@ model Areas {
   @@map("areas")
 }
 
-model AsignacioneSala {
-  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  estudiante_id String    @db.Uuid
-  sala_id       Int       @db.SmallInt
-  fecha_inicio  DateTime  @default(now()) @db.Timestamptz(6)
-  fecha_fin     DateTime? @db.Timestamptz(6)
+model AsignacionSala {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  estudiante_id String      @db.Uuid
+  sala_id       Int         @db.SmallInt
+  fecha_inicio  DateTime    @default(now()) @db.Timestamptz(6)
+  fecha_fin     DateTime?   @db.Timestamptz(6)
   estudiantes   Estudiantes @relation(fields: [estudiante_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "asignaciones_sala_estudiante_fkey")
-  salas         Salas     @relation(fields: [sala_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "asignaciones_sala_sala_fkey")
+  salas         Salas       @relation(fields: [sala_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "asignaciones_sala_sala_fkey")
 
   @@map("asignaciones_sala")
 }
@@ -88,7 +93,7 @@ model CategoriasMaterial {
 }
 
 model EstadosEvaluacion {
-  id                           String                         @id
+  id                           String                       @id
   descripcion                  String?
   evaluaciones_estudiante      EvaluacionEstudiante[]
   evaluaciones_estudiante_area EvaluacionesEstudianteArea[]
@@ -97,13 +102,18 @@ model EstadosEvaluacion {
 }
 
 model Estudiantes {
-  id                      String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  persona_id              String                 @db.Uuid
-  genero_id               String
-  grado                   Int?                   @db.SmallInt
-  sala_id                 Int                    @db.SmallInt
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  persona_id String @db.Uuid
+  genero_id  String
+  grado      Int?   @db.SmallInt
+
+  // Dónde está el alumno hoy:
+  sala_id    Int       @db.SmallInt
+  escuela_id String?
+  escuela    Escuelas? @relation(fields: [escuela_id], references: [id])
+
   fecha_creacion          DateTime               @default(now()) @db.Timestamptz(6)
-  asignaciones_sala       AsignacioneSala[]
+  asignaciones_sala       AsignacionSala[]
   generos                 Generos                @relation(fields: [genero_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "estudiantes_genero_fkey")
   personas                Personas               @relation(fields: [persona_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "estudiantes_persona_fkey")
   salas                   Salas                  @relation(fields: [sala_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "estudiantes_sala_fkey")
@@ -114,16 +124,16 @@ model Estudiantes {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model EvaluacionesEstudianteArea {
-  id                                    String                                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  evaluacion_estudiante_id              String                                @db.Uuid
-  area_id                               String
-  puntaje                               Float?                                @db.Real
-  estado_id                             String
-  observacion                           String?                               @db.VarChar
-  fecha_creacion                        DateTime                              @default(now()) @db.Timestamptz(6)
-  areas                                 Areas                                 @relation(fields: [area_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "evaluaciones_estudiante_area_area_fkey")
-  estados_evaluacion                    EstadosEvaluacion                     @relation(fields: [estado_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "evaluaciones_estudiante_area_estado_fkey")
-  evaluaciones_estudiante               EvaluacionEstudiante                  @relation(fields: [evaluacion_estudiante_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "evaluaciones_estudiante_area_evaluacion_fkey")
+  id                                     String                                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  evaluacion_estudiante_id               String                                @db.Uuid
+  area_id                                String
+  puntaje                                Float?                                @db.Real
+  estado_id                              String
+  observacion                            String?                               @db.VarChar
+  fecha_creacion                         DateTime                              @default(now()) @db.Timestamptz(6)
+  areas                                  Areas                                 @relation(fields: [area_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "evaluaciones_estudiante_area_area_fkey")
+  estados_evaluacion                     EstadosEvaluacion                     @relation(fields: [estado_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "evaluaciones_estudiante_area_estado_fkey")
+  evaluaciones_estudiante                EvaluacionEstudiante                  @relation(fields: [evaluacion_estudiante_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "evaluaciones_estudiante_area_evaluacion_fkey")
   evaluaciones_estudiante_area_preguntas EvaluacionesEstudianteAreaPreguntas[]
 
   @@map("evaluaciones_estudiante_area")
@@ -151,10 +161,10 @@ model Generos {
 }
 
 model Personas {
-  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  usuario_id       String?       @unique @db.Uuid 
-  usuario          UsuarioPerfil? @relation(fields: [usuario_id], references: [id])
-  
+  id         String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  usuario_id String?        @unique @db.Uuid
+  usuario    UsuarioPerfil? @relation(fields: [usuario_id], references: [id])
+
   dni              String?       @unique
   nombre           String?       @db.VarChar
   primer_apellido  String?       @db.VarChar
@@ -167,31 +177,62 @@ model Personas {
 }
 
 model Preguntas {
-  id                                    String                                @id
-  sala_id                               Int?                                  @db.SmallInt
-  numero                                Int?
-  grupopregunta                         String?
-  area_id                               String?
-  tipopregunta                          String?
-  demostrable                           String?
-  titulo                                String?
-  materiales                            String?
-  consigna                              String?
-  detalle                               String?
-  aprueba_con                           String?
-  puntaje                               Int?
-  version                               Int?
-  activa                                Boolean?
+  id                                     String                                @id
+  sala_id                                Int?                                  @db.SmallInt
+  numero                                 Int?
+  grupopregunta                          String?
+  area_id                                String?
+  tipopregunta                           String?
+  demostrable                            String?
+  titulo                                 String?
+  materiales                             String?
+  consigna                               String?
+  detalle                                String?
+  aprueba_con                            String?
+  puntaje                                Int?
+  version                                Int?
+  activa                                 Boolean?
   evaluaciones_estudiante_area_preguntas EvaluacionesEstudianteAreaPreguntas[]
-  areas                                 Areas?                                @relation(fields: [area_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "preguntas_area_id_fkey1")
-  salas                                 Salas?                                @relation(fields: [sala_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  areas                                  Areas?                                @relation(fields: [area_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "preguntas_area_id_fkey1")
+  salas                                  Salas?                                @relation(fields: [sala_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@map("preguntas")
 }
 
+model Escuelas {
+  id        String   @id @default(uuid())
+  nombre    String
+  direccion String?
+  telefono  String?
+  zona      String
+  createdAt DateTime @default(now())
+
+  // Relación con Encargado (1 Encargado -> Muchas Escuelas)
+  encargado_id String?     @db.Uuid
+  encargado    Encargados? @relation(fields: [encargado_id], references: [id])
+
+  // Relación con Personas
+  directivos UsuarioPerfil[] // Directores asignados a esta escuela
+
+  // Relación Muchos a Muchos: Una escuela tiene muchos profesores y viceversa
+  profesores Profesores[]
+
+  // Un estudiante pertenece a una escuela
+  estudiantes Estudiantes[]
+
+  @@map("escuelas")
+}
+
 model Profesores {
-  id                      String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  persona_id              String                 @db.Uuid
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  persona_id String @db.Uuid
+
+  // Relación Muchos a Muchos con Escuelas (El profe trabaja en varias)
+  escuelas Escuelas[]
+
+  // Relación Muchos a Muchos con Salas (El profe da clase en varias salas/grados)
+  salas Salas[]
+
   evaluaciones_estudiante EvaluacionEstudiante[]
   personas                Personas               @relation(fields: [persona_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "profesores_persona_fkey")
 
@@ -211,10 +252,14 @@ model ReglasAprobacion {
 }
 
 model Salas {
-  id                      Int                    @id @db.SmallInt
-  nombre                  String?
-  grado                   Int?                   @db.SmallInt
-  asignaciones_sala       AsignacioneSala[]
+  id     Int     @id @db.SmallInt
+  nombre String?
+  grado  Int?    @db.SmallInt
+
+  // Relación Muchos a Muchos: Varios profesores pueden dar en este tipo de sala
+  profesores Profesores[]
+
+  asignaciones_sala       AsignacionSala[]
   estudiantes             Estudiantes[]
   evaluaciones_estudiante EvaluacionEstudiante[]
   preguntas               Preguntas[]
