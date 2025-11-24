@@ -1,5 +1,7 @@
 export interface DocenteItem {
     id: string;
-    nombre: string;
-    apellido: string;
+    personas: {
+        nombre: string | null;
+        primer_apellido: string | null;
+    };
 }

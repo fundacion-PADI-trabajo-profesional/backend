@@ -52,3 +52,23 @@ export async function createEscuela(req: Request, res: Response) {
         res.status(400).json(commonResponse(false, message, null, { code: "CREATE_ERROR", description: message }));
     }
 }
+
+export async function addDocenteToEscuela(req: Request, res: Response) {
+    try {
+        const { escuelaId, profesorId } = req.body;
+        await service.addDocente(escuelaId, profesorId);
+        res.status(200).json(commonResponse(true, "Docente asignado correctamente", null));
+    } catch (error: any) {
+        res.status(500).json(commonResponse(false, "Error al asignar docente", null));
+    }
+}
+
+export async function removeDocenteFromEscuela(req: Request, res: Response) {
+    try {
+        const { escuelaId, profesorId } = req.body;
+        await service.removeDocente(escuelaId, profesorId);
+        res.status(200).json(commonResponse(true, "Docente removido correctamente", null));
+    } catch (error: any) {
+        res.status(500).json(commonResponse(false, "Error al remover docente", null));
+    }
+}

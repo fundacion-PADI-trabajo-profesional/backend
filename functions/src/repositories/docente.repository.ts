@@ -5,19 +5,23 @@ export const DocenteRepository = {
   async list(): Promise<DocenteItem[]> {
     const prisma = getPrisma();
     if (!prisma) return [];
-    // Listar docentes desde 'usuarios' (UsuarioPerfil) por ahora,
-    // para garantizar resultados aunque 'profesores' no esté poblado todavía.
-    const rows = await (prisma as any).usuarioPerfil.findMany({
-      where: { rol: "docente" },
-      select: {
-        id: true,
-        nombre: true,
-        apellido: true,
+
+    const rows = await (prisma as any).profesores.findMany({
+      include: {
+        personas: {
+          select: {
+            nombre: true,
+            primer_apellido: true,
+          },
+        },
       },
-      orderBy: [{ apellido: "asc" }, { nombre: "asc" }],
+      orderBy: {
+        personas: {
+          primer_apellido: "asc",
+        },
+      },
     });
+
     return rows as DocenteItem[];
   },
 };
-
-

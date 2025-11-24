@@ -45,6 +45,11 @@ export const EscuelasRepository = {
                     include: {
                         usuario: { select: { nombre: true, apellido: true } }
                     }
+                },
+                profesores: {
+                    include: {
+                        personas: { select: { nombre: true, primer_apellido: true } }
+                    }
                 }
             },
             orderBy: { createdAt: 'desc' }
@@ -59,6 +64,36 @@ export const EscuelasRepository = {
         return await prisma.escuelas.findMany({
             where: { encargado_id: encargadoId },
             orderBy: { createdAt: 'desc' }
+        });
+    },
+
+    async addDocenteRelation(escuelaId: string, profesorId: string) {
+        const prisma = getPrisma();
+        if (!prisma) throw new Error("DB not available");
+
+        // Usamos 'connect' para crear la relación en la tabla intermedia
+        return await prisma.escuelas.update({
+            where: { id: escuelaId },
+            data: {
+                profesores: {
+                    connect: { id: profesorId }
+                }
+            }
+        });
+    },
+
+    async removeDocenteRelation(escuelaId: string, profesorId: string) {
+        const prisma = getPrisma();
+        if (!prisma) throw new Error("DB not available");
+
+        // Usamos 'disconnect' para borrar la relación
+        return await prisma.escuelas.update({
+            where: { id: escuelaId },
+            data: {
+                profesores: {
+                    disconnect: { id: profesorId }
+                }
+            }
         });
     }
 };

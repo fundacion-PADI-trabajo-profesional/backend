@@ -55,4 +55,14 @@ export class EscuelasService {
 
         throw new Error("No tienes permisos para ver el listado de escuelas.");
     }
+
+    async addDocente(escuelaId: string, profesorId: string) {
+        //  agregar validaciones aca (ej: si la escuela existe)
+        return await this.repo.addDocenteRelation(escuelaId, profesorId);
+    }
+
+    async removeDocente(escuelaId: string, profesorId: string) {
+        return await this.repo.removeDocenteRelation(escuelaId, profesorId);
+    }
+
 }
