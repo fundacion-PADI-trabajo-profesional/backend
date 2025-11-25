@@ -1,291 +1,198 @@
-import { Evaluacion } from "../interfaces/evaluacion.interface";
-import { getSupabase } from "../config/supabaseClient";
-import { getConfig } from "../config/env";
-import { getPrisma } from "../config/prismaClient";
+// Archivo: evaluacion.repository.ts
 
-export class EvaluacionRepository {
-  async list(): Promise<Evaluacion[]> {
-    const prisma = getPrisma();
-    if (prisma) {
-      const rows = await prisma.evaluacion.findMany({
-        select: { id: true, titulo: true },
-        orderBy: { id: "asc" },
-      });
-      return rows as Evaluacion[];
-    }
+import { Prisma, PrismaClient } from "@prisma/client"
+import { getPrisma } from "../config/prismaClient"
+import {
+  CreateEvaluacionData,
+  EVALUACION_AREAS,
+  ESTADO_NO_INICIADA_ID,
+} from "../interfaces/evaluacion.interface"
 
-    const supabase = getSupabase();
-    const { supabaseEvaluacionesTable } = getConfig();
-    if (supabase && supabaseEvaluacionesTable) {
-      const { data, error } = await supabase
-        .from(supabaseEvaluacionesTable)
-        .select("id,titulo")
-        .order("id", { ascending: true });
-      if (!error) return (data ?? []) as unknown as Evaluacion[];
-      console.error("Supabase list evaluaciones error", error);
-    }
+export const EvaluacionRepository = {
+  // ----------------------------------------------------------------------
+  // Funciones de Ayuda (Helpers)
+  // ----------------------------------------------------------------------
+  async checkProfessorExists(profesorId: string): Promise<boolean> {
+    const prisma = getPrisma()
+    if (!prisma) throw new Error("DB not available to check Professor")
 
-    return [];
-  }
+    const professor = await (prisma as any).profesores.findUnique({
+      where: { id: profesorId },
+      select: { id: true }
+    })
 
-  async getById(id: string): Promise<Evaluacion | null> {
-    const prisma = getPrisma();
-    if (prisma) {
-      const row = await prisma.evaluacion.findUnique({
-        where: { id },
-        select: { id: true, titulo: true },
-      });
-      return (row as Evaluacion) ?? null;
-    }
+    return !!professor
+  },
 
-    const supabase = getSupabase();
-    const { supabaseEvaluacionesTable } = getConfig();
-    if (supabase && supabaseEvaluacionesTable) {
-      const { data, error } = await supabase
-        .from(supabaseEvaluacionesTable)
-        .select("id,titulo")
-        .eq("id", id)
-        .maybeSingle();
-      if (!error) return (data as unknown as Evaluacion) ?? null;
-      console.error("Supabase get evaluacion error", error);
-    }
+  // ----------------------------------------------------------------------
+  // Funciones CRUD
+  // ----------------------------------------------------------------------
 
-    return null;
-  }
+  async create(data: CreateEvaluacionData) {
+    const { dni, tipo_id, profesor_id } = data
 
-  // ----- Evaluaciones realizadas (instancias) -----
-  // Tipado mínimo para evitar depender de la generación local
-  async listInstancias(filters?: {
-    estudianteId?: string;
-    profesorId?: string;
-    salaId?: number;
-    tipoId?: string;
-    estadoId?: string;
-    limit?: number;
-    offset?: number;
-  }): Promise<{
-    id: string;
-    estudiante_id: string; 
-    profesor_id: string;   
-    sala_id: number;       
-    tipo_id: string;       
-    estado_id: string;     
-    puntaje?: number | null;
-    fecha_creacion: Date;  
-  }[]> {
-    const prisma = getPrisma();
-    if (!prisma) return [];
-    const where: any = {};
-    if (filters?.estudianteId) where.estudiante_id = filters.estudianteId;
-    if (filters?.profesorId) where.profesor_id = filters.profesorId;
-    if (typeof filters?.salaId === "number") where.sala_id = filters.salaId;
-    if (filters?.tipoId) where.tipo_id = filters.tipoId;
-    if (filters?.estadoId) where.estado_id = filters.estadoId;
+    const prisma = getPrisma()
+    if (!prisma) throw new Error("DB not available to create Evaluacion")
 
-    return prisma.evaluacionEstudiante.findMany({ // <-- 'e' minúscula
-      where,
-      skip: filters?.offset ?? 0,
-      take: filters?.limit ?? 50,
-      orderBy: { 
-        fecha_creacion: "desc" 
-      },
-      select: { 
-        id: true, 
-        estudiante_id: true, 
-        profesor_id: true,  
-        sala_id: true,       
-        tipo_id: true,       
-        estado_id: true,     
-        puntaje: true, 
-        fecha_creacion: true,
-        // Incluimos datos mínimos del estudiante para mostrar en el front
-        estudiantes: {
-          select: {
-            id: true,
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        // Tipamos tx como 'any' para evitar conflictos de tipos, 
+        // pero usamos los nombres camelCase correctos de los modelos.
+        const txAny = tx as any
+
+        // 1. Encontrar el estudiante
+        // Modelo: Estudiantes -> Propiedad: estudiantes
+        const estudiante = await txAny.estudiantes.findFirst({
+          where: {
             personas: {
-              select: {
-                nombre: true,
-                primer_apellido: true,
-                segundo_apellido: true,
-                dni: true,
-              },
+              dni: dni,
             },
           },
-        },
-      },
-    });
-  }
-
-  async getInstanciaById(id: string): Promise<{
-    id: string;
-    estudiante_id: string; 
-    profesor_id: string;  
-    sala_id: number;       
-    tipo_id: string;       
-    estado_id: string;     
-    puntaje?: number | null;
-    fecha_creacion: Date;  
-  } | null> {
-    const prisma = getPrisma();
-    if (!prisma) return null;
-    return prisma.evaluacionEstudiante.findUnique({ // <-- 'e' minúscula
-      where: { id },
-      select: { 
-        id: true, 
-        estudiante_id: true, 
-        profesor_id: true,  
-        sala_id: true,       
-        tipo_id: true,       
-        estado_id: true,     
-        puntaje: true, 
-        fecha_creacion: true,
-        estudiantes: {
           select: {
             id: true,
-            personas: {
-              select: {
-                nombre: true,
-                primer_apellido: true,
-                segundo_apellido: true,
-                dni: true,
-              },
-            },
+            sala_id: true,
           },
-        },
-      },
-    });
-  }
+        })
 
-  async createInstancia(input: {
-    estudianteId: string;
-    profesorId: string;
-    salaId: number;
-    tipoId: string;
-    estadoId: string;
-    puntaje?: number | null;
-  }): Promise<{
-    id: string;
-    estudiante_id: string;
-    profesor_id: string;
-    sala_id: number;
-    tipo_id: string;
-    estado_id: string;
-    puntaje?: number | null;
-    fecha_creacion: Date;  
-  }> {
-    const prisma = getPrisma();
-    if (!prisma) throw new Error("DB not available to create Evaluacion");
-
-    return prisma.evaluacionEstudiante.create({
-      data: {
-        // Campo escalar (el único que no es una relación directa)
-        puntaje: input.puntaje,
-        estudiantes: {
-          connect: { id: input.estudianteId }
-        },
-        profesores: {
-          connect: { id: input.profesorId } // <-- AÑADIDO
-        },
-        salas: {
-          connect: { id: input.salaId } // <-- AÑADIDO
-        },        
-        tipos_evaluacion: {
-          connect: { id: input.tipoId } // <-- AÑADIDO
-        },
-        estados_evaluacion: {
-          connect: { id: input.estadoId } 
+        if (!estudiante) {
+          throw new Error(`Estudiante con DNI ${dni} no encontrado.`)
         }
-      },  
-      
-      // El 'select' estaba bien, pero no es necesario si las columnas
-      // del 'input' se llamaran igual que en el schema (ej: estudiante_id)
-      // Lo dejamos como estaba porque funciona.
-      select: { 
-        id: true, 
-        estudiante_id: true, 
-        profesor_id: true,   
-        sala_id: true,       
-        tipo_id: true,       
-        estado_id: true,     
-        puntaje: true, 
-        fecha_creacion: true 
-      },
-    });
-  }
 
-//  async actualizarInstancia(id: string, input: {
-//    estudianteId?: string;
-//    salaId?: number;
-//    tipoId?: string;
-//    estadoId?: string;
-//    puntaje?: number | null;
-//  }): Promise<{
-//    id: string;
-//    estudianteId: string;
-//    salaId: number;
-//    tipoId: string;
-//    estadoId: string;
-//    puntaje?: number | null;
-//    createdAt: Date;
-//  } | null> {
-//    const prisma = getPrisma();
-//    if (!prisma) throw new Error("DB not available");
-//    const updated = await (prisma as any).EvaluacionEstudiante.updateMany({
-//      where: { id },
-//      data: input,
-//    });
-//    if (updated.count === 0) return null;
-//      return this.getInstanciaById(id);
-//  }
+        // 2. Crear la evaluación principal
+        // Modelo: EvaluacionEstudiante -> Propiedad: evaluacionEstudiante
+        // (Nota: Prisma suele usar camelCase del nombre del modelo)
+        const nuevaEvaluacion = await txAny.evaluacionEstudiante.create({
+          data: {
+            estudiante_id: estudiante.id,
+            profesor_id: profesor_id,
+            sala_id: estudiante.sala_id,
+            tipo_id: tipo_id,
+            estado_id: ESTADO_NO_INICIADA_ID,
+          },
+        })
 
-  // En evaluacion.repository.ts
+        // 3. Crear las 4 entradas en evaluaciones_estudiante_area
+        const areasToCreate = EVALUACION_AREAS.map((area) => ({
+          evaluacion_estudiante_id: nuevaEvaluacion.id,
+          area_id: area.id,
+          estado_id: ESTADO_NO_INICIADA_ID,
+        }))
 
-  async actualizarInstancia(id: string, input: {
-    estudianteId?: string;
-    profesorId?: string; 
-    salaId?: number;
-    tipoId?: string;
-    estadoId?: string;
-    puntaje?: number | null;
-  }): Promise<{ 
-    id: string;
-    estudiante_id: string;   
-    profesor_id: string;   
-    sala_id: number;       
-    tipo_id: string;       
-    estado_id: string;     
-    puntaje?: number | null;
-    fecha_creacion: Date;  
-  } | null> {
-    const prisma = getPrisma();
-    if (!prisma) throw new Error("DB not available");
+        // Modelo: EvaluacionesEstudianteArea -> Propiedad: evaluacionesEstudianteArea
+        await txAny.evaluacionesEstudianteArea.createMany({
+          data: areasToCreate,
+        })
 
-    const dataToUpdate: any = {};
-    if (input.estudianteId !== undefined) dataToUpdate.estudiante_id = input.estudianteId;
-    if (input.profesorId !== undefined) dataToUpdate.profesor_id = input.profesorId;
-    if (input.salaId !== undefined) dataToUpdate.sala_id = input.salaId;
-    if (input.tipoId !== undefined) dataToUpdate.tipo_id = input.tipoId;
-    if (input.estadoId !== undefined) dataToUpdate.estado_id = input.estadoId;
-    if (input.puntaje !== undefined) dataToUpdate.puntaje = input.puntaje;
-    
-    const updated = await prisma.evaluacionEstudiante.updateMany({
-      where: { id },
-      data: dataToUpdate,
-    });
-    
-    if (updated.count === 0) return null;
-    
-    return this.getInstanciaById(id);
-  }
+        // 4. Devolver la evaluación creada
+        const areasCreadas = await txAny.evaluacionesEstudianteArea.findMany({
+          where: {
+            evaluacion_estudiante_id: nuevaEvaluacion.id,
+          },
+          include: {
+            areas: { select: { nombre: true } },
+            estados_evaluacion: { select: { descripcion: true } },
+          },
+        })
 
-  async eliminarInstancia(id: string): Promise<boolean> {
-    const prisma = getPrisma();
-    if (!prisma) throw new Error("DB not available");
-    const deleted = await (prisma as any).EvaluacionEstudiante.deleteMany({
-      where: { id },
-    });
-    return deleted.count > 0;
+        return {
+          ...nuevaEvaluacion,
+          areas: areasCreadas,
+        }
+      })
+
+      return result
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === "P2003") {
+          throw new Error("El tipo de evaluación o profesor no existe.")
+        }
+      }
+      // Logueamos el error completo para debug en backend
+      console.error("Error en transacción createEvaluacion (Backend):", error)
+      const errorMessage = error instanceof Error ? error.message : "Error al crear la evaluación."
+      throw new Error(errorMessage)
+    }
+  },
+
+  async list() {
+    const prisma = getPrisma()
+    if (!prisma) throw new Error("DB not available to list Evaluaciones")
+
+    try {
+      const txAny = prisma as any
+      // Modelo: EvaluacionEstudiante -> Propiedad: evaluacionEstudiante
+      return await txAny.evaluacionEstudiante.findMany({
+        orderBy: { fecha_creacion: 'desc' },
+        include: {
+          estudiantes: {
+            include: {
+              personas: {
+                select: { nombre: true, primer_apellido: true, dni: true }
+              },
+              salas: { select: { nombre: true, grado: true } }
+            }
+          },
+          profesores: {
+            include: {
+              personas: {
+                select: { nombre: true, primer_apellido: true }
+              }
+            }
+          },
+          tipos_evaluacion: { select: { descripcion: true } },
+          estados_evaluacion: { select: { descripcion: true } },
+        },
+      })
+    } catch (error) {
+      console.error("Error en listEvaluaciones:", error)
+      throw new Error("Error al obtener la lista de evaluaciones.")
+    }
+  },
+
+  async getById(id: string) {
+    const prisma = getPrisma()
+    if (!prisma) throw new Error("DB not available to get Evaluacion by ID")
+
+    try {
+      const txAny = prisma as any
+      // Modelo: EvaluacionEstudiante -> Propiedad: evaluacionEstudiante
+      return await txAny.evaluacionEstudiante.findUnique({
+        where: { id },
+        include: {
+          estudiantes: {
+            include: {
+              personas: {
+                select: { nombre: true, primer_apellido: true, segundo_apellido: true, dni: true, fecha_nacimiento: true }
+              },
+              salas: { select: { nombre: true, grado: true } },
+              generos: { select: { descripcion: true } },
+            }
+          },
+          profesores: {
+            include: {
+              personas: {
+                select: { nombre: true, primer_apellido: true }
+              }
+            }
+          },
+          tipos_evaluacion: { select: { descripcion: true } },
+          estados_evaluacion: { select: { descripcion: true } },
+          // Modelo: EvaluacionesEstudianteArea (pluralizada en la relación) -> evaluacion_estudiante_area
+          // OJO: Aquí depende de cómo se llame la relación en tu schema.prisma dentro del modelo EvaluacionEstudiante.
+          // En tu schema dice: evaluaciones_estudiante_area EvaluacionesEstudianteArea[]
+          // Por tanto, aquí sí se usa el nombre de la relación definida en el schema.
+          evaluaciones_estudiante_area: {
+            include: {
+              areas: { select: { nombre: true, descripcion: true } },
+              estados_evaluacion: { select: { descripcion: true } },
+            },
+            orderBy: { areas: { orden: 'asc' } }
+          }
+        },
+      })
+    } catch (error) {
+      console.error("Error en getEvaluacionById:", error)
+      throw new Error("Error al obtener el detalle de la evaluación.")
+    }
   }
 }
-
-

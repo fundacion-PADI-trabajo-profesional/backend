@@ -1,24 +1,23 @@
-import { Router } from "express";
+// Archivo: evaluaciones.router.ts
+
+import { Router } from "express"
 import {
+  createEvaluacion,
   listEvaluaciones,
   getEvaluacionById,
-  listEvaluacionesInstancias,
-  getEvaluacionInstanciaById,
-  createEvaluacionInstancia,
-  actualizarEvaluacionInstancia,
-  eliminarEvaluacionInstancia,
-} from "../controllers/evaluaciones.controller";
+} from "../controllers/evaluaciones.controller"
 
 export function createEvaluacionesRouter() {
-  const router = Router();
-  router.get("/evaluaciones", listEvaluaciones);
-  router.get("/evaluaciones/:id", getEvaluacionById);
-  router.get("/evaluaciones-instancias", listEvaluacionesInstancias);
-  router.get("/evaluaciones-instancias/:id", getEvaluacionInstanciaById);
-  router.post("/evaluaciones-instancias", createEvaluacionInstancia);
-  router.patch("/evaluaciones-instancias/:id", actualizarEvaluacionInstancia);
-  router.delete("/evaluaciones-instancias/:id", eliminarEvaluacionInstancia);
-  return router;
+  const router = Router()
+
+  // POST: Crear una nueva evaluación (Se inicializa con 4 áreas en estado 'No Iniciada')
+  router.post("/evaluaciones", createEvaluacion)
+
+  // GET: Listar todas las evaluaciones (Vista de resumen)
+  router.get("/evaluaciones", listEvaluaciones)
+
+  // GET: Obtener el detalle de una evaluación por ID (Incluye las 4 áreas y sus estados)
+  router.get("/evaluaciones/:id", getEvaluacionById)
+
+  return router
 }
-
-
