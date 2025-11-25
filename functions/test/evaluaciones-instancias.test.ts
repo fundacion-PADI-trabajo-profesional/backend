@@ -17,15 +17,15 @@ beforeEach(() => {
       estudiante_id: "s1",
       profesor_id: "p1",
       sala_id: 1,
-      tipo_id: "diagnostico",
+      tipo_id: "inicial",
       estado_id: "N",
       puntaje: null,
       fecha_creacion: new Date(),
     },
   ]);
-  
+
   vi.spyOn(evaluacionRepo.EvaluacionRepository.prototype, "getInstanciaById").mockResolvedValue(null);
-  
+
   vi.spyOn(evaluacionRepo.EvaluacionRepository.prototype, "createInstancia").mockImplementation(async (input: any) => ({
     id: "new-id",
     estudiante_id: input.estudianteId,
@@ -52,14 +52,14 @@ describe("evaluaciones instancias", () => {
       .mockResolvedValue([]);
 
     const res = await request(app).get(
-      "/evaluaciones-instancias?estudianteId=s1&salaId=2&tipoId=diagnostico&estadoId=N&limit=10&offset=5",
+      "/evaluaciones-instancias?estudianteId=s1&salaId=2&tipoId=inicial&estadoId=N&limit=10&offset=5",
     );
     expect(res.status).toBe(200);
     expect(spy).toHaveBeenCalledTimes(1);
     expect(spy).toHaveBeenCalledWith({
       estudianteId: "s1",
       salaId: 2,
-      tipoId: "diagnostico",
+      tipoId: "inicial",
       estadoId: "N",
       limit: 10,
       offset: 5,
@@ -92,7 +92,7 @@ describe("evaluaciones instancias", () => {
     const payload = {
       estudianteId: "s1",
       salaId: 1,
-      tipoId: "diagnostico",
+      tipoId: "inicial",
       estadoId: "N",
       puntaje: null,
     };
@@ -157,7 +157,7 @@ describe("evaluaciones instancias", () => {
     const payload = {
       // estudianteId falta
       salaId: 1,
-      tipoId: "diagnostico",
+      tipoId: "inicial",
       estadoId: "N",
     };
     const res = await request(app)
@@ -175,7 +175,7 @@ describe("evaluaciones instancias", () => {
     const payload = {
       estudianteId: "s1",
       salaId: 1,
-      tipoId: "diagnostico",
+      tipoId: "inicial",
       estadoId: "N",
       puntaje: "no-numero",
     } as any;
