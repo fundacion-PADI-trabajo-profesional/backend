@@ -3,6 +3,7 @@ export interface CreateEvaluacionData {
   dni: string // Para buscar al estudiante
   tipo_id: string // Por ejemplo: "I" para Inicial, "C" para Cierre
   profesor_id: string // El profesor que crea la evaluación
+  fecha_creacion?: string | Date
 }
 
 export interface EvaluacionArea {

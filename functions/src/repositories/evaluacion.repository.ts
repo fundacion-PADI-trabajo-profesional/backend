@@ -29,7 +29,9 @@ export const EvaluacionRepository = {
   // ----------------------------------------------------------------------
 
   async create(data: CreateEvaluacionData) {
-    const { dni, tipo_id, profesor_id } = data
+    const { dni, tipo_id, profesor_id, fecha_creacion } = data
+
+    const fechaReal = fecha_creacion ? new Date(fecha_creacion) : new Date();
 
     const prisma = getPrisma()
     if (!prisma) throw new Error("DB not available to create Evaluacion")
@@ -68,6 +70,7 @@ export const EvaluacionRepository = {
             sala_id: estudiante.sala_id,
             tipo_id: tipo_id,
             estado_id: ESTADO_NO_INICIADA_ID,
+            fecha_creacion: fechaReal,
           },
         })
 

@@ -11,24 +11,22 @@ const service = new EvaluacionesService()
 // ----------------------------------------------------------------------
 export async function createEvaluacion(req: Request, res: Response) {
   try {
-    const { dni, tipo_id, profesor_id } = req.body
+    const { dni, tipo_id, profesor_id, fecha_creacion } = req.body
 
-    // Validación básica
-    if (!dni || !tipo_id || !profesor_id) {
+    if (!dni || !tipo_id || !profesor_id || !fecha_creacion) { // <--- Validación actualizada
       return res
         .status(400)
-        .json(commonResponse(false, "Faltan datos obligatorios (dni, tipo_id, profesor_id)", null, { code: "VALIDATION_ERROR" }))
+        .json(commonResponse(false, "Faltan datos obligatorios", null, { code: "VALIDATION_ERROR" }))
     }
 
     const data = await service.create({
       dni,
       tipo_id,
       profesor_id,
+      fecha_creacion, // <--- Pasamos la fecha
     })
 
-    // 201 Created
-    res.status(201).json(commonResponse(true, "Evaluación y sus áreas creadas con éxito", data))
-
+    res.status(201).json(commonResponse(true, "Evaluación creada con éxito", data))
   } catch (error: any) {
     const message = error.message || "Error interno al crear la evaluación"
     let code = "INTERNAL_ERROR"
