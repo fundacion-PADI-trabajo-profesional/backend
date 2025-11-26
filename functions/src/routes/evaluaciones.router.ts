@@ -5,6 +5,7 @@ import {
   createEvaluacion,
   listEvaluaciones,
   getEvaluacionById,
+  deleteEvaluacion,
 } from "../controllers/evaluaciones.controller"
 
 export function createEvaluacionesRouter() {
@@ -18,6 +19,8 @@ export function createEvaluacionesRouter() {
 
   // GET: Obtener el detalle de una evaluación por ID (Incluye las 4 áreas y sus estados)
   router.get("/evaluaciones/:id", getEvaluacionById)
+
+  router.delete("/evaluaciones/:id", deleteEvaluacion)
 
   return router
 }

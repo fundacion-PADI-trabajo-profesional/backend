@@ -38,4 +38,8 @@ export class EvaluacionesService {
     }
     return evaluacion
   }
+
+  async delete(id: string) {
+    return await this.repo.delete(id)
+  }
 }

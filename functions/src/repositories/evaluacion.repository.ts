@@ -197,5 +197,44 @@ export const EvaluacionRepository = {
       console.error("Error en getEvaluacionById:", error)
       throw new Error("Error al obtener el detalle de la evaluación.")
     }
-  }
+  },
+
+  async delete(id: string) {
+    const prisma = getPrisma()
+    if (!prisma) throw new Error("DB not available to delete Evaluacion")
+
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const txAny = tx as any
+
+        // 1. Verificar si existe
+        const exists = await txAny.evaluacionEstudiante.findUnique({
+          where: { id }
+        })
+        if (!exists) {
+          throw new Error("La evaluación no existe")
+        }
+
+        // 2. Eliminar las áreas asociadas primero (por restricción de clave foránea)
+        // Modelo: EvaluacionesEstudianteArea
+        await txAny.evaluacionesEstudianteArea.deleteMany({
+          where: {
+            evaluacion_estudiante_id: id
+          }
+        })
+
+        // 3. Eliminar la evaluación principal
+        // Modelo: EvaluacionEstudiante
+        const deleted = await txAny.evaluacionEstudiante.delete({
+          where: { id }
+        })
+
+        return deleted
+      })
+    } catch (error) {
+      console.error("Error en deleteEvaluacion:", error)
+      const msg = error instanceof Error ? error.message : "Error al eliminar evaluación"
+      throw new Error(msg)
+    }
+  },
 }

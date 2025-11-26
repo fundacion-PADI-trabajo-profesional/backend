@@ -86,3 +86,32 @@ export async function getEvaluacionById(req: Request, res: Response) {
     res.status(500).json(commonResponse(false, message, null, { code, description: message }))
   }
 }
+
+// ----------------------------------------------------------------------
+// DELETE /evaluaciones/:id: Elimina una evaluación
+// ----------------------------------------------------------------------
+export async function deleteEvaluacion(req: Request, res: Response) {
+  try {
+    const { id } = req.params
+
+    if (!id) {
+      return res.status(400).json(commonResponse(false, "Falta el ID", null, { code: "VALIDATION_ERROR" }))
+    }
+
+    await service.delete(id)
+
+    res.status(200).json(commonResponse(true, "Evaluación eliminada con éxito", null))
+
+  } catch (error: any) {
+    const message = error.message || "Error interno al eliminar la evaluación"
+    let code = "INTERNAL_ERROR"
+
+    if (message.includes("no existe")) {
+      code = "NOT_FOUND"
+      return res.status(404).json(commonResponse(false, message, null, { code, description: message }))
+    }
+
+    console.error("[deleteEvaluacion] Error:", error)
+    res.status(500).json(commonResponse(false, message, null, { code, description: message }))
+  }
+}
