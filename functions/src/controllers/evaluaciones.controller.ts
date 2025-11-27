@@ -115,3 +115,46 @@ export async function deleteEvaluacion(req: Request, res: Response) {
     res.status(500).json(commonResponse(false, message, null, { code, description: message }))
   }
 }
+
+// ----------------------------------------------------------------------
+// GET /evaluaciones/:id/areas/:areaId/preguntas
+// ----------------------------------------------------------------------
+export async function getPreguntasEvaluacion(req: Request, res: Response) {
+  try {
+    const { id, areaId } = req.params
+
+    if (!id || !areaId) {
+      return res.status(400).json(commonResponse(false, "Faltan datos de evaluación o área", null, { code: "VALIDATION_ERROR" }))
+    }
+
+    const data = await service.getPreguntas(id, areaId)
+    res.status(200).json(commonResponse(true, "ok", data))
+  } catch (error: any) {
+    console.error("Error getPreguntas:", error)
+    res.status(500).json(commonResponse(false, error.message, null))
+  }
+}
+
+// ----------------------------------------------------------------------
+// POST /evaluaciones/:id/respuestas
+// ----------------------------------------------------------------------
+export async function submitRespuestas(req: Request, res: Response) {
+  try {
+    const { id } = req.params
+    const { areaId, questions } = req.body
+
+    if (!id || !areaId || !questions || !Array.isArray(questions)) {
+      return res.status(400).json(commonResponse(false, "Faltan datos (evaluacionId, areaId, questions)", null))
+    }
+
+    const result = await service.submitRespuestas({
+      evaluacionId: id,
+      areaId,
+      questions // Array de { id: string, answer: number | null }
+    })
+    res.status(200).json(commonResponse(true, "Respuestas guardadas", result))
+  } catch (error: any) {
+    console.error("Error submitRespuestas:", error)
+    res.status(500).json(commonResponse(false, error.message, null))
+  }
+}

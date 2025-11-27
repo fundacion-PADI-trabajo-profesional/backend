@@ -6,6 +6,8 @@ import {
   listEvaluaciones,
   getEvaluacionById,
   deleteEvaluacion,
+  getPreguntasEvaluacion,
+  submitRespuestas,
 } from "../controllers/evaluaciones.controller"
 
 export function createEvaluacionesRouter() {
@@ -22,5 +24,7 @@ export function createEvaluacionesRouter() {
 
   router.delete("/evaluaciones/:id", deleteEvaluacion)
 
+  router.get("/evaluaciones/:id/areas/:areaId/preguntas", getPreguntasEvaluacion)
+  router.post("/evaluaciones/:id/respuestas", submitRespuestas)
   return router
 }

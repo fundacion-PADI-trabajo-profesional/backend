@@ -9,6 +9,104 @@ import {
 } from "../interfaces/evaluacion.interface"
 
 const TRANSACTION_TIMEOUT_MS = 10000;
+const ESTADO_EN_PROGRESO_ID = 'E'
+const ESTADO_COMPLETADA_ID = 'C'
+const ESTADO_APROBADA_ID = 'A'
+
+async function calculateAreaScore(tx: any, evaluacionAreaId: string, salaId: number, areaId: string): Promise<{ puntajeFinal: number, completado: boolean, totalPuntosPosibles: number }> {
+  // 1. Obtener todas las preguntas y respuestas para el área
+  const questionsAndAnswers = await tx.evaluacionesEstudianteAreaPreguntas.findMany({
+    where: { evaluaciones_area_id: evaluacionAreaId },
+    include: {
+      preguntas: { select: { id: true, numero: true, puntaje: true, aprueba_con: true, activa: true } }
+    }
+  });
+
+  // 2. Obtener la regla de aprobación del área (ej: 5/6)
+  const areaRule = await tx.reglasAprobacion.findFirst({
+    where: { sala_id: salaId, area_id: areaId }
+  });
+
+  // 3. Obtener el total de preguntas (para la bandera 'completado')
+  const totalPreguntasActivas = await tx.preguntas.count({
+    where: { sala_id: salaId, area_id: areaId, activa: true }
+  });
+
+  // 4. Calcular PUNTAJE OBTENIDO (Agrupando por numero de pregunta)
+  let totalScore = 0;
+  let questionsAnswered = 0;
+  const answeredGroups: Record<number, { count: number, maxCount: number, apruebaCon: number }> = {};
+  const processedQuestionNumbers = new Set<number>();
+
+  for (const qa of questionsAndAnswers) {
+    if (qa.respuesta !== null) {
+      questionsAnswered++;
+    }
+
+    const qNumber = qa.preguntas.numero;
+    const qPuntaje = qa.preguntas.puntaje || 0;
+    const qApruebaCon = parseInt(qa.preguntas.aprueba_con || '1'); // Target requerido
+
+    if (qNumber !== null) {
+      if (!answeredGroups[qNumber]) {
+        // El total de partes es el número de filas en la DB, lo obtenemos al final.
+        answeredGroups[qNumber] = { count: 0, maxCount: 0, apruebaCon: qApruebaCon };
+      }
+      if (qa.respuesta === 1) { // Asumimos 1=Sí (Respuesta Positiva)
+        answeredGroups[qNumber].count++;
+      }
+    }
+  }
+
+  // Contar total de sub-preguntas (el denominador para los grupos)
+  const totalSubQuestionsByNumber = await tx.preguntas.groupBy({
+    by: ['numero'],
+    where: { sala_id: salaId, area_id: areaId, activa: true },
+    _count: { numero: true }
+  });
+
+  // Mapear los máximos y calcular el score final
+  let currentQuestionNumber = 0;
+  let totalPuntosPosibles = 0;
+
+  for (const qa of questionsAndAnswers) {
+    if (qa.preguntas.numero !== currentQuestionNumber) {
+      // Es una nueva pregunta/grupo, verificamos la anterior.
+      if (currentQuestionNumber !== 0 && !processedQuestionNumbers.has(currentQuestionNumber)) {
+        // Verificar si el grupo anterior pasó el umbral y sumar el punto
+        const group = answeredGroups[currentQuestionNumber];
+        const maxCount = totalSubQuestionsByNumber.find((g: any) => g.numero === currentQuestionNumber)?._count.numero || 1;
+
+        // Si el umbral requerido (apruebaCon) se cumple
+        if (group.count >= group.apruebaCon) {
+          totalScore += qa.preguntas.puntaje || 0;
+        }
+        totalPuntosPosibles += qa.preguntas.puntaje || 0;
+        processedQuestionNumbers.add(currentQuestionNumber);
+      }
+      currentQuestionNumber = qa.preguntas.numero!;
+    }
+  }
+
+  // Asegurar que la última pregunta/grupo se procese
+  if (currentQuestionNumber !== 0 && !processedQuestionNumbers.has(currentQuestionNumber)) {
+    const group = answeredGroups[currentQuestionNumber];
+    const maxCount = totalSubQuestionsByNumber.find((g: any) => g.numero === currentQuestionNumber)?._count.numero || 1;
+
+    if (group && group.count >= group.apruebaCon) {
+      totalScore += questionsAndAnswers.find((q: any) => q.preguntas.numero === currentQuestionNumber)?.preguntas.puntaje || 0;
+    }
+    totalPuntosPosibles += questionsAndAnswers.find((q: any) => q.preguntas.numero === currentQuestionNumber)?.preguntas.puntaje || 0;
+  }
+
+  const completado = questionsAnswered === totalPreguntasActivas;
+
+  return {
+    puntajeFinal: totalScore,
+    completado: completado,
+    totalPuntosPosibles: areaRule?.puntaje_total || totalPuntosPosibles,
+  };
+}
 
 export const EvaluacionRepository = {
   // ----------------------------------------------------------------------
@@ -290,4 +388,189 @@ export const EvaluacionRepository = {
       throw new Error(msg)
     }
   },
+
+  async checkOverallApproval(tx: any, evaluacionId: string, salaId: number) {
+    // 1. Obtener todas las reglas de aprobación (puntaje_total y aprueba_con)
+    const totalAreas = await tx.areas.count(); // Debería ser 4
+
+    // 2. Obtener puntajes actuales de la evaluación
+    const currentScores = await tx.evaluacionesEstudianteArea.findMany({
+      where: { evaluacion_estudiante_id: evaluacionId },
+      select: { area_id: true, puntaje: true }
+    });
+
+    // 3. Obtener todas las reglas de aprobación para esta sala
+    const approvalRules = await tx.reglasAprobacion.findMany({
+      where: { sala_id: salaId },
+      select: { area_id: true, aprueba_con: true, puntaje_total: true }
+    });
+
+    if (approvalRules.length === totalAreas) {
+      let totalPuntosObtenidos = 0;
+      let totalPuntosPosibles = 0;
+      let areasAprobadasCount = 0;
+
+      for (const rule of approvalRules) {
+        const score = currentScores.find((s: { area_id: string; puntaje: number | null }) => s.area_id === rule.area_id)?.puntaje || 0;
+
+        totalPuntosObtenidos += score;
+        totalPuntosPosibles += rule.puntaje_total || 0;
+
+        // Criterio de aprobación del área (por puntos)
+        if (score >= (rule.aprueba_con || 0)) {
+          areasAprobadasCount++;
+        }
+      }
+
+      // Criterio de aprobación de la evaluación general: 
+      // Criterio simple: si el 70% de las áreas se aprueban individualmente
+      // Criterio complejo: si el puntaje total >= 70% del total posible.
+
+      const overallApprovalPercentage = (totalPuntosObtenidos / totalPuntosPosibles) * 100;
+
+      if (overallApprovalPercentage >= 70) { // Usamos 70% como criterio estándar
+        await tx.evaluacionEstudiante.update({
+          where: { id: evaluacionId },
+          data: { estado_id: ESTADO_APROBADA_ID, puntaje: overallApprovalPercentage }
+        })
+      } else {
+        await tx.evaluacionEstudiante.update({
+          where: { id: evaluacionId },
+          data: { estado_id: 'D', puntaje: overallApprovalPercentage } // Desaprobada
+        })
+      }
+    }
+  },
+
+  async getPreguntasByEvaluacionAndArea(evaluacionId: string, areaId: string) {
+    const prisma = getPrisma()
+    if (!prisma) throw new Error("DB not available")
+
+    // 1. Obtener la sala de la evaluación
+    const evaluacion = await (prisma as any).evaluacionEstudiante.findUnique({
+      where: { id: evaluacionId },
+      select: { sala_id: true }
+    })
+
+    if (!evaluacion) throw new Error("Evaluación no encontrada")
+
+    // 2. Buscamos las preguntas asociadas a esa sala y área
+    const preguntas = await (prisma as any).preguntas.findMany({
+      where: {
+        sala_id: evaluacion.sala_id,
+        area_id: areaId,
+        activa: true
+      },
+      orderBy: { numero: 'asc' }
+    })
+
+    // 3. Buscamos el registro intermedio de área
+    const evaluacionArea = await (prisma as any).evaluacionesEstudianteArea.findFirst({
+      where: {
+        evaluacion_estudiante_id: evaluacionId,
+        area_id: areaId
+      },
+      select: { id: true }
+    })
+
+    let respuestasPrevias: any[] = []
+
+    if (evaluacionArea) {
+      respuestasPrevias = await (prisma as any).evaluacionesEstudianteAreaPreguntas.findMany({
+        where: {
+          evaluaciones_area_id: evaluacionArea.id
+        }
+      })
+    }
+
+    return {
+      preguntas,
+      respuestas: respuestasPrevias,
+      evaluacionAreaId: evaluacionArea?.id
+    }
+  },
+
+  async saveRespuestas(payload: { evaluacionId: string, areaId: string, preguntas: { id: string, answer: number }[] }) {
+    const prisma = getPrisma()
+    if (!prisma) throw new Error("DB not available")
+
+    const { evaluacionId, areaId, preguntas } = payload
+
+    return await prisma.$transaction(async (tx) => {
+      const txAny = tx as any
+
+      // A. Buscar el registro intermedio EvaluacionesEstudianteArea
+      const evaluacionArea = await txAny.evaluacionesEstudianteArea.findFirst({
+        where: { evaluacion_estudiante_id: evaluacionId, area_id: areaId }
+      })
+
+      if (!evaluacionArea) throw new Error("El área de evaluación no existe para este estudiante")
+
+      // B. Guardar/Actualizar cada respuesta
+      for (const p of preguntas) {
+        // Usamos Upsert: Si ya existe la respuesta (pregunta_id), la actualizamos, si no, la creamos.
+        // NOTA: Usar un campo único compuesto aquí sería ideal, pero nos apegaremos al esquema actual.
+
+        const existingAnswer = await txAny.evaluacionesEstudianteAreaPreguntas.findFirst({
+          where: {
+            evaluaciones_area_id: evaluacionArea.id,
+            pregunta_id: p.id
+          }
+        })
+
+        if (existingAnswer) {
+          await txAny.evaluacionesEstudianteAreaPreguntas.update({
+            where: { id: existingAnswer.id },
+            data: { respuesta: p.answer, fecha_actualizacion: new Date() }
+          })
+        } else {
+          // Esto no debería suceder si la pre-población funcionó
+          await txAny.evaluacionesEstudianteAreaPreguntas.create({
+            data: { evaluaciones_area_id: evaluacionArea.id, pregunta_id: p.id, respuesta: p.answer }
+          })
+        }
+      }
+
+      // C. Obtener Sala del estudiante
+      const evaluacionMain = await txAny.evaluacionEstudiante.findUnique({
+        where: { id: evaluacionId },
+        select: { sala_id: true, estudiante_id: true }
+      })
+
+      // D. Calcular Estado y Puntaje del Área
+      const scoreResult = await calculateAreaScore(txAny, evaluacionArea.id, evaluacionMain!.sala_id, areaId);
+
+      // E. Determinar ESTADO
+      let nuevoEstado = ESTADO_EN_PROGRESO_ID;
+      if (scoreResult.completado) {
+        nuevoEstado = ESTADO_COMPLETADA_ID;
+      }
+
+      // F. Actualizar el registro del Área
+      await txAny.evaluacionesEstudianteArea.update({
+        where: { id: evaluacionArea.id },
+        data: {
+          estado_id: nuevoEstado,
+          puntaje: scoreResult.puntajeFinal,
+        }
+      })
+
+      // G. Verificar Aprobación General
+      // Esta es una verificación de ALTO COSTO. Solo correr cuando TODAS las áreas estén completas.
+      if (nuevoEstado === ESTADO_COMPLETADA_ID) {
+        const allAreas = await txAny.evaluacionesEstudianteArea.findMany({
+          where: { evaluacion_estudiante_id: evaluacionId }
+        });
+
+        const allCompleted = allAreas.every((area: any) => area.estado_id === ESTADO_COMPLETADA_ID);
+
+        if (allCompleted) {
+          await EvaluacionRepository.checkOverallApproval(txAny, evaluacionId, evaluacionMain!.sala_id);
+        }
+      }
+      return { success: true, estado: nuevoEstado, puntaje: scoreResult.puntajeFinal }
+    })
+  },
+
+
 }

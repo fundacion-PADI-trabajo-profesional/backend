@@ -2,6 +2,7 @@
 
 import { EvaluacionRepository } from "../repositories/evaluacion.repository"
 import type { CreateEvaluacionData } from "../interfaces/evaluacion.interface"
+import type { SubmitAnswersPayload } from "../interfaces/evaluacion.interface"
 
 export class EvaluacionesService {
   private repo = EvaluacionRepository
@@ -41,5 +42,18 @@ export class EvaluacionesService {
 
   async delete(id: string) {
     return await this.repo.delete(id)
+  }
+
+  async getPreguntas(evaluacionId: string, areaId: string) {
+    return await this.repo.getPreguntasByEvaluacionAndArea(evaluacionId, areaId)
+  }
+
+  async submitRespuestas(data: { evaluacionId: string, areaId: string, questions: { id: string, answer: number | null }[] }) {
+    // Mapeamos y aseguramos que 'answer' sea numérico para el repositorio (0 o 1)
+    return await this.repo.saveRespuestas({
+      evaluacionId: data.evaluacionId,
+      areaId: data.areaId,
+      preguntas: data.questions.map(q => ({ id: q.id, answer: q.answer === null ? null : (q.answer || 0) }))
+    })
   }
 }

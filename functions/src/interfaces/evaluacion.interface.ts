@@ -23,3 +23,30 @@ export const EVALUACION_AREAS: EvaluacionArea[] = [
 
 // Estado inicial: 'N' (No Iniciada)
 export const ESTADO_NO_INICIADA_ID = 'N'
+
+export interface PreguntaBase {
+  id: string;
+  titulo?: string;
+  consigna: string;
+  materiales?: string;
+  numero: number;
+  aprueba_con?: string; // Ej: '2/3'
+  puntaje?: number;
+  grupopregunta?: string;
+}
+
+export interface RespuestaPrevia {
+  pregunta_id: string;
+  respuesta: number | null; // 1 (Si), 0 (No), null (No respondida)
+}
+
+export interface PreguntasResponse {
+  preguntas: PreguntaBase[];
+  respuestas: RespuestaPrevia[];
+  evaluacionAreaId: string;
+}
+
+export interface SubmitAnswersPayload {
+  areaId: string;
+  questions: { id: string; answer: number | null }[]; // Answer puede ser 0, 1, o null si se guarda parcialmente
+}
