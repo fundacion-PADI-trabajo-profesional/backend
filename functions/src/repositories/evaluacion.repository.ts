@@ -8,6 +8,8 @@ import {
   ESTADO_NO_INICIADA_ID,
 } from "../interfaces/evaluacion.interface"
 
+const TRANSACTION_TIMEOUT_MS = 10000;
+
 export const EvaluacionRepository = {
   // ----------------------------------------------------------------------
   // Funciones de Ayuda (Helpers)
@@ -30,39 +32,52 @@ export const EvaluacionRepository = {
 
   async create(data: CreateEvaluacionData) {
     const { dni, tipo_id, profesor_id, fecha_creacion } = data
-
     const fechaReal = fecha_creacion ? new Date(fecha_creacion) : new Date();
-
     const prisma = getPrisma()
     if (!prisma) throw new Error("DB not available to create Evaluacion")
 
+    // =======================================================================
+    // 0. LECTURAS PREVIAS (FUERA DE LA TRANSACCIÓN)
+    //    Esto libera tiempo de la transacción
+    // =======================================================================
+
+    // 0.1. Obtener la Sala/Grado del estudiante
+    const estudianteData = await (prisma as any).estudiantes.findFirst({
+      where: { personas: { dni: dni } },
+      select: { id: true, sala_id: true },
+    });
+
+    if (!estudianteData) {
+      throw new Error(`Estudiante con DNI ${dni} no encontrado.`)
+    }
+    const estudiante = estudianteData;
+
+
+    // 0.2. Obtener TODAS las preguntas relevantes de una sola vez
+    const allRelevantQuestions = await (prisma as any).preguntas.findMany({
+      where: {
+        sala_id: estudiante.sala_id,
+        activa: true
+      },
+      select: { id: true, area_id: true }
+    });
+
+    // 0.3. Mapear preguntas por área para fácil acceso dentro de la transacción
+    const questionsByArea: Record<string, { id: string }[]> = {};
+    allRelevantQuestions.forEach((q: { id: string; area_id: string | null }) => {
+      if (!questionsByArea[q.area_id!]) {
+        questionsByArea[q.area_id!] = [];
+      }
+      questionsByArea[q.area_id!].push(q as { id: string });
+    });
+
+
     try {
+      // 1. INICIAR TRANSACCIÓN (Ahora más corta y con timeout extendido)
       const result = await prisma.$transaction(async (tx) => {
-        // Tipamos tx como 'any' para evitar conflictos de tipos, 
-        // pero usamos los nombres camelCase correctos de los modelos.
         const txAny = tx as any
 
-        // 1. Encontrar el estudiante
-        // Modelo: Estudiantes -> Propiedad: estudiantes
-        const estudiante = await txAny.estudiantes.findFirst({
-          where: {
-            personas: {
-              dni: dni,
-            },
-          },
-          select: {
-            id: true,
-            sala_id: true,
-          },
-        })
-
-        if (!estudiante) {
-          throw new Error(`Estudiante con DNI ${dni} no encontrado.`)
-        }
-
         // 2. Crear la evaluación principal
-        // Modelo: EvaluacionEstudiante -> Propiedad: evaluacionEstudiante
-        // (Nota: Prisma suele usar camelCase del nombre del modelo)
         const nuevaEvaluacion = await txAny.evaluacionEstudiante.create({
           data: {
             estudiante_id: estudiante.id,
@@ -81,27 +96,62 @@ export const EvaluacionRepository = {
           estado_id: ESTADO_NO_INICIADA_ID,
         }))
 
-        // Modelo: EvaluacionesEstudianteArea -> Propiedad: evaluacionesEstudianteArea
         await txAny.evaluacionesEstudianteArea.createMany({
           data: areasToCreate,
         })
 
-        // 4. Devolver la evaluación creada
+        // 4. Obtener las áreas creadas (necesitamos sus IDs)
         const areasCreadas = await txAny.evaluacionesEstudianteArea.findMany({
           where: {
             evaluacion_estudiante_id: nuevaEvaluacion.id,
           },
+          select: { id: true, area_id: true }
+        })
+
+        // =======================================================================
+        // 5. PRE-POBLAR RESPUESTAS (OPTIMIZADO: UNA SOLA INSERCIÓN)
+        // =======================================================================
+
+        let allAnswersToCreate: any[] = [];
+
+        for (const area of areasCreadas) {
+          const questions = questionsByArea[area.area_id]; // Obtenemos del mapa pre-calculado
+
+          if (questions) {
+            const answers = questions.map((q: { id: string }) => ({
+              evaluaciones_area_id: area.id,
+              pregunta_id: q.id,
+              respuesta: null,
+            }));
+            allAnswersToCreate.push(...answers);
+          }
+        }
+
+        // C. Insertar en EvaluacionesEstudianteAreaPreguntas (UN SOLO createMany grande)
+        if (allAnswersToCreate.length > 0) {
+          await txAny.evaluacionesEstudianteAreaPreguntas.createMany({
+            data: allAnswersToCreate,
+          });
+        }
+
+        // =======================================================================
+        // 6. Devolver la evaluación creada (con inclusión de áreas)
+        // =======================================================================
+        // La consulta final debe ser lo más rápida posible.
+        const areasDetalle = await txAny.evaluacionesEstudianteArea.findMany({
+          where: { evaluacion_estudiante_id: nuevaEvaluacion.id },
           include: {
             areas: { select: { nombre: true } },
             estados_evaluacion: { select: { descripcion: true } },
-          },
+          }
         })
 
+        // Devolvemos el resultado final
         return {
           ...nuevaEvaluacion,
-          areas: areasCreadas,
+          areas: areasDetalle,
         }
-      })
+      }, { timeout: TRANSACTION_TIMEOUT_MS }) // Aplicamos el nuevo timeout
 
       return result
     } catch (error) {
@@ -110,9 +160,12 @@ export const EvaluacionRepository = {
           throw new Error("El tipo de evaluación o profesor no existe.")
         }
       }
-      // Logueamos el error completo para debug en backend
       console.error("Error en transacción createEvaluacion (Backend):", error)
       const errorMessage = error instanceof Error ? error.message : "Error al crear la evaluación."
+      // Capturamos explícitamente el error de timeout y lo informamos
+      if (errorMessage.includes("Transaction already closed") || errorMessage.includes("timeout")) {
+        throw new Error("Timeout de DB excedido (" + TRANSACTION_TIMEOUT_MS / 1000 + "s). Intente nuevamente o optimice la base de datos.");
+      }
       throw new Error(errorMessage)
     }
   },
