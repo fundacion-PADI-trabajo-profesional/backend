@@ -15,7 +15,7 @@ describe("evaluaciones catálogo", () => {
       { id: "ev1", titulo: "Eval 1" },
       { id: "ev2", titulo: "Eval 2" },
     ];
-    const spy = vi.spyOn(evaluacionRepo.EvaluacionRepository.prototype, "list").mockResolvedValue(mockList as any);
+    const spy = vi.spyOn(evaluacionRepo.EvaluacionRepository, "list").mockResolvedValue(mockList as any);
     const res = await request(app).get("/evaluaciones");
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ success: true });
@@ -26,7 +26,7 @@ describe("evaluaciones catálogo", () => {
 
   it("GET /evaluaciones/:id returns 200 when found", async () => {
     const mockItem = { id: "ev1", titulo: "Eval 1" };
-    const spy = vi.spyOn(evaluacionRepo.EvaluacionRepository.prototype, "getById").mockResolvedValue(mockItem as any);
+    const spy = vi.spyOn(evaluacionRepo.EvaluacionRepository, "getById").mockResolvedValue(mockItem as any);
     const res = await request(app).get("/evaluaciones/ev1");
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ success: true });
@@ -35,7 +35,7 @@ describe("evaluaciones catálogo", () => {
   });
 
   it("GET /evaluaciones/:id returns 404 when not found", async () => {
-    vi.spyOn(evaluacionRepo.EvaluacionRepository.prototype, "getById").mockResolvedValue(null);
+    vi.spyOn(evaluacionRepo.EvaluacionRepository, "getById").mockResolvedValue(null);
     const res = await request(app).get("/evaluaciones/does-not-exist");
     expect(res.status).toBe(404);
     expect(res.body).toMatchObject({ success: false });

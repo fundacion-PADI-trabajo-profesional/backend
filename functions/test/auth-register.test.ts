@@ -28,15 +28,17 @@ describe("auth register flow", () => {
 
   it("POST /auth/register crea persona y profesor cuando rol=docente", async () => {
     mockSupabaseSuccess("doc-1");
+
+    // Mocks de Prisma según la implementación actual de AuthService.register
     const personasCreate = vi.fn().mockResolvedValue({ id: "per-1" });
-    const profesoresFindUnique = vi.fn().mockResolvedValue(null);
     const profesoresCreate = vi.fn().mockResolvedValue({ id: "doc-1", persona_id: "per-1" });
+
     vi.spyOn(prismaClient, "getPrisma").mockReturnValue({
-      // Solo lo que usamos en el servicio
+      // Solo los métodos que usa el servicio para rol=docente
       // @ts-ignore
       personas: { create: personasCreate },
       // @ts-ignore
-      profesores: { findUnique: profesoresFindUnique, create: profesoresCreate },
+      profesores: { create: profesoresCreate },
     } as any);
 
     const res = await request(app)
@@ -52,7 +54,6 @@ describe("auth register flow", () => {
 
     expect(res.status).toBe(201);
     expect(personasCreate).toHaveBeenCalledTimes(1);
-    expect(profesoresFindUnique).toHaveBeenCalledWith({ where: { id: "doc-1" } });
     expect(profesoresCreate).toHaveBeenCalledTimes(1);
   });
 

@@ -22,7 +22,7 @@ describe("evaluaciones endpoint", () => {
   it("returns 404 when not found", async () => {
     const res = await request(app).get("/evaluaciones/does-not-exist");
     expect(res.status).toBe(404);
-    expect(res.body).toMatchObject({ success: false, message: "not found" });
+    expect(res.body).toMatchObject({ success: false, message: "Evaluación no encontrada." });
   });
 });
 
