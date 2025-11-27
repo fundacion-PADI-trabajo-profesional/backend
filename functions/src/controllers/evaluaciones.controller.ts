@@ -50,7 +50,23 @@ export async function createEvaluacion(req: Request, res: Response) {
 // ----------------------------------------------------------------------
 export async function listEvaluaciones(req: Request, res: Response) {
   try {
-    const data = await service.list()
+    const {
+      estudianteId,
+      profesorId,
+      salaId,
+      tipoId,
+      estadoId,
+    } = req.query
+
+    const filters = {
+      estudianteId: typeof estudianteId === "string" ? estudianteId : undefined,
+      profesorId: typeof profesorId === "string" ? profesorId : undefined,
+      salaId: typeof salaId === "string" ? Number(salaId) : undefined,
+      tipoId: typeof tipoId === "string" ? tipoId : undefined,
+      estadoId: typeof estadoId === "string" ? estadoId : undefined,
+    }
+
+    const data = await service.list(filters)
     res.status(200).json(commonResponse(true, "ok", data))
   } catch (error: any) {
     const message = error.message || "Error interno al listar evaluaciones"

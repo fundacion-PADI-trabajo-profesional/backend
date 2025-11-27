@@ -12,8 +12,14 @@ afterEach(() => {
 describe("docentes endpoints", () => {
   it("GET /docentes returns 200 and list of docentes", async () => {
     const mock = [
-      { id: "u1", email: "a@a.com", nombre: "Ana", apellido: "Pérez" },
-      { id: "u2", email: "b@b.com", nombre: "Bruno", apellido: "García" },
+      {
+        id: "u1",
+        personas: { nombre: "Ana", primer_apellido: "Pérez" },
+      },
+      {
+        id: "u2",
+        personas: { nombre: "Bruno", primer_apellido: "García" },
+      },
     ];
     const spy = vi.spyOn(DocenteRepository, "list").mockResolvedValue(mock);
     const res = await request(app).get("/docentes");

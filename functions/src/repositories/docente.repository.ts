@@ -7,6 +7,14 @@ export const DocenteRepository = {
     if (!prisma) return [];
 
     const rows = await (prisma as any).profesores.findMany({
+      where: {
+        // Aseguramos que solo traemos profesores cuyo usuario tiene rol 'docente'
+        personas: {
+          usuario: {
+            rol: "docente",
+          },
+        },
+      },
       include: {
         personas: {
           select: {
