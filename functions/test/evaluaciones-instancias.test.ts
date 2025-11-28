@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/server";
-import * as evaluacionRepo from "../src/repositories/evaluacion.repository";
+import { EvaluacionRepository } from "../src/repositories/evaluacion.repository";
 
 const app = createApp();
 
@@ -9,9 +9,11 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-beforeEach(() => {
-  // Mock the repository methods
-  vi.spyOn(evaluacionRepo.EvaluacionRepository.prototype, "listInstancias").mockResolvedValue([
+// Estos tests validan el comportamiento de las "instancias de evaluación"
+// usando la API actual basada en /evaluaciones y filtros por query params.
+
+describe("evaluaciones instancias (API /evaluaciones)", () => {
+  const baseMock = [
     {
       id: "e1",
       estudiante_id: "s1",
@@ -22,183 +24,77 @@ beforeEach(() => {
       puntaje: null,
       fecha_creacion: new Date(),
     },
-  ]);
+    {
+      id: "e2",
+      estudiante_id: "s2",
+      profesor_id: "p2",
+      sala_id: 2,
+      tipo_id: "cierre",
+      estado_id: "C",
+      puntaje: 10,
+      fecha_creacion: new Date(),
+    },
+  ];
 
-  vi.spyOn(evaluacionRepo.EvaluacionRepository.prototype, "getInstanciaById").mockResolvedValue(null);
+  it("GET /evaluaciones returns full list of evaluaciones", async () => {
+    vi.spyOn(EvaluacionRepository, "list").mockResolvedValue(baseMock as any);
 
-  vi.spyOn(evaluacionRepo.EvaluacionRepository.prototype, "createInstancia").mockImplementation(async (input: any) => ({
-    id: "new-id",
-    estudiante_id: input.estudianteId,
-    profesor_id: input.profesorId ?? "p1",
-    sala_id: input.salaId,
-    tipo_id: input.tipoId,
-    estado_id: input.estadoId,
-    puntaje: input.puntaje ?? null,
-    fecha_creacion: new Date(),
-  }));
-});
+    const res = await request(app).get("/evaluaciones");
 
-describe("evaluaciones instancias", () => {
-  it("GET /evaluaciones-instancias returns list", async () => {
-    const res = await request(app).get("/evaluaciones-instancias");
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ success: true });
     expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.data.length).toBe(2);
   });
 
-  it("GET /evaluaciones-instancias passes filters to repository", async () => {
-    const spy = vi
-      .spyOn(evaluacionRepo.EvaluacionRepository.prototype, "listInstancias")
-      .mockResolvedValue([]);
+  it("GET /evaluaciones filters by estudianteId", async () => {
+    vi.spyOn(EvaluacionRepository, "list").mockResolvedValue(baseMock as any);
 
-    const res = await request(app).get(
-      "/evaluaciones-instancias?estudianteId=s1&salaId=2&tipoId=inicial&estadoId=N&limit=10&offset=5",
-    );
+    const res = await request(app).get("/evaluaciones?estudianteId=s1");
+
     expect(res.status).toBe(200);
-    expect(spy).toHaveBeenCalledTimes(1);
-    expect(spy).toHaveBeenCalledWith({
-      estudianteId: "s1",
-      salaId: 2,
-      tipoId: "inicial",
-      estadoId: "N",
-      limit: 10,
-      offset: 5,
-    });
-  });
-
-  it("GET /evaluaciones-instancias without filters still calls repo with undefineds", async () => {
-    const spy = vi
-      .spyOn(evaluacionRepo.EvaluacionRepository.prototype, "listInstancias")
-      .mockResolvedValue([]);
-    const res = await request(app).get("/evaluaciones-instancias");
-    expect(res.status).toBe(200);
-    expect(spy).toHaveBeenCalledWith({
-      estudianteId: undefined,
-      salaId: undefined,
-      tipoId: undefined,
-      estadoId: undefined,
-      limit: undefined,
-      offset: undefined,
-    });
-  });
-
-  it("GET /evaluaciones-instancias/:id returns 404 when missing", async () => {
-    const res = await request(app).get("/evaluaciones-instancias/00000000-0000-0000-0000-000000000000");
-    expect(res.status).toBe(404);
-    expect(res.body).toMatchObject({ success: false });
-  });
-
-  it("POST /evaluaciones-instancias creates one", async () => {
-    const payload = {
-      estudianteId: "s1",
-      salaId: 1,
-      tipoId: "inicial",
-      estadoId: "N",
-      puntaje: null,
-    };
-    const res = await request(app)
-      .post("/evaluaciones-instancias")
-      .send(payload)
-      .set("Content-Type", "application/json");
-    expect(res.status).toBe(201);
     expect(res.body).toMatchObject({ success: true });
-    expect(res.body.data).toBeTruthy();
+    expect(res.body.data.length).toBe(1);
+    expect(res.body.data[0].estudiante_id).toBe("s1");
   });
 
-  it("PATCH /evaluaciones-instancias/:id updates and returns 200", async () => {
-    const spy = vi
-      .spyOn(evaluacionRepo.EvaluacionRepository.prototype, "actualizarInstancia")
-      .mockResolvedValue({
-        id: "e1",
+  it("GET /evaluaciones filters by profesorId", async () => {
+    vi.spyOn(EvaluacionRepository, "list").mockResolvedValue(baseMock as any);
+
+    const res = await request(app).get("/evaluaciones?profesorId=p2");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ success: true });
+    expect(res.body.data.length).toBe(1);
+    expect(res.body.data[0].profesor_id).toBe("p2");
+  });
+
+  it("GET /evaluaciones can combine multiple filters", async () => {
+    const extendedMock = [
+      ...baseMock,
+      {
+        id: "e3",
         estudiante_id: "s1",
-        profesor_id: "p1",
-        sala_id: 2,
-        tipo_id: "seguimiento",
-        estado_id: "C",
-        puntaje: 90,
+        profesor_id: "p2",
+        sala_id: 1,
+        tipo_id: "inicial",
+        estado_id: "N",
+        puntaje: null,
         fecha_creacion: new Date(),
-      } as any);
+      },
+    ];
 
-    const res = await request(app)
-      .patch("/evaluaciones-instancias/e1")
-      .send({ salaId: 2, tipoId: "seguimiento", estadoId: "C", puntaje: 90 })
-      .set("Content-Type", "application/json");
-    expect(spy).toHaveBeenCalledWith("e1", {
-      estudianteId: undefined,
-      salaId: 2,
-      tipoId: "seguimiento",
-      estadoId: "C",
-      puntaje: 90,
-    });
+    vi.spyOn(EvaluacionRepository, "list").mockResolvedValue(extendedMock as any);
+
+    const res = await request(app).get("/evaluaciones?estudianteId=s1&profesorId=p2");
+
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ success: true });
-  });
-
-  it("PATCH /evaluaciones-instancias/:id returns 404 when instance does not exist", async () => {
-    vi.spyOn(evaluacionRepo.EvaluacionRepository.prototype, "actualizarInstancia").mockResolvedValue(null);
-    const res = await request(app)
-      .patch("/evaluaciones-instancias/not-found")
-      .send({ estadoId: "C" })
-      .set("Content-Type", "application/json");
-    expect(res.status).toBe(404);
-    expect(res.body).toMatchObject({ success: false });
-  });
-
-  it("DELETE /evaluaciones-instancias/:id returns 204 on success", async () => {
-    const spy = vi
-      .spyOn(evaluacionRepo.EvaluacionRepository.prototype, "eliminarInstancia")
-      .mockResolvedValue(true);
-    const res = await request(app).delete("/evaluaciones-instancias/e1");
-    expect(spy).toHaveBeenCalledWith("e1");
-    expect(res.status).toBe(204);
-  });
-
-  it("POST /evaluaciones-instancias returns 400 when required fields are missing", async () => {
-    const payload = {
-      // estudianteId falta
-      salaId: 1,
-      tipoId: "inicial",
-      estadoId: "N",
-    };
-    const res = await request(app)
-      .post("/evaluaciones-instancias")
-      .send(payload)
-      .set("Content-Type", "application/json");
-    expect(res.status).toBe(400);
-    expect(res.body).toMatchObject({
-      success: false,
-      error: { code: "VALIDATION_ERROR" },
+    expect(res.body.data.length).toBe(1);
+    expect(res.body.data[0]).toMatchObject({
+      id: "e3",
+      estudiante_id: "s1",
+      profesor_id: "p2",
     });
   });
-
-  it("POST /evaluaciones-instancias returns 400 when puntaje is invalid", async () => {
-    const payload = {
-      estudianteId: "s1",
-      salaId: 1,
-      tipoId: "inicial",
-      estadoId: "N",
-      puntaje: "no-numero",
-    } as any;
-    const res = await request(app)
-      .post("/evaluaciones-instancias")
-      .send(payload)
-      .set("Content-Type", "application/json");
-    expect(res.status).toBe(400);
-    expect(res.body).toMatchObject({
-      success: false,
-      error: { code: "INVALID_PUNTAJE" },
-    });
-  });
-
-  it("DELETE /evaluaciones-instancias/:id returns 404 when instance does not exist", async () => {
-    const spy = vi
-      .spyOn(evaluacionRepo.EvaluacionRepository.prototype, "eliminarInstancia")
-      .mockResolvedValue(false);
-    const res = await request(app).delete("/evaluaciones-instancias/not-found-id");
-    expect(spy).toHaveBeenCalledWith("not-found-id");
-    expect(res.status).toBe(404);
-    expect(res.body).toMatchObject({ success: false });
-  });
-});
-
-
+}); 

@@ -343,6 +343,13 @@ export const EvaluacionRepository = {
   },
 
   async getById(id: string) {
+    // Si el ID no tiene pinta de UUID, devolvemos null directamente
+    // para que la capa de servicio responda 404 en lugar de reventar Prisma.
+    const basicUuidRegex = /^[0-9a-fA-F-]{36}$/
+    if (!basicUuidRegex.test(id)) {
+      return null
+    }
+
     const prisma = getPrisma()
     if (!prisma) throw new Error("DB not available to get Evaluacion by ID")
 

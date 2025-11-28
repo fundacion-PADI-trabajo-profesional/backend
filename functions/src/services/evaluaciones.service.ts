@@ -23,10 +23,27 @@ export class EvaluacionesService {
   }
 
   /**
-   * Lista todas las evaluaciones con detalles.
+   * Lista evaluaciones con detalles, opcionalmente filtradas.
    */
-  async list() {
-    return await this.repo.list()
+  async list(filters?: {
+    estudianteId?: string
+    profesorId?: string
+    salaId?: number
+    tipoId?: string
+    estadoId?: string
+  }) {
+    const rows = await this.repo.list()
+
+    if (!filters) return rows
+
+    return rows.filter((row: any) => {
+      if (filters.estudianteId && row.estudiante_id !== filters.estudianteId) return false
+      if (filters.profesorId && row.profesor_id !== filters.profesorId) return false
+      if (typeof filters.salaId === "number" && row.sala_id !== filters.salaId) return false
+      if (filters.tipoId && row.tipo_id !== filters.tipoId) return false
+      if (filters.estadoId && row.estado_id !== filters.estadoId) return false
+      return true
+    })
   }
 
   async delete(id: string) {
