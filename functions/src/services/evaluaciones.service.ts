@@ -29,17 +29,6 @@ export class EvaluacionesService {
     return await this.repo.list()
   }
 
-  /**
-   * Obtiene el detalle de una evaluación por su ID.
-   */
-  // async getById(id: string) {
-  //   const evaluacion = await this.repo.getById(id)
-  //   if (!evaluacion) {
-  //     throw new Error("Evaluación no encontrada.")
-  //   }
-  //   return evaluacion
-  // }
-
   async delete(id: string) {
     return await this.repo.delete(id)
   }
@@ -62,18 +51,38 @@ export class EvaluacionesService {
       return evaluacionData;
     }
 
-    const salaId = evaluacionData.estudiantes.salas.grado;
+    // Aseguramos que el salaId sea el tipo correcto (int/number) si es necesario para el query de reglas
+    const salaIdForQuery = Number(evaluacionData.estudiantes.salas.grado);
 
     // 1. Obtener todas las reglas de aprobación para esta sala
-    // NOTA: Asumimos que existe un método getReglasAprobacionBySala en el repositorio.
-    const reglas = await this.repo.getReglasAprobacionBySala(salaId);
+    const reglas = await this.repo.getReglasAprobacionBySala(salaIdForQuery);
 
-    // 2. Mapear las áreas de la evaluación con el puntaje total
-    evaluacionData.evaluaciones_estudiante_area = evaluacionData.evaluaciones_estudiante_area.map((area: any) => {
+    if (reglas.length === 0) {
+      console.warn(`[AttachPuntos] No se encontraron reglas de aprobación para Sala ID: ${salaIdForQuery}. Usando fallback 6.`);
+    }
+
+    // A. Preparar promesas para obtener el total de preguntas activas por área
+    const areaPromises = evaluacionData.evaluaciones_estudiante_area.map((area: any) => {
+      // USAMOS EL ID DE LA INSTANCIA DE ÁREA (item.id)
+      return this.repo.getAreaScoreDetails(area.id, salaIdForQuery, area.area_id);
+    });
+
+    // B. Ejecutar todas las promesas de cálculo
+    const areaScoreDetailsArray = await Promise.all(areaPromises);
+
+    // 2. Mapear las áreas con los datos calculados
+    evaluacionData.evaluaciones_estudiante_area = evaluacionData.evaluaciones_estudiante_area.map((area: any, index: number) => {
       const regla = reglas.find((r: any) => r.area_id === area.area_id);
+      const scoreDetails = areaScoreDetailsArray[index]; // Detalle calculado
 
-      // Adjuntamos el total de puntos posibles (el denominador)
-      area.totalPuntosPosibles = regla?.puntaje_total || 6; // Usamos 6 como fallback seguro
+      // Adjuntamos los campos calculados:
+      area.totalPuntosPosibles = regla?.puntaje_total || 6;
+      area.totalPreguntas = scoreDetails.totalPreguntasActivas; // Denominador
+      area.aciertos_individuales = scoreDetails.aciertosIndividuales; // <--- NUMERADOR CLAVE (En snake_case para el mapper)
+
+      // Opcional: Aseguramos que el estado y puntaje de grupo estén actualizados
+      area.estado_id = scoreDetails.estadoFinalArea;
+      area.puntaje = scoreDetails.puntajeFinal;
 
       return area;
     });
@@ -83,7 +92,7 @@ export class EvaluacionesService {
 
 
   // ----------------------------------------------------------------------
-  // GET BY ID (Donde integramos la lógica)
+  // GET BY ID (Versión FINAL con lógica de adjuntar totales)
   // ----------------------------------------------------------------------
   async getById(id: string) {
     const evaluacion = await this.repo.getById(id)
