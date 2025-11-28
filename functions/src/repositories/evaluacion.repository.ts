@@ -13,7 +13,12 @@ const ESTADO_EN_PROGRESO_ID = 'E'
 const ESTADO_COMPLETADA_ID = 'C'
 const ESTADO_APROBADA_ID = 'A'
 
-async function calculateAreaScore(tx: any, evaluacionAreaId: string, salaId: number, areaId: string): Promise<{ puntajeFinal: number, completado: boolean, totalPuntosPosibles: number }> {
+async function calculateAreaScore(tx: any, evaluacionAreaId: string, salaId: number, areaId: string): Promise<{ puntajeFinal: number, completado: boolean, totalPuntosPosibles: number, estadoFinalArea: string }> {
+  const ESTADO_APROBADA = 'A';
+  const ESTADO_DESAPROBADA = 'D';
+  const ESTADO_EN_PROGRESO_ID = 'E';
+  const ESTADO_COMPLETADA_ID = 'C';
+
   const questionsAndAnswers = await tx.evaluacionesEstudianteAreaPreguntas.findMany({
     where: { evaluaciones_area_id: evaluacionAreaId },
     include: {
@@ -30,8 +35,8 @@ async function calculateAreaScore(tx: any, evaluacionAreaId: string, salaId: num
   });
 
   let questionsAnswered = 0;
-  const answeredGroups: Record<number, { count: number, apruebaCon: number, puntoOtorgado: boolean }> = {};
-  const totalPuntosPosibles = areaRule?.puntaje_total || 0; // Usar la regla de aprobación como total si existe
+  let totalScore = 0;
+  const answeredGroups: Record<number, { count: number, apruebaCon: number, pointValue: number }> = {};
 
   // 1. Recorrer y contar aciertos por número (grupo)
   for (const qa of questionsAndAnswers) {
@@ -40,43 +45,56 @@ async function calculateAreaScore(tx: any, evaluacionAreaId: string, salaId: num
     }
 
     const qNumber = qa.preguntas.numero;
-    // Obtenemos el numerador (target de aciertos) de la fracción "X/Y" o del número "X"
+    // Extrae el numerador (target requerido) de la string '2/3' o '1'
     const qApruebaCon = parseInt(qa.preguntas.aprueba_con?.split('/')[0] || '1');
 
     if (qNumber !== null) {
       if (!answeredGroups[qNumber]) {
-        // Inicializamos el grupo con el umbral que encontramos
-        answeredGroups[qNumber] = { count: 0, apruebaCon: qApruebaCon, puntoOtorgado: false };
+        // Inicializamos el grupo con el umbral y el valor del punto
+        answeredGroups[qNumber] = {
+          count: 0,
+          apruebaCon: qApruebaCon,
+          pointValue: qa.preguntas.puntaje || 1
+        };
       }
-      if (qa.respuesta === 1) { // Contamos solo respuestas "Sí" (1)
+      if (qa.respuesta === 1) { // Cuenta positiva
         answeredGroups[qNumber].count++;
       }
     }
   }
 
-  // 2. Calcular PUNTAJE FINAL: Sumar 1 punto por cada grupo que cumple la regla
-  let totalScore = 0;
-
+  // 2. Calcular PUNTAJE FINAL (Suma de grupos pasados)
   for (const qNumberStr in answeredGroups) {
-    const qNumber = parseInt(qNumberStr);
-    const group = answeredGroups[qNumber];
+    const group = answeredGroups[qNumberStr];
 
-    // Regla: El punto se otorga si la cuenta de aciertos es >= al umbral (apruebaCon)
     if (group.count >= group.apruebaCon) {
-      // El puntaje de 1 punto se otorga una vez por el número de pregunta (grupo).
-      // Buscamos el puntaje de la primera pregunta del grupo.
-      const pointValue = questionsAndAnswers.find((q: any) => q.preguntas.numero === qNumber)?.preguntas.puntaje || 0;
-      totalScore += pointValue;
-      group.puntoOtorgado = true;
+      totalScore += group.pointValue;
     }
   }
 
+  // 3. Determinar el estado final del área
   const completado = questionsAnswered === totalPreguntasActivas;
+  let estadoFinalArea = ESTADO_EN_PROGRESO_ID;
+
+  const totalMaxScore = areaRule?.puntaje_total || 0; // Máximo puntaje posible (ej: 6)
+  const requiredScoreToPass = areaRule?.aprueba_con || 0; // Puntaje mínimo para aprobar (ej: 5)
+
+  if (completado) {
+    if (totalScore >= requiredScoreToPass) {
+      estadoFinalArea = ESTADO_APROBADA;
+    } else {
+      estadoFinalArea = ESTADO_DESAPROBADA;
+    }
+  } else if (questionsAnswered > 0) {
+    estadoFinalArea = ESTADO_EN_PROGRESO_ID;
+  }
+
 
   return {
     puntajeFinal: totalScore,
     completado: completado,
-    totalPuntosPosibles: totalPuntosPosibles,
+    totalPuntosPosibles: totalMaxScore,
+    estadoFinalArea: estadoFinalArea
   };
 }
 
@@ -344,14 +362,13 @@ export const EvaluacionRepository = {
           },
           tipos_evaluacion: { select: { descripcion: true } },
           estados_evaluacion: { select: { descripcion: true } },
-          // Modelo: EvaluacionesEstudianteArea (pluralizada en la relación) -> evaluacion_estudiante_area
-          // OJO: Aquí depende de cómo se llame la relación en tu schema.prisma dentro del modelo EvaluacionEstudiante.
-          // En tu schema dice: evaluaciones_estudiante_area EvaluacionesEstudianteArea[]
-          // Por tanto, aquí sí se usa el nombre de la relación definida en el schema.
           evaluaciones_estudiante_area: {
             include: {
               areas: { select: { nombre: true, descripcion: true } },
               estados_evaluacion: { select: { descripcion: true } },
+              evaluaciones_estudiante: {
+                select: { sala_id: true }
+              }
             },
             orderBy: { areas: { orden: 'asc' } }
           }
@@ -520,7 +537,7 @@ export const EvaluacionRepository = {
       await txAny.evaluacionesEstudianteArea.update({
         where: { id: evaluacionArea.id },
         data: {
-          estado_id: nuevoEstado,
+          estado_id: scoreResult.estadoFinalArea, // Usamos el estado A/D/C/E calculado
           puntaje: scoreResult.puntajeFinal,
         }
       })
@@ -542,4 +559,13 @@ export const EvaluacionRepository = {
     }, { timeout: TRANSACTION_TIMEOUT_MS })
   },
 
+  async getReglasAprobacionBySala(salaId: number) {
+    const prisma = getPrisma()
+    if (!prisma) throw new Error("DB not available to fetch Reglas")
+
+    return await (prisma as any).reglasAprobacion.findMany({
+      where: { sala_id: salaId },
+      select: { area_id: true, aprueba_con: true, puntaje_total: true }
+    })
+  },
 }
