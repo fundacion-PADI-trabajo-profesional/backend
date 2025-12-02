@@ -16,18 +16,20 @@ export class AuthService {
 
     if (error || !data?.user) throw new Error("Credenciales inválidas");
 
-    // Obtener perfil desde public.usuarios
-    let profile: any = null;
-    try {
-      const { data: profileData } = await (supabase as any)
-        .from("usuarios")
-        .select("*")
-        .eq("id", data.user.id)
-        .single();
-      profile = profileData ?? null;
-    } catch (_e) {
-      profile = null;
+    // Obtener perfil desde public.usuarios (debe existir para considerar el login válido)
+    const { data: profileData, error: profileError } = await (supabase as any)
+      .from("usuarios")
+      .select("*")
+      .eq("id", data.user.id)
+      .single();
+
+    if (profileError || !profileData) {
+      // Usuario existe en Auth pero no tiene perfil de aplicación => estado inconsistente
+      // Lo tratamos como error de autenticación lógica.
+      throw new Error("Perfil de usuario no encontrado. Por favor, contactá al administrador.");
     }
+
+    const profile = profileData;
 
     return { user: data.user, session: data.session, profile };
   }
