@@ -7,6 +7,7 @@ import { createDocentesRouter } from "./routes/docentes.router"
 import { createEncargadosRouter } from "./routes/encargado-zona.router";
 import { createDirectivosRouter } from "./routes/directivos.router"
 import { createEscuelasRouter } from "./routes/escuelas.router";
+import { createAulasRouter } from "./routes/aulas.router";
 import authRouter from "./routes/auth.router";
 
 export function createApp() {
@@ -21,6 +22,7 @@ export function createApp() {
   app.use(createDirectivosRouter());
   app.use(createEncargadosRouter());
   app.use(createEscuelasRouter());
+  app.use(createAulasRouter());
   app.use("/auth", authRouter);
 
   return app;

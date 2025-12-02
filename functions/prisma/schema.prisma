@@ -73,16 +73,17 @@ model Areas {
   @@map("areas")
 }
 
-model AsignacionSala {
-  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  estudiante_id String      @db.Uuid
-  sala_id       Int         @db.SmallInt
-  fecha_inicio  DateTime    @default(now()) @db.Timestamptz(6)
-  fecha_fin     DateTime?   @db.Timestamptz(6)
-  estudiantes   Estudiantes @relation(fields: [estudiante_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "asignaciones_sala_estudiante_fkey")
-  salas         Salas       @relation(fields: [sala_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "asignaciones_sala_sala_fkey")
+model EstudiantesAulas {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  estudiante_id String       @db.Uuid
+  aula_id       String       @db.Uuid
+  fecha_inicio  DateTime     @default(now()) @db.Timestamptz(6)
+  fecha_fin     DateTime?    @db.Timestamptz(6)
 
-  @@map("asignaciones_sala")
+  estudiante Estudiantes @relation(fields: [estudiante_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  aula       Aulas       @relation(fields: [aula_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("_EstudiantesToAulas")
 }
 
 model CategoriasMaterial {
@@ -107,17 +108,19 @@ model Estudiantes {
   genero_id  String
   grado      Int?   @db.SmallInt
 
-  // Dónde está el alumno hoy:
+  // Dónde está el alumno hoy (referencia directa a tipo de sala y escuela)
   sala_id    Int       @db.SmallInt
   escuela_id String?
   escuela    Escuelas? @relation(fields: [escuela_id], references: [id])
 
-  fecha_creacion          DateTime               @default(now()) @db.Timestamptz(6)
-  asignaciones_sala       AsignacionSala[]
-  generos                 Generos                @relation(fields: [genero_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "estudiantes_genero_fkey")
-  personas                Personas               @relation(fields: [persona_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "estudiantes_persona_fkey")
-  salas                   Salas                  @relation(fields: [sala_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "estudiantes_sala_fkey")
+  fecha_creacion          DateTime            @default(now()) @db.Timestamptz(6)
+  generos                 Generos             @relation(fields: [genero_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "estudiantes_genero_fkey")
+  personas                Personas            @relation(fields: [persona_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "estudiantes_persona_fkey")
+  salas                   Salas               @relation(fields: [sala_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "estudiantes_sala_fkey")
   evaluaciones_estudiante EvaluacionEstudiante[]
+
+  // Asignaciones del estudiante a aulas (comisiones concretas)
+  aulas EstudiantesAulas[]
 
   @@map("estudiantes")
 }
@@ -220,7 +223,27 @@ model Escuelas {
   // Un estudiante pertenece a una escuela
   estudiantes Estudiantes[]
 
+  // Aulas (comisiones) que pertenecen a esta escuela
+  aulas Aulas[]
+
   @@map("escuelas")
+}
+
+model Aulas {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sala_id        Int      @db.SmallInt
+  escuela_id     String   // En la tabla 'escuelas' el id es TEXT, no UUID
+  comision       String   @db.VarChar
+  turno          String   @db.VarChar
+  fecha_creacion DateTime @default(now()) @db.Timestamptz(6)
+
+  sala    Salas    @relation(fields: [sala_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  escuela Escuelas @relation(fields: [escuela_id], references: [id])
+
+  profesores_aulas  ProfesoresAulas[]
+  estudiantes_aulas EstudiantesAulas[]
+
+  @@map("aulas")
 }
 
 model Profesores {
@@ -230,13 +253,26 @@ model Profesores {
   // Relación Muchos a Muchos con Escuelas (El profe trabaja en varias)
   escuelas Escuelas[]
 
-  // Relación Muchos a Muchos con Salas (El profe da clase en varias salas/grados)
-  salas Salas[]
-
   evaluaciones_estudiante EvaluacionEstudiante[]
   personas                Personas               @relation(fields: [persona_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "profesores_persona_fkey")
 
+  // Asignaciones del profesor a aulas (comisiones concretas)
+  profesores_aulas ProfesoresAulas[]
+
   @@map("profesores")
+}
+
+model ProfesoresAulas {
+  id           String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profesor_id  String     @db.Uuid
+  aula_id      String     @db.Uuid
+  fecha_inicio DateTime   @default(now()) @db.Timestamptz(6)
+  fecha_fin    DateTime?  @db.Timestamptz(6)
+
+  profesor Profesores @relation(fields: [profesor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  aula     Aulas      @relation(fields: [aula_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("_ProfesoresToAulas")
 }
 
 model ReglasAprobacion {
@@ -256,10 +292,8 @@ model Salas {
   nombre String?
   grado  Int?    @db.SmallInt
 
-  // Relación Muchos a Muchos: Varios profesores pueden dar en este tipo de sala
-  profesores Profesores[]
-
-  asignaciones_sala       AsignacionSala[]
+  // Aulas (comisiones) que son de este tipo de sala (3,4,5, etc.)
+  aulas Aulas[]
   estudiantes             Estudiantes[]
   evaluaciones_estudiante EvaluacionEstudiante[]
   preguntas               Preguntas[]
