@@ -12,6 +12,12 @@ export const DirectivoRepository = {
                 id: true,
                 nombre: true,
                 apellido: true,
+                escuela: {
+                    select: {
+                        id: true,
+                        nombre: true,
+                    },
+                },
             },
             orderBy: [{ apellido: "asc" }, { nombre: "asc" }],
         });

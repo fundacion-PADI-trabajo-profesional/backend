@@ -53,6 +53,54 @@ describe("aulas endpoints", () => {
     expect(res.body.data.length).toBe(1);
   });
 
+  it("POST /aulas/:id/asignar-docente assigns a teacher", async () => {
+    const aulaId = "a1";
+    const profesorId = "prof-1";
+
+    const fakePrisma = {
+      usuarioPerfil: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: payloadOk.usuario_id,
+          rol: "director",
+          escuela_id: "esc1",
+        }),
+      },
+      aulas: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: aulaId,
+          escuela_id: "esc1",
+        }),
+      },
+      profesores: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: profesorId,
+        }),
+      },
+      profesoresAulas: {
+        create: vi.fn().mockResolvedValue({
+          id: "pa1",
+          profesor_id: profesorId,
+          aula_id: aulaId,
+        }),
+      },
+    };
+
+    vi.spyOn(prismaClient, "getPrisma").mockReturnValue(fakePrisma as any);
+
+    const res = await request(app)
+      .post(`/aulas/${aulaId}/asignar-docente`)
+      .send({
+        profesor_id: profesorId,
+        usuario_id: payloadOk.usuario_id,
+        rol: payloadOk.rol,
+      })
+      .set("Content-Type", "application/json");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ success: true });
+    expect(fakePrisma.profesoresAulas.create).toHaveBeenCalled();
+  });
+
   it("POST /aulas creates one (201) for director with escuela", async () => {
     const created = {
       id: "a1",

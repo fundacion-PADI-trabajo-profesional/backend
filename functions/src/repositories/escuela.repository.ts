@@ -41,10 +41,12 @@ export const EscuelasRepository = {
 
         return await prisma.escuelas.findMany({
             include: {
-                encargado: {
-                    include: {
-                        usuario: { select: { nombre: true, apellido: true } }
-                    }
+                directivos: {
+                    select: {
+                        id: true,
+                        nombre: true,
+                        apellido: true,
+                    },
                 },
                 profesores: {
                     include: {
@@ -63,6 +65,35 @@ export const EscuelasRepository = {
 
         return await prisma.escuelas.findMany({
             where: { encargado_id: encargadoId },
+            include: {
+                directivos: {
+                    select: {
+                        id: true,
+                        nombre: true,
+                        apellido: true,
+                    },
+                },
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+    },
+
+    // Lista escuelas por zona (para encargados de esa zona)
+    async findByZona(zona: string) {
+        const prisma = getPrisma();
+        if (!prisma) throw new Error("DB not available");
+
+        return await prisma.escuelas.findMany({
+            where: { zona },
+            include: {
+                directivos: {
+                    select: {
+                        id: true,
+                        nombre: true,
+                        apellido: true,
+                    },
+                },
+            },
             orderBy: { createdAt: 'desc' }
         });
     },

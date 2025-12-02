@@ -179,3 +179,125 @@ export async function deleteAula(req: Request, res: Response) {
   }
 }
 
+// GET /aulas/:id/docentes
+export async function listAulaDocentes(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { usuario_id, rol } = req.query;
+
+    if (!id || !usuario_id || !rol) {
+      return res
+        .status(400)
+        .json(
+          commonResponse(false, "Faltan datos obligatorios", null, {
+            code: "VALIDATION_ERROR",
+          }),
+        );
+    }
+
+    const user = {
+      id: String(usuario_id),
+      rol: String(rol),
+    };
+
+    const data = await service.listDocentes(id, user);
+
+    return res.status(200).json(commonResponse(true, "ok", data));
+  } catch (error: any) {
+    const message = error.message || "Error interno al listar docentes del aula";
+    console.error("[listAulaDocentes] Error:", error);
+
+    return res
+      .status(500)
+      .json(
+        commonResponse(false, message, null, {
+          code: "INTERNAL_ERROR",
+          description: message,
+        }),
+      );
+  }
+}
+
+// POST /aulas/:id/asignar-docente
+export async function asignarDocenteAula(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { profesor_id, usuario_id, rol } = req.body;
+
+    if (!id || !profesor_id || !usuario_id || !rol) {
+      return res
+        .status(400)
+        .json(
+          commonResponse(false, "Faltan datos obligatorios", null, {
+            code: "VALIDATION_ERROR",
+          }),
+        );
+    }
+
+    const user = {
+      id: String(usuario_id),
+      rol: String(rol),
+    };
+
+    const data = await service.asignarDocente(id, String(profesor_id), user);
+
+    return res
+      .status(200)
+      .json(commonResponse(true, "Docente asignado al aula", data));
+  } catch (error: any) {
+    const message = error.message || "Error al asignar docente al aula";
+    console.error("[asignarDocenteAula] Error:", error);
+
+    return res
+      .status(400)
+      .json(
+        commonResponse(false, message, null, {
+          code: "ASSIGN_ERROR",
+          description: message,
+        }),
+      );
+  }
+}
+
+// POST /aulas/:id/desasignar-docente
+export async function desasignarDocenteAula(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { profesor_id, usuario_id, rol } = req.body;
+
+    if (!id || !profesor_id || !usuario_id || !rol) {
+      return res
+        .status(400)
+        .json(
+          commonResponse(false, "Faltan datos obligatorios", null, {
+            code: "VALIDATION_ERROR",
+          }),
+        );
+    }
+
+    const user = {
+      id: String(usuario_id),
+      rol: String(rol),
+    };
+
+    await service.desasignarDocente(id, String(profesor_id), user);
+
+    return res
+      .status(200)
+      .json(commonResponse(true, "Docente desasignado del aula", null));
+  } catch (error: any) {
+    const message = error.message || "Error al desasignar docente del aula";
+    console.error("[desasignarDocenteAula] Error:", error);
+
+    return res
+      .status(400)
+      .json(
+        commonResponse(false, message, null, {
+          code: "UNASSIGN_ERROR",
+          description: message,
+        }),
+      );
+  }
+}
+
+

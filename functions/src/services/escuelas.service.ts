@@ -43,14 +43,14 @@ export class EscuelasService {
         }
 
         if (user.rol === "encargado_zona") {
-            // Encargado ve solo lo suyo
+            // Encargado ve todas las escuelas de su zona
             const encargadoData = await this.repo.findEncargadoProfile(user.id);
 
             if (!encargadoData) {
                 throw new Error("No se encontró perfil de encargado.");
             }
 
-            return await this.repo.findByEncargadoId(encargadoData.id);
+            return await this.repo.findByZona(encargadoData.zona);
         }
 
         throw new Error("No tienes permisos para ver el listado de escuelas.");

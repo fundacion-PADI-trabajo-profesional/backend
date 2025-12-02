@@ -1,9 +1,11 @@
 import { getPrisma } from "../config/prismaClient";
 import { CreateAulaDto } from "../interfaces/aula.interface";
 import { AulasRepository, CreateAulaData, UpdateAulaData } from "../repositories/aula.repository";
+import { ProfesoresAulasRepository } from "../repositories/profesor-aula.repository";
 
 export class AulasService {
   private repo = AulasRepository;
+  private profAulaRepo = ProfesoresAulasRepository;
 
   private async getDirectorWithEscuela(user: { id: string; rol: string }) {
     if (user.rol !== "director") {
@@ -106,6 +108,73 @@ export class AulasService {
     }
 
     await this.repo.delete(id);
+  }
+
+  async listDocentes(aulaId: string, user: { id: string; rol: string }) {
+    const { prismaAny, director } = await this.getDirectorWithEscuela(user);
+
+    const aula = await prismaAny.aulas.findUnique({
+      where: { id: aulaId },
+      select: { id: true, escuela_id: true },
+    });
+
+    if (!aula) {
+      throw new Error("Aula no encontrada.");
+    }
+
+    if (aula.escuela_id !== director.escuela_id) {
+      throw new Error("No tienes permisos para ver los docentes de esta aula.");
+    }
+
+    return this.profAulaRepo.listByAula(aulaId);
+  }
+
+  async asignarDocente(aulaId: string, profesorId: string, user: { id: string; rol: string }) {
+    const { prismaAny, director } = await this.getDirectorWithEscuela(user);
+
+    const aula = await prismaAny.aulas.findUnique({
+      where: { id: aulaId },
+      select: { id: true, escuela_id: true },
+    });
+
+    if (!aula) {
+      throw new Error("Aula no encontrada.");
+    }
+
+    if (aula.escuela_id !== director.escuela_id) {
+      throw new Error("No tienes permisos para gestionar docentes de esta aula.");
+    }
+
+    // Validar que el profesor exista
+    const profesor = await prismaAny.profesores.findUnique({
+      where: { id: profesorId },
+      select: { id: true },
+    });
+
+    if (!profesor) {
+      throw new Error("Docente no encontrado.");
+    }
+
+    return this.profAulaRepo.add(profesorId, aulaId);
+  }
+
+  async desasignarDocente(aulaId: string, profesorId: string, user: { id: string; rol: string }) {
+    const { prismaAny, director } = await this.getDirectorWithEscuela(user);
+
+    const aula = await prismaAny.aulas.findUnique({
+      where: { id: aulaId },
+      select: { id: true, escuela_id: true },
+    });
+
+    if (!aula) {
+      throw new Error("Aula no encontrada.");
+    }
+
+    if (aula.escuela_id !== director.escuela_id) {
+      throw new Error("No tienes permisos para gestionar docentes de esta aula.");
+    }
+
+    await this.profAulaRepo.remove(profesorId, aulaId);
   }
 }
 
