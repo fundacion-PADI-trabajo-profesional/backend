@@ -33,7 +33,9 @@ model UsuarioPerfil {
 model Encargados {
   id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   usuario_id String @unique @db.Uuid // @unique es clave para la relación 1 a 1
-  zona       String // Acá guardás "Norte", "Sur", etc.
+  zona_id String? @db.Uuid
+  zona    Zonas? @relation(fields: [zona_id], references: [id])
+
 
   // Relación: Si borrás el usuario, se borra el encargado (Cascade)
   usuario  UsuarioPerfil @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
@@ -207,7 +209,8 @@ model Escuelas {
   nombre    String
   direccion String?
   telefono  String?
-  zona      String
+  zona_id String? @db.Uuid
+  zona    Zonas? @relation(fields: [zona_id], references: [id])
   createdAt DateTime @default(now())
 
   // Relación con Encargado (1 Encargado -> Muchas Escuelas)
@@ -315,6 +318,16 @@ model TiposEvaluacion {
   evaluaciones_estudiante EvaluacionEstudiante[]
 
   @@map("tipos_evaluacion")
+}
+
+model Zonas {
+  id         String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre     String       @unique 
+  
+  encargados Encargados[] 
+  escuelas   Escuelas[]   
+
+  @@map("zonas") // Agrega esto para ser consistente con @map("usuarios"), etc.
 }
 
 enum Rol {
