@@ -30,11 +30,11 @@ export async function listEscuelas(req: Request, res: Response) {
 // POST /api/escuelas
 export async function createEscuela(req: Request, res: Response) {
     try {
-        const { nombre, direccion, telefono, zona, usuario_id, rol } = req.body;
+        const { nombre, direccion, telefono, zona_id, usuario_id, rol } = req.body;
 
-        if (!nombre) {
+        if (!nombre || !zona_id) {
             return res.status(400).json(
-                commonResponse(false, "El nombre de la escuela es obligatorio", null, { code: "VALIDATION_ERROR" })
+                commonResponse(false, "Faltan datos obligatorios (nombre o zona)", null, { code: "VALIDATION_ERROR" })
             );
         }
 
@@ -43,7 +43,7 @@ export async function createEscuela(req: Request, res: Response) {
             rol: rol
         };
 
-        const data = await service.create({ nombre, direccion, telefono, zona }, user);
+        const data = await service.create({ nombre, direccion, telefono, zona_id }, user);
 
         res.status(201).json(commonResponse(true, "Escuela creada con éxito", data));
     } catch (error: any) {

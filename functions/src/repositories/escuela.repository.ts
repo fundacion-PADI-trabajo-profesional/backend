@@ -10,7 +10,9 @@ export const EscuelasRepository = {
 
         return await prisma.encargados.findUnique({
             where: { usuario_id: usuarioId },
-            select: { id: true, zona: true }
+            include: {
+                zona: true
+            }
         });
     },
 
@@ -24,7 +26,7 @@ export const EscuelasRepository = {
                     nombre: data.nombre,
                     direccion: data.direccion,
                     telefono: data.telefono,
-                    zona: data.zona!, // El signo ! fuerza a TS a confiar en que el service ya validó
+                    zona_id: data.zona_id,
                     encargado_id: data.encargado_id
                 }
             });
@@ -41,6 +43,7 @@ export const EscuelasRepository = {
 
         return await prisma.escuelas.findMany({
             include: {
+                zona: true,
                 directivos: {
                     select: {
                         id: true,
@@ -79,19 +82,20 @@ export const EscuelasRepository = {
     },
 
     // Lista escuelas por zona (para encargados de esa zona)
-    async findByZona(zona: string) {
+    async findByZona(nombreZona: string) {
         const prisma = getPrisma();
         if (!prisma) throw new Error("DB not available");
 
         return await prisma.escuelas.findMany({
-            where: { zona },
+            where: {
+                zona: {
+                    nombre: nombreZona
+                }
+            },
             include: {
+                zona: true, // Incluimos para que el front reciba el objeto
                 directivos: {
-                    select: {
-                        id: true,
-                        nombre: true,
-                        apellido: true,
-                    },
+                    select: { id: true, nombre: true, apellido: true },
                 },
             },
             orderBy: { createdAt: 'desc' }
