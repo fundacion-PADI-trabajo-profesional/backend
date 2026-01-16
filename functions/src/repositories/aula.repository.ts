@@ -73,6 +73,73 @@ export const AulasRepository = {
     return updated;
   },
 
+  async listByEscuelas(escuela_ids: string[]) {
+    const prisma = getPrisma();
+    if (!prisma) throw new Error("DB not available to list Aulas");
+
+    const prismaAny = prisma as any;
+
+    const rows = await prismaAny.aulas.findMany({
+      where: { escuela_id: { in: escuela_ids } },
+      include: {
+        sala: {
+          select: {
+            id: true,
+            nombre: true,
+            grado: true,
+          },
+        },
+        escuela: {
+          select: {
+            id: true,
+            nombre: true,
+            zona: {
+              select: {
+                nombre: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: [{ escuela_id: "asc" }, { sala_id: "asc" }, { comision: "asc" }],
+    });
+
+    return rows;
+  },
+
+  async listAll() {
+    const prisma = getPrisma();
+    if (!prisma) throw new Error("DB not available to list Aulas");
+
+    const prismaAny = prisma as any;
+
+    const rows = await prismaAny.aulas.findMany({
+      include: {
+        sala: {
+          select: {
+            id: true,
+            nombre: true,
+            grado: true,
+          },
+        },
+        escuela: {
+          select: {
+            id: true,
+            nombre: true,
+            zona: {
+              select: {
+                nombre: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: [{ escuela_id: "asc" }, { sala_id: "asc" }, { comision: "asc" }],
+    });
+
+    return rows;
+  },
+
   async delete(id: string) {
     const prisma = getPrisma();
     if (!prisma) throw new Error("DB not available to delete Aula");

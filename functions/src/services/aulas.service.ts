@@ -7,36 +7,83 @@ export class AulasService {
   private repo = AulasRepository;
   private profAulaRepo = ProfesoresAulasRepository;
 
-  private async getDirectorWithEscuela(user: { id: string; rol: string }) {
-    if (user.rol !== "director") {
-      throw new Error("No tienes permisos para gestionar aulas.");
-    }
-
+  private async getUserWithPermissions(user: { id: string; rol: string }) {
     const prisma = getPrisma();
     if (!prisma) throw new Error("DB no disponible para gestionar aulas");
-
     const prismaAny = prisma as any;
 
-    const director = await prismaAny.usuarioPerfil.findUnique({
-      where: { id: user.id },
-      select: { id: true, rol: true, escuela_id: true },
-    });
-
-    if (!director || director.rol !== "director") {
-      throw new Error("Perfil de director no encontrado.");
+    // EQUIPO PADI: Acceso total a todas las escuelas
+    if (user.rol === "equipo_padi") {
+      return {
+        prismaAny,
+        userType: "padi" as const,
+        allowedEscuelas: "all" as const,
+        userId: user.id
+      };
     }
 
-    if (!director.escuela_id) {
-      throw new Error("El director no tiene una escuela asignada.");
+    // ENCARGADO DE ZONA: Acceso a escuelas de su zona
+    if (user.rol === "encargado_zona") {
+      const encargado = await prismaAny.encargados.findUnique({
+        where: { usuario_id: user.id },
+        select: {
+          id: true,
+          zona: {
+            select: {
+              id: true,
+              nombre: true,
+              escuelas: { select: { id: true } }
+            }
+          }
+        },
+      });
+
+      if (!encargado || !encargado.zona) {
+        throw new Error("Perfil de encargado de zona no encontrado o sin zona asignada.");
+      }
+
+      const escuelaIds = encargado.zona.escuelas.map((e: any) => e.id);
+      return {
+        prismaAny,
+        userType: "encargado" as const,
+        allowedEscuelas: escuelaIds,
+        userId: user.id,
+        zonaId: encargado.zona.id
+      };
     }
 
-    return { prismaAny, director };
+    // DIRECTOR: Acceso solo a su escuela asignada
+    if (user.rol === "director") {
+      const director = await prismaAny.usuarioPerfil.findUnique({
+        where: { id: user.id },
+        select: { id: true, rol: true, escuela_id: true },
+      });
+
+      if (!director || director.rol !== "director") {
+        throw new Error("Perfil de director no encontrado.");
+      }
+
+      if (!director.escuela_id) {
+        throw new Error("El director no tiene una escuela asignada.");
+      }
+
+      return {
+        prismaAny,
+        userType: "director" as const,
+        allowedEscuelas: [director.escuela_id],
+        userId: user.id,
+        escuelaId: director.escuela_id
+      };
+    }
+
+    throw new Error("No tienes permisos para gestionar aulas.");
   }
 
   async create(data: CreateAulaDto, user: { id: string; rol: string }) {
-    const { prismaAny, director } = await this.getDirectorWithEscuela(user);
+    const userPerms = await this.getUserWithPermissions(user);
+    const { prismaAny } = userPerms;
 
-    // 2) Verificar que la sala exista
+    // Verificar que la sala exista
     const sala = await prismaAny.salas.findUnique({
       where: { id: data.sala_id },
       select: { id: true },
@@ -46,24 +93,55 @@ export class AulasService {
       throw new Error("La sala seleccionada no existe.");
     }
 
-    // 3) Crear el aula en la escuela del director
+    let escuela_id: string;
+
+    // Determinar la escuela según el tipo de usuario
+    if (userPerms.userType === "director") {
+      escuela_id = userPerms.escuelaId!;
+    } else {
+      // Para PADI y encargados, necesitamos que especifiquen la escuela
+      if (!data.escuela_id) {
+        throw new Error("Debe especificar la escuela para crear el aula.");
+      }
+
+      // Verificar permisos sobre la escuela
+      if (userPerms.userType === "encargado") {
+        if (!userPerms.allowedEscuelas.includes(data.escuela_id)) {
+          throw new Error("No tienes permisos para crear aulas en esta escuela.");
+        }
+      }
+      // PADI puede crear en cualquier escuela
+
+      escuela_id = data.escuela_id;
+    }
+
     const payload: CreateAulaData = {
       sala_id: data.sala_id,
       comision: data.comision,
       turno: data.turno,
-      escuela_id: director.escuela_id,
+      escuela_id: escuela_id,
     };
 
     return await this.repo.create(payload);
   }
 
   async list(user: { id: string; rol: string }) {
-    const { director } = await this.getDirectorWithEscuela(user);
-    return await this.repo.listByEscuela(director.escuela_id);
+    const userPerms = await this.getUserWithPermissions(user);
+
+    if (userPerms.userType === "director") {
+      return await this.repo.listByEscuela(userPerms.escuelaId!);
+    } else if (userPerms.userType === "encargado") {
+      // Listar aulas de todas las escuelas de su zona
+      return await this.repo.listByEscuelas(userPerms.allowedEscuelas as string[]);
+    } else { // PADI
+      // Listar todas las aulas del sistema
+      return await this.repo.listAll();
+    }
   }
 
   async update(id: string, data: UpdateAulaData, user: { id: string; rol: string }) {
-    const { prismaAny, director } = await this.getDirectorWithEscuela(user);
+    const userPerms = await this.getUserWithPermissions(user);
+    const { prismaAny } = userPerms;
 
     const aula = await prismaAny.aulas.findUnique({
       where: { id },
@@ -74,15 +152,24 @@ export class AulasService {
       throw new Error("Aula no encontrada.");
     }
 
-    if (aula.escuela_id !== director.escuela_id) {
-      throw new Error("No tienes permisos para modificar esta aula.");
+    // Verificar permisos sobre la escuela del aula
+    if (userPerms.userType === "director") {
+      if (aula.escuela_id !== userPerms.escuelaId) {
+        throw new Error("No tienes permisos para modificar esta aula.");
+      }
+    } else if (userPerms.userType === "encargado") {
+      if (!userPerms.allowedEscuelas.includes(aula.escuela_id)) {
+        throw new Error("No tienes permisos para modificar esta aula.");
+      }
     }
+    // PADI puede modificar cualquier aula
 
     return await this.repo.update(id, data);
   }
 
   async delete(id: string, user: { id: string; rol: string }) {
-    const { prismaAny, director } = await this.getDirectorWithEscuela(user);
+    const userPerms = await this.getUserWithPermissions(user);
+    const { prismaAny } = userPerms;
 
     const aula = await prismaAny.aulas.findUnique({
       where: { id },
@@ -93,9 +180,17 @@ export class AulasService {
       throw new Error("Aula no encontrada.");
     }
 
-    if (aula.escuela_id !== director.escuela_id) {
-      throw new Error("No tienes permisos para eliminar esta aula.");
+    // Verificar permisos sobre la escuela del aula
+    if (userPerms.userType === "director") {
+      if (aula.escuela_id !== userPerms.escuelaId) {
+        throw new Error("No tienes permisos para eliminar esta aula.");
+      }
+    } else if (userPerms.userType === "encargado") {
+      if (!userPerms.allowedEscuelas.includes(aula.escuela_id)) {
+        throw new Error("No tienes permisos para eliminar esta aula.");
+      }
     }
+    // PADI puede eliminar cualquier aula
 
     // Verificar que no tenga asignaciones de estudiantes o profesores
     const [estCount, profCount] = await Promise.all([
@@ -111,7 +206,8 @@ export class AulasService {
   }
 
   async listDocentes(aulaId: string, user: { id: string; rol: string }) {
-    const { prismaAny, director } = await this.getDirectorWithEscuela(user);
+    const userPerms = await this.getUserWithPermissions(user);
+    const { prismaAny } = userPerms;
 
     const aula = await prismaAny.aulas.findUnique({
       where: { id: aulaId },
@@ -122,15 +218,24 @@ export class AulasService {
       throw new Error("Aula no encontrada.");
     }
 
-    if (aula.escuela_id !== director.escuela_id) {
-      throw new Error("No tienes permisos para ver los docentes de esta aula.");
+    // Verificar permisos sobre la escuela del aula
+    if (userPerms.userType === "director") {
+      if (aula.escuela_id !== userPerms.escuelaId) {
+        throw new Error("No tienes permisos para ver los docentes de esta aula.");
+      }
+    } else if (userPerms.userType === "encargado") {
+      if (!userPerms.allowedEscuelas.includes(aula.escuela_id)) {
+        throw new Error("No tienes permisos para ver los docentes de esta aula.");
+      }
     }
+    // PADI puede ver cualquier aula
 
     return this.profAulaRepo.listByAula(aulaId);
   }
 
   async asignarDocente(aulaId: string, profesorId: string, user: { id: string; rol: string }) {
-    const { prismaAny, director } = await this.getDirectorWithEscuela(user);
+    const userPerms = await this.getUserWithPermissions(user);
+    const { prismaAny } = userPerms;
 
     const aula = await prismaAny.aulas.findUnique({
       where: { id: aulaId },
@@ -141,9 +246,17 @@ export class AulasService {
       throw new Error("Aula no encontrada.");
     }
 
-    if (aula.escuela_id !== director.escuela_id) {
-      throw new Error("No tienes permisos para gestionar docentes de esta aula.");
+    // Verificar permisos sobre la escuela del aula
+    if (userPerms.userType === "director") {
+      if (aula.escuela_id !== userPerms.escuelaId) {
+        throw new Error("No tienes permisos para gestionar docentes de esta aula.");
+      }
+    } else if (userPerms.userType === "encargado") {
+      if (!userPerms.allowedEscuelas.includes(aula.escuela_id)) {
+        throw new Error("No tienes permisos para gestionar docentes de esta aula.");
+      }
     }
+    // PADI puede gestionar cualquier aula
 
     // Validar que el profesor exista
     const profesor = await prismaAny.profesores.findUnique({
@@ -159,7 +272,8 @@ export class AulasService {
   }
 
   async desasignarDocente(aulaId: string, profesorId: string, user: { id: string; rol: string }) {
-    const { prismaAny, director } = await this.getDirectorWithEscuela(user);
+    const userPerms = await this.getUserWithPermissions(user);
+    const { prismaAny } = userPerms;
 
     const aula = await prismaAny.aulas.findUnique({
       where: { id: aulaId },
@@ -170,9 +284,17 @@ export class AulasService {
       throw new Error("Aula no encontrada.");
     }
 
-    if (aula.escuela_id !== director.escuela_id) {
-      throw new Error("No tienes permisos para gestionar docentes de esta aula.");
+    // Verificar permisos sobre la escuela del aula
+    if (userPerms.userType === "director") {
+      if (aula.escuela_id !== userPerms.escuelaId) {
+        throw new Error("No tienes permisos para gestionar docentes de esta aula.");
+      }
+    } else if (userPerms.userType === "encargado") {
+      if (!userPerms.allowedEscuelas.includes(aula.escuela_id)) {
+        throw new Error("No tienes permisos para gestionar docentes de esta aula.");
+      }
     }
+    // PADI puede gestionar cualquier aula
 
     await this.profAulaRepo.remove(profesorId, aulaId);
   }
