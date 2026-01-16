@@ -49,6 +49,10 @@ export class EncargadosService {
         });
     }
 
+    async getCurrentEncargado(userId: string) {
+        return await EncargadoRepository.getByUserId(userId);
+    }
+
     async delete(id: string) {
         return await EncargadoRepository.delete(id);
     }

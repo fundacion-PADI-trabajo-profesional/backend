@@ -55,6 +55,40 @@ export const EncargadoRepository = {
         });
     },
 
+    async getByUserId(userId: string) {
+        const prisma = getPrisma();
+        if (!prisma) throw new Error("DB not available");
+
+        const encargado = await (prisma as any).usuarioPerfil.findUnique({
+            where: { id: userId, rol: "encargado_zona" },
+            select: {
+                id: true,
+                nombre: true,
+                apellido: true,
+                email: true,
+                encargado_data: {
+                    select: {
+                        zona: {
+                            select: { id: true, nombre: true }
+                        }
+                    }
+                }
+            }
+        });
+
+        if (!encargado) {
+            throw new Error("Encargado no encontrado");
+        }
+
+        return {
+            id: encargado.id,
+            nombre: encargado.nombre,
+            apellido: encargado.apellido,
+            email: encargado.email,
+            zona: encargado.encargado_data?.zona || null
+        };
+    },
+
     async delete(id: string): Promise<void> {
         const prisma = getPrisma();
         if (!prisma) throw new Error("DB not available");

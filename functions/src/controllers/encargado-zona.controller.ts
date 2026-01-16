@@ -54,6 +54,24 @@ export async function updateEncargado(req: Request, res: Response) {
     }
 }
 
+export async function getCurrentEncargado(req: Request, res: Response) {
+    try {
+        const { usuario_id } = req.query;
+
+        if (!usuario_id) {
+            return res.status(400).json(commonResponse(false, "ID de usuario requerido", null));
+        }
+
+        const data = await service.getCurrentEncargado(String(usuario_id));
+        res.status(200).json(commonResponse(true, "ok", data));
+    } catch (error: any) {
+        const message = error?.message || "Error al obtener información del encargado";
+        res
+            .status(500)
+            .json(commonResponse(false, message, null, { code: "INTERNAL_ERROR", description: message }));
+    }
+}
+
 export async function deleteEncargado(req: Request, res: Response) {
     try {
         const { id } = req.params;
