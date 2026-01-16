@@ -37,3 +37,35 @@ export async function createEncargado(req: Request, res: Response) {
             .json(commonResponse(false, message, null, { code: "CREATE_ERROR", description: message }));
     }
 }
+
+export async function updateEncargado(req: Request, res: Response) {
+    try {
+        const { id } = req.params;
+        const { nombre, apellido, email, zona_id } = req.body;
+
+        if (!id || !nombre || !apellido || !zona_id) {
+            return res.status(400).json(commonResponse(false, "Faltan datos obligatorios para actualizar", null));
+        }
+
+        const result = await service.update(id, { nombre, apellido, email, zona_id });
+        res.status(200).json(commonResponse(true, "Encargado actualizado con éxito", result));
+    } catch (error: any) {
+        res.status(400).json(commonResponse(false, error.message, null));
+    }
+}
+
+export async function deleteEncargado(req: Request, res: Response) {
+    try {
+        const { id } = req.params;
+
+        if (!id) {
+            return res.status(400).json(commonResponse(false, "ID de encargado no proporcionado", null));
+        }
+
+        await service.delete(id);
+        res.status(200).json(commonResponse(true, "Encargado eliminado con éxito", null));
+    } catch (error: any) {
+        const message = error?.message || "Error al eliminar encargado";
+        res.status(400).json(commonResponse(false, message, null, { code: "DELETE_ERROR", description: message }));
+    }
+}

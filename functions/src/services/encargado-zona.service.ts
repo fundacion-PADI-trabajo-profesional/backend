@@ -40,4 +40,16 @@ export class EncargadosService {
 
         return { ...result, tempPassword: generatedPassword }; // Devolvemos la pass por si querés mostrarla en pantalla al admin (opcional)
     }
+
+    async update(id: string, data: { nombre: string; apellido: string; email: string; zona_id: string }) {
+        return await EncargadoRepository.update(id, {
+            nombre: data.nombre,
+            apellido: data.apellido,
+            zona_id: data.zona_id
+        });
+    }
+
+    async delete(id: string) {
+        return await EncargadoRepository.delete(id);
+    }
 }

@@ -3,5 +3,8 @@ export interface EncargadoItem {
     nombre: string;
     apellido: string;
     email: string;
-    zona: string | null;
+    zona: {
+        id: string;
+        nombre: string;
+    } | null;
 }
