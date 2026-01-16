@@ -36,4 +36,9 @@ export class ZonasService {
         this.validatePadi(user.rol); // Reutilizamos tu validación de seguridad
         return await this.repo.listEscuelasSinZona();
     }
+
+    async removeEscuelaFromZona(escuelaId: string, user: { rol: string }) {
+        this.validatePadi(user.rol);
+        return await this.repo.unassignEscuela(escuelaId);
+    }
 }

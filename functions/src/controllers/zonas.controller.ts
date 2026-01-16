@@ -56,3 +56,15 @@ export async function listEscuelasDisponibles(req: Request, res: Response) {
         return res.status(403).json(commonResponse(false, error.message, null));
     }
 }
+
+export async function removeEscuela(req: Request, res: Response) {
+    try {
+        const { escuelaId } = req.params;
+        const { rol } = req.body; // El rol viene del body en el POST/PUT
+
+        const data = await service.removeEscuelaFromZona(escuelaId, { rol: String(rol) });
+        return res.status(200).json(commonResponse(true, "Escuela desvinculada", data));
+    } catch (error: any) {
+        return res.status(400).json(commonResponse(false, error.message, null));
+    }
+}

@@ -53,6 +53,19 @@ export const ZonasRepository = {
         });
     },
 
+    async unassignEscuela(escuelaId: string) {
+        const prisma = getPrisma();
+        if (!prisma) throw new Error("DB no disponible");
+        const prismaAny = prisma as any;
+
+        return await prismaAny.escuelas.update({
+            where: { id: escuelaId },
+            data: {
+                zona_id: null // Volvemos a dejar la escuela "huérfana"
+            }
+        });
+    },
+
     async listEscuelasSinZona() {
         const prisma = getPrisma();
         if (!prisma) throw new Error("DB no disponible");

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createZona, listZonas, getZona, addEscuela, listEscuelasDisponibles } from "../controllers/zonas.controller";
+import { createZona, listZonas, getZona, addEscuela, listEscuelasDisponibles, removeEscuela } from "../controllers/zonas.controller";
 
 export function createZonasRouter() {
     const router = Router();
@@ -9,6 +9,7 @@ export function createZonasRouter() {
     router.get("/zonas/:id", getZona);
     router.post("/zonas/:id/asignar-escuela", addEscuela);
     router.get("/escuelas-sin-zona", listEscuelasDisponibles);
+    router.post("/escuelas/:escuelaId/quitar-escuela", removeEscuela);
 
     return router;
 }
