@@ -57,8 +57,28 @@ export class EscuelasService {
         throw new Error("No tienes permisos para ver el listado de escuelas.");
     }
 
+    async update(id: string, data: {
+        nombre: string;
+        direccion?: string;
+        telefono?: string;
+        zona_id: string
+    }) {
+        return await this.repo.update(id, data);
+    }
+
+    async delete(id: string, user: { rol: string }) {
+        // 1. Validación de seguridad: Solo el equipo PADI tiene este permiso
+        if (user.rol !== "equipo_padi") {
+            throw new Error("Acceso denegado. Solo el equipo PADI puede eliminar instituciones.");
+        }
+
+        // 2. Ejecutar la eliminación en el repositorio
+        // El repositorio se encargará de setear escuela_id = null en los alumnos 
+        // antes de borrar la escuela física.
+        return await this.repo.delete(id);
+    }
+
     async addDocente(escuelaId: string, profesorId: string) {
-        //  agregar validaciones aca (ej: si la escuela existe)
         return await this.repo.addDocenteRelation(escuelaId, profesorId);
     }
 

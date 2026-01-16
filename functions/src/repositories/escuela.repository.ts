@@ -36,6 +36,50 @@ export const EscuelasRepository = {
         }
     },
 
+    async delete(id: string) {
+        const prisma = getPrisma();
+
+        // Usamos una transacción para asegurar que los alumnos queden 
+        // desvinculados antes de borrar la escuela.
+        return await (prisma as any).$transaction([
+            // 1. Dejar a los alumnos de esta escuela "Sin Escuela"
+            (prisma as any).estudiantes.updateMany({
+                where: { escuela_id: id },
+                data: { escuela_id: null }
+            }),
+            // 2. Borrar la escuela
+            (prisma as any).escuelas.delete({
+                where: { id }
+            })
+        ]);
+    },
+
+    async update(id: string, data: {
+        nombre: string;
+        direccion?: string;
+        telefono?: string;
+        zona_id: string
+    }) {
+        const prisma = getPrisma();
+        if (!prisma) throw new Error("DB not available");
+
+        try {
+            return await prisma.escuelas.update({
+                where: { id },
+                data: {
+                    nombre: data.nombre,
+                    direccion: data.direccion,
+                    telefono: data.telefono,
+                    zona_id: data.zona_id
+                }
+            });
+        } catch (error: any) {
+            console.error("Error repository update escuela:", error);
+            // Si el error es porque la zona_id no existe, Prisma lanzará una excepción de clave foránea
+            throw new Error("Error al actualizar la escuela en base de datos.");
+        }
+    },
+
     // Lista TODAS las escuelas (Para Equipo PADI)
     async findAll() {
         const prisma = getPrisma();

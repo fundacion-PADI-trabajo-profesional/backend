@@ -27,7 +27,22 @@ export async function listEscuelas(req: Request, res: Response) {
     }
 }
 
-// POST /api/escuelas
+export async function updateEscuela(req: Request, res: Response) {
+    try {
+        const { id } = req.params;
+        const { nombre, direccion, telefono, zona_id } = req.body;
+
+        if (!nombre || !zona_id) {
+            return res.status(400).json(commonResponse(false, "Nombre y Zona son obligatorios", null));
+        }
+
+        const result = await service.update(id, { nombre, direccion, telefono, zona_id });
+        res.status(200).json(commonResponse(true, "Institución actualizada", result));
+    } catch (error: any) {
+        res.status(400).json(commonResponse(false, error.message, null));
+    }
+}
+
 export async function createEscuela(req: Request, res: Response) {
     try {
         const { nombre, direccion, telefono, zona_id, usuario_id, rol } = req.body;
