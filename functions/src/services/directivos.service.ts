@@ -8,6 +8,10 @@ export class DirectivosService {
         return this.repo.list();
     }
 
+    async listAvailable() {
+        return this.repo.listAvailable();
+    }
+
     async assignEscuela(directorId: string, escuelaId: string, user: { id: string; rol: string }) {
         if (user.rol !== "encargado_zona") {
             throw new Error("No tenés permisos para asignar escuelas a directivos.");

@@ -87,3 +87,42 @@ export async function removeDocenteFromEscuela(req: Request, res: Response) {
         res.status(500).json(commonResponse(false, "Error al remover docente", null));
     }
 }
+
+export async function addDirectivoToEscuela(req: Request, res: Response) {
+    try {
+        const { escuelaId, usuarioId } = req.body;
+        await service.addDirectivo(escuelaId, usuarioId);
+        res.status(200).json(commonResponse(true, "Directivo asignado correctamente", null));
+    } catch (error: any) {
+        res.status(500).json(commonResponse(false, "Error al asignar directivo", null));
+    }
+}
+
+export async function removeDirectivoFromEscuela(req: Request, res: Response) {
+    try {
+        const { usuarioId } = req.body;
+        await service.removeDirectivo(usuarioId);
+        res.status(200).json(commonResponse(true, "Directivo removido correctamente", null));
+    } catch (error: any) {
+        res.status(500).json(commonResponse(false, "Error al remover directivo", null));
+    }
+}
+
+export async function deleteEscuela(req: Request, res: Response) {
+    try {
+        const { id } = req.params;
+        const { rol, usuario_id } = req.query;
+
+        const user = {
+            id: String(usuario_id),
+            rol: String(rol)
+        };
+
+        await service.delete(id, user);
+        res.status(200).json(commonResponse(true, "Escuela eliminada correctamente. Todos los vínculos han sido liberados.", null));
+    } catch (error: any) {
+        const message = error.message || "Error interno al eliminar escuela";
+        console.error("[deleteEscuela] Error:", error);
+        res.status(400).json(commonResponse(false, message, null, { code: "DELETE_ERROR", description: message }));
+    }
+}

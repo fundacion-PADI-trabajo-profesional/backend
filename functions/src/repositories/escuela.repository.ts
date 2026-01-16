@@ -39,19 +39,36 @@ export const EscuelasRepository = {
     async delete(id: string) {
         const prisma = getPrisma();
 
-        // Usamos una transacción para asegurar que los alumnos queden 
-        // desvinculados antes de borrar la escuela.
-        return await (prisma as any).$transaction([
-            // 1. Dejar a los alumnos de esta escuela "Sin Escuela"
-            (prisma as any).estudiantes.updateMany({
+        return await (prisma as any).$transaction(async (tx: any) => {
+            // 1. Dejar a los estudiantes de esta escuela sin escuela
+            await tx.estudiantes.updateMany({
                 where: { escuela_id: id },
                 data: { escuela_id: null }
-            }),
-            // 2. Borrar la escuela
-            (prisma as any).escuelas.delete({
+            });
+
+            // 2. Desasignar directivos de esta escuela
+            await tx.usuarioPerfil.updateMany({
+                where: {
+                    escuela_id: id,
+                    rol: "director"
+                },
+                data: { escuela_id: null }
+            });
+
+            // 3. Desasignar docentes de esta escuela (relación many-to-many)
+            await tx.escuelas.update({
+                where: { id },
+                data: {
+                    profesores: {
+                        set: [] // Esto elimina todas las relaciones many-to-many
+                    }
+                }
+            });
+
+            return await tx.escuelas.delete({
                 where: { id }
-            })
-        ]);
+            });
+        });
     },
 
     async update(id: string, data: {
@@ -173,6 +190,22 @@ export const EscuelasRepository = {
                     disconnect: { id: profesorId }
                 }
             }
+        });
+    },
+
+    async addDirectivoRelation(escuelaId: string, usuarioId: string) {
+        const prisma = getPrisma();
+        return await (prisma as any).usuarioPerfil.update({
+            where: { id: usuarioId },
+            data: { escuela_id: escuelaId }
+        });
+    },
+
+    async removeDirectivoRelation(usuarioId: string) {
+        const prisma = getPrisma();
+        return await (prisma as any).usuarioPerfil.update({
+            where: { id: usuarioId },
+            data: { escuela_id: null }
         });
     }
 };

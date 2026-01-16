@@ -16,6 +16,18 @@ export async function listDirectivos(_req: Request, res: Response) {
     }
 }
 
+export async function listDirectivosDisponibles(_req: Request, res: Response) {
+    try {
+        const data = await service.listAvailable();
+        res.status(200).json(commonResponse(true, "Directivos disponibles", data));
+    } catch (error: any) {
+        const message = error?.message || "Error interno al listar directivos disponibles";
+        res
+            .status(500)
+            .json(commonResponse(false, message, null, { code: "INTERNAL_ERROR", description: message }));
+    }
+}
+
 export async function assignEscuelaToDirectivo(req: Request, res: Response) {
     try {
         const { id } = req.params;

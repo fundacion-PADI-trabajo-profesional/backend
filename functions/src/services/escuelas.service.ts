@@ -86,4 +86,12 @@ export class EscuelasService {
         return await this.repo.removeDocenteRelation(escuelaId, profesorId);
     }
 
+    async addDirectivo(escuelaId: string, usuarioId: string) {
+        return await this.repo.addDirectivoRelation(escuelaId, usuarioId);
+    }
+
+    async removeDirectivo(usuarioId: string) {
+        return await this.repo.removeDirectivoRelation(usuarioId);
+    }
+
 }
