@@ -68,3 +68,49 @@ export async function removeEscuela(req: Request, res: Response) {
         return res.status(400).json(commonResponse(false, error.message, null));
     }
 }
+
+export async function updateZona(req: Request, res: Response) {
+    try {
+        const { id } = req.params;
+        const { nombre, rol } = req.body;
+
+        const data = await service.update(id, { nombre }, { rol: String(rol) });
+        return res.status(200).json(commonResponse(true, "Zona actualizada con éxito", data));
+    } catch (error: any) {
+        return res.status(400).json(commonResponse(false, error.message, null));
+    }
+}
+
+
+export async function listEncargadosSinZona(req: Request, res: Response) {
+    try {
+        const { rol } = req.query;
+        const data = await service.getEncargadosDisponibles({ rol: String(rol) });
+        return res.status(200).json(commonResponse(true, "ok", data));
+    } catch (error: any) {
+        return res.status(403).json(commonResponse(false, error.message, null));
+    }
+}
+
+export async function addEncargado(req: Request, res: Response) {
+    try {
+        const { id } = req.params; // ID de la zona
+        const { encargadoId, rol } = req.body;
+        const data = await service.assignEncargadoToZona(id, encargadoId, { rol: String(rol) });
+        return res.status(200).json(commonResponse(true, "Encargado asignado con éxito", data));
+    } catch (error: any) {
+        return res.status(400).json(commonResponse(false, error.message, null));
+    }
+}
+
+export async function removeEncargado(req: Request, res: Response) {
+    try {
+        const { encargadoId } = req.params;
+        const { rol } = req.body;
+
+        const data = await service.removeEncargadoFromZona(encargadoId, { rol: String(rol) });
+        return res.status(200).json(commonResponse(true, "Encargado desvinculado", data));
+    } catch (error: any) {
+        return res.status(400).json(commonResponse(false, error.message, null));
+    }
+}

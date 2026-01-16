@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createZona, listZonas, getZona, addEscuela, listEscuelasDisponibles, removeEscuela } from "../controllers/zonas.controller";
+import { createZona, listZonas, getZona, addEscuela, listEscuelasDisponibles, removeEscuela, updateZona, addEncargado, listEncargadosSinZona, removeEncargado } from "../controllers/zonas.controller";
 
 export function createZonasRouter() {
     const router = Router();
@@ -10,6 +10,10 @@ export function createZonasRouter() {
     router.post("/zonas/:id/asignar-escuela", addEscuela);
     router.get("/escuelas-sin-zona", listEscuelasDisponibles);
     router.post("/escuelas/:escuelaId/quitar-escuela", removeEscuela);
+    router.put("/zonas/:id", updateZona);
+    router.get("/encargados-sin-zona", listEncargadosSinZona);
+    router.post("/zonas/:id/asignar-encargado", addEncargado);
+    router.post("/encargados/:encargadoId/quitar-zona", removeEncargado);
 
     return router;
 }

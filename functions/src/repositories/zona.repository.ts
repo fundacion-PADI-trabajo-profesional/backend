@@ -42,6 +42,18 @@ export const ZonasRepository = {
         });
     },
 
+    async findByName(nombre: string) {
+        const prisma = getPrisma();
+        if (!prisma) throw new Error("DB no disponible");
+
+        // Usamos prismaAny para mantener consistencia con tu estilo de código
+        const prismaAny = prisma as any;
+
+        return await prismaAny.zonas.findUnique({
+            where: { nombre }
+        });
+    },
+
     async assignEscuela(zonaId: string, escuelaId: string) {
         const prisma = getPrisma();
         if (!prisma) throw new Error("DB no disponible");
@@ -76,6 +88,56 @@ export const ZonasRepository = {
                 zona_id: null // Solo las que no tienen zona
             },
             orderBy: { nombre: "asc" }
+        });
+    },
+
+    async update(id: string, nombre: string) {
+        const prisma = getPrisma();
+        if (!prisma) throw new Error("DB no disponible");
+        const prismaAny = prisma as any;
+
+        return await prismaAny.zonas.update({
+            where: { id },
+            data: { nombre }
+        });
+    },
+
+    async listEncargadosDisponibles() {
+        const prisma = getPrisma();
+        if (!prisma) throw new Error("DB no disponible");
+        const prismaAny = prisma as any;
+
+        return await prismaAny.encargados.findMany({
+            where: {
+                zona_id: null // Solo los que no tienen zona asignada
+            },
+            include: {
+                usuario: true // Para mostrar nombre y apellido
+            }
+        });
+    },
+
+    async assignEncargado(zonaId: string, encargadoId: string) {
+        const prisma = getPrisma();
+        if (!prisma) throw new Error("DB no disponible");
+        const prismaAny = prisma as any;
+
+        return await prismaAny.encargados.update({
+            where: { id: encargadoId },
+            data: { zona_id: zonaId }
+        });
+    },
+
+    async unassignEncargado(encargadoId: string) {
+        const prisma = getPrisma();
+        if (!prisma) throw new Error("DB no disponible");
+        const prismaAny = prisma as any;
+
+        return await prismaAny.encargados.update({
+            where: { id: encargadoId },
+            data: {
+                zona_id: null
+            }
         });
     }
 };

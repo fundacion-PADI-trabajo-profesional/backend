@@ -41,4 +41,31 @@ export class ZonasService {
         this.validatePadi(user.rol);
         return await this.repo.unassignEscuela(escuelaId);
     }
+
+    async update(id: string, data: CreateZonaDto, user: { rol: string }) {
+        this.validatePadi(user.rol);
+        const nombreLimpio = data.nombre.trim();
+
+        const existe = await this.repo.findByName(nombreLimpio);
+        if (existe && existe.id !== id) {
+            throw new Error(`Ya existe otra zona con el nombre '${nombreLimpio}'`);
+        }
+
+        return await this.repo.update(id, nombreLimpio);
+    }
+
+    async getEncargadosDisponibles(user: { rol: string }) {
+        this.validatePadi(user.rol);
+        return await this.repo.listEncargadosDisponibles();
+    }
+
+    async assignEncargadoToZona(zonaId: string, encargadoId: string, user: { rol: string }) {
+        this.validatePadi(user.rol);
+        return await this.repo.assignEncargado(zonaId, encargadoId);
+    }
+
+    async removeEncargadoFromZona(encargadoId: string, user: { rol: string }) {
+        this.validatePadi(user.rol);
+        return await this.repo.unassignEncargado(encargadoId);
+    }
 }
