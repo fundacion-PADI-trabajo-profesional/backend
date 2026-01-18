@@ -155,4 +155,22 @@ export const EstudianteRepository = {
             throw new Error("Error al obtener salas.")
         }
     },
+    async listByEscuela(escuelaId: string) {
+        const prisma = getPrisma();
+        if (!prisma) throw new Error("DB not available");
+
+        const txAny = prisma as any;
+        // Filtramos estudiantes que pertenezcan al UUID de la escuela proporcionado [cite: 17, 18]
+        return await txAny.estudiantes.findMany({
+            where: { escuela_id: escuelaId }, 
+            include: {
+                personas: {
+                    select: { nombre: true, primer_apellido: true, dni: true },
+                },
+                salas: {
+                    select: { nombre: true, grado: true },
+                },
+            },
+        });
+    }
 }

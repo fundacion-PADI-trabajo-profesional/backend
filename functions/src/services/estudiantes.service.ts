@@ -20,4 +20,8 @@ export class EstudiantesService {
     async getSalas() {
         return await this.repo.getSalas()
     }
+    async listByEscuela(escuelaId: string) {
+        // Llama al método que definiremos en el repositorio
+        return await this.repo.listByEscuela(escuelaId);
+    }
 }

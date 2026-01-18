@@ -106,6 +106,7 @@ export const EscuelasRepository = {
             include: {
                 zona: true,
                 directivos: {
+                    where: { rol: 'director' },
                     select: {
                         id: true,
                         nombre: true,
@@ -161,6 +162,7 @@ export const EscuelasRepository = {
             include: {
                 zona: true, // Incluimos para que el front reciba el objeto
                 directivos: {
+                    where: { rol: 'director' },
                     select: { id: true, nombre: true, apellido: true },
                 },
                 estudiantes: {
@@ -174,16 +176,28 @@ export const EscuelasRepository = {
     },
 
     async addDocenteRelation(escuelaId: string, profesorId: string) {
-        const prisma = getPrisma();
-        if (!prisma) throw new Error("DB not available");
+    const prisma = getPrisma();
+    const prismaAny = prisma as any;
 
-        // Usamos 'connect' para crear la relación en la tabla intermedia
-        return await prisma.escuelas.update({
-            where: { id: escuelaId },
-            data: {
-                profesores: {
-                    connect: { id: profesorId }
-                }
+    return await prismaAny.$transaction(async (tx: any) => {
+            // 1. Crear la relación many-to-many (como ya hacés)
+            await tx.escuelas.update({
+                where: { id: escuelaId },
+                data: { profesores: { connect: { id: profesorId } } }
+            });
+
+            // 2. Buscar al usuario asociado a ese profesor
+            const profesor = await tx.profesores.findUnique({
+                where: { id: profesorId },
+                include: { personas: true }
+            });
+
+            // 3. Actualizar el escuela_id en el perfil del usuario
+            if (profesor?.personas?.usuario_id) {
+                await tx.usuarioPerfil.update({
+                    where: { id: profesor.personas.usuario_id },
+                    data: { escuela_id: escuelaId }
+                });
             }
         });
     },
