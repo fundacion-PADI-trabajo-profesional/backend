@@ -5,10 +5,10 @@ import { commonResponse } from "../interfaces/common-response.interface"
 const service = new EstudiantesService()
 export async function createEstudiante(req: Request, res: Response) {
     try {
-        const { dni, nombre, apellido, fecha_nacimiento, genero_id, sala_id } = req.body
+        const { dni, nombre, apellido, fecha_nacimiento, genero_id, sala_id, escuela_id } = req.body
 
         // Validación básica de campos obligatorios
-        if (!dni || !nombre || !apellido || !fecha_nacimiento || !genero_id || !sala_id) {
+        if (!dni || !nombre || !apellido || !fecha_nacimiento || !genero_id || !sala_id || !escuela_id) {
             return res
                 .status(400)
                 .json(commonResponse(false, "Faltan datos obligatorios", null, { code: "VALIDATION_ERROR" }))
@@ -20,7 +20,8 @@ export async function createEstudiante(req: Request, res: Response) {
             apellido,
             fecha_nacimiento,
             genero_id,
-            sala_id: Number(sala_id) // Aseguramos que sala_id sea número
+            sala_id: Number(sala_id), // Aseguramos que sala_id sea número
+            escuela_id
         })
 
         res.status(201).json(commonResponse(true, "Estudiante creado con éxito", data))

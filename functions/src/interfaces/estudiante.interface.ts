@@ -5,4 +5,5 @@ export interface CreateEstudianteData {
     fecha_nacimiento: string // Formato "YYYY-MM-DD"
     genero_id: string
     sala_id: number // id de la sala
+    escuela_id: string // id de la escuela
 }

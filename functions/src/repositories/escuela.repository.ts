@@ -116,6 +116,11 @@ export const EscuelasRepository = {
                     include: {
                         personas: { select: { nombre: true, primer_apellido: true } }
                     }
+                },
+                estudiantes: {
+                    include: {
+                        personas: true
+                    }
                 }
             },
             orderBy: { createdAt: 'desc' }
@@ -158,6 +163,11 @@ export const EscuelasRepository = {
                 directivos: {
                     select: { id: true, nombre: true, apellido: true },
                 },
+                estudiantes: {
+                    include: {
+                        personas: true // Para traer nombre, apellido y DNI
+                    }
+                }
             },
             orderBy: { createdAt: 'desc' }
         });
