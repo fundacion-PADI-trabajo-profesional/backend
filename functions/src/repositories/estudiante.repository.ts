@@ -10,12 +10,13 @@ export interface CreateEstudianteData {
     fecha_nacimiento: string
     genero_id: string
     sala_id: number // id de la sala
+    escuela_id: string // id de la escuela
     // segundo apellido opcional por ahora
 }
 
 export const EstudianteRepository = {
     async create(data: CreateEstudianteData) {
-        const { dni, nombre, apellido, fecha_nacimiento, genero_id, sala_id } = data
+        const { dni, nombre, apellido, fecha_nacimiento, genero_id, sala_id, escuela_id } = data
 
         const prisma = getPrisma()
         if (!prisma) throw new Error("DB not available to create Estudiante")
@@ -52,6 +53,7 @@ export const EstudianteRepository = {
                         persona_id: nuevaPersona.id,
                         genero_id,
                         sala_id,
+                        escuela_id,
                         grado: sala.grado,
                     },
                 })
