@@ -77,43 +77,27 @@ export const EstudianteRepository = {
 
     async list() {
         const prisma = getPrisma()
-        if (!prisma) throw new Error("DB not available to fetch Estudiantes")
+        if (!prisma) throw new Error("DB not available")
 
-        try {
-            // Mantenemos la transacción...
-            const estudiantes = await prisma.$transaction(async (tx) => {
-                const txAny = tx as any
-
-                // ...pero usamos el nombre PLURAL correcto
-                return await txAny.estudiantes.findMany({
-                    include: {
-                        personas: {
-                            select: {
-                                nombre: true,
-                                primer_apellido: true,
-                                segundo_apellido: true,
-                                dni: true,
-                            },
-                        },
-                        salas: {
-                            select: {
-                                nombre: true,
-                                grado: true,
-                            },
-                        },
-                        generos: {
-                            select: {
-                                descripcion: true,
-                            },
-                        },
+        return await (prisma as any).estudiantes.findMany({
+            include: {
+                personas: {
+                    select: {
+                        nombre: true,
+                        primer_apellido: true,
+                        dni: true,
                     },
-                })
-            })
-            return estudiantes
-        } catch (error) {
-            console.error("Error en getAllEstudiantes:", error)
-            throw new Error("Error al obtener la lista de estudiantes.")
-        }
+                },
+                salas: {
+                    select: { nombre: true, grado: true },
+                },
+                // AGREGAR ESTO:
+                escuela: {
+                    select: { nombre: true }
+                },
+                generos: { select: { descripcion: true } },
+            },
+        })
     },
 
     async getGeneros() {
@@ -170,6 +154,10 @@ export const EstudianteRepository = {
                 salas: {
                     select: { nombre: true, grado: true },
                 },
+                escuela: {
+                    select: { nombre: true }
+                },
+                generos: { select: { descripcion: true } },
             },
         });
     }
