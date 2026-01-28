@@ -1,30 +1,11 @@
-// Archivo: evaluaciones.router.ts
+import { Router } from "express";
+import * as Controller from "../controllers/evaluaciones.controller";
 
-import { Router } from "express"
-import {
-  createEvaluacion,
-  listEvaluaciones,
-  getEvaluacionById,
-  deleteEvaluacion,
-  getPreguntasEvaluacion,
-  submitRespuestas,
-} from "../controllers/evaluaciones.controller"
+const router = Router();
 
-export function createEvaluacionesRouter() {
-  const router = Router()
+router.post("/", Controller.createEvaluacion);
+router.get("/", Controller.getEvaluaciones);
+router.get("/:id", Controller.getEvaluacionById);
+router.delete("/:id", Controller.deleteEvaluacion);
 
-  // POST: Crear una nueva evaluación (Se inicializa con 4 áreas en estado 'No Iniciada')
-  router.post("/evaluaciones", createEvaluacion)
-
-  // GET: Listar todas las evaluaciones (Vista de resumen)
-  router.get("/evaluaciones", listEvaluaciones)
-
-  // GET: Obtener el detalle de una evaluación por ID (Incluye las 4 áreas y sus estados)
-  router.get("/evaluaciones/:id", getEvaluacionById)
-
-  router.delete("/evaluaciones/:id", deleteEvaluacion)
-
-  router.get("/evaluaciones/:id/areas/:areaId/preguntas", getPreguntasEvaluacion)
-  router.post("/evaluaciones/:id/respuestas", submitRespuestas)
-  return router
-}
+export default router;
