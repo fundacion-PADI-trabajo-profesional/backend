@@ -3,6 +3,9 @@ const prisma = new PrismaClient();
 
 const ESTADO_NO_INICIADA = "N";
 
+console.error("✅ CARGUE evaluacion.repository.ts (SRC)");
+
+
 export const EvaluacionRepository = {
   async findEstudianteByDni(dni: string) {
     return await prisma.estudiantes.findFirst({
@@ -59,7 +62,7 @@ export const EvaluacionRepository = {
         estudiantes: {
           include: {
             personas: { select: { nombre: true, primer_apellido: true } },
-            escuelas: { select: { nombre: true } },
+            escuela: { select: { nombre: true } },
             salas: { select: { nombre: true } }
           }
         },
@@ -71,14 +74,16 @@ export const EvaluacionRepository = {
   },
 
   async findById(id: string) {
-    return await prisma.evaluacionEstudiante.findUnique({
+    //console.error("🔥🔥🔥 ENTRO A FIREBASE GET /evaluaciones/:id");
+
+    const ret = await prisma.evaluacionEstudiante.findUnique({
       where: { id },
       include: {
         estudiantes: {
           include: {
             personas: true,
             salas: true,
-            escuelas: true //creo que esto ralentiza porque te trae toda la info de la escuela en vez de solo lo que se usa.
+            escuela: true //creo que esto ralentiza porque te trae toda la info de la escuela en vez de solo lo que se usa.
           }
         },
         evaluaciones_estudiante_area: {
@@ -90,8 +95,11 @@ export const EvaluacionRepository = {
         }
       }
     });
-  },
 
+    console.error("✅ DEBUG prisma findById:", JSON.stringify(ret, null, 2));
+
+    return ret;
+  },
 
   async delete(id: string) {
     return await prisma.evaluacionEstudiante.delete({

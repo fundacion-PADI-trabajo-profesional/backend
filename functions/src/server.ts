@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+//import evaluacionesRouter from "./routes/evaluaciones.router";
 import { createHealthRouter } from "./routes/health.router";
 import { createEvaluacionesRouter } from "./routes/evaluaciones.router";
 import { createEstudiantesRouter } from "./routes/estudiantes.router"
@@ -16,6 +17,7 @@ export function createApp() {
   app.use(cors({ origin: true }));
   app.use(express.json());
 
+  //app.use("/evaluaciones", evaluacionesRouter);
   app.use(createHealthRouter());
   app.use(createEvaluacionesRouter());
   app.use(createEstudiantesRouter());

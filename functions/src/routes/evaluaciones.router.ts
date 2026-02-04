@@ -1,11 +1,19 @@
 import { Router } from "express";
-import * as Controller from "../controllers/evaluaciones.controller";
+//import * as Controller from "../controllers/evaluaciones.controller";
+import {
+    createEvaluacion,
+    getEvaluaciones,
+    getEvaluacionById,
+    deleteEvaluacion
+} from "../controllers/evaluaciones.controller";
 
-const router = Router();
+export function createEvaluacionesRouter() {
+    const router = Router();
 
-router.post("/", Controller.createEvaluacion);
-router.get("/", Controller.getEvaluaciones);
-router.get("/:id", Controller.getEvaluacionById);
-router.delete("/:id", Controller.deleteEvaluacion);
+    router.post("/", createEvaluacion);
+    router.get("/", getEvaluaciones);
+    router.get("/:id", getEvaluacionById);
+    router.delete("/:id", deleteEvaluacion);
 
-export default router;
+    return router;
+}
