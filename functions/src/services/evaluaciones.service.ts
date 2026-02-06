@@ -38,4 +38,12 @@ export class EvaluacionService {
   async remove(id: string) {
     return await this.repo.delete(id);
   }
+
+  async getPreguntasArea(evaluacionId: string, areaId: string) {
+    return await this.repo.getPreguntasArea(evaluacionId, areaId);
+  }
+
+  async guardarRespuestas(evaluacionId: string, areaId: string, questions: { id: string; answer: number | null }[]) {
+    return await this.repo.saveRespuestas(evaluacionId, areaId, questions);
+  }
 }
