@@ -295,24 +295,21 @@ async function calculateAreaScore(
   totalPuntosPosibles: number,
   estadoFinalArea: string,
   aciertosIndividuales: number, //grupos aprobados
-  totalPreguntasActivas: number//total de grupos
+  totalPreguntasActivas: number //total de grupos
 }> {
   const ESTADO_EN_PROGRESO = "E";
   const ESTADO_APROBADA = "A";
   const ESTADO_DESAPROBADA = "D";
 
-  //Traer todas las respuestas del área con su pregunta (incluye numero = grupo)
   const qas = await tx.evaluacionesEstudianteAreaPreguntas.findMany({
     where: { evaluaciones_area_id: evaluacionAreaId },
     include: {
-      preguntas: { select: { id: true, numero: true, activa: true } }
+      preguntas: { select: { id: true, numero: true, activa: true, puntaje: true } }
     }
   });
 
-  //Filtrar preguntas activas (si activa es null la tomamos como activa)
   const activos = qas.filter((qa: any) => qa.preguntas && (qa.preguntas.activa === true || qa.preguntas.activa === null));
 
-  // Si no hay nada, no penalizamos: queda no iniciada (pero tu flujo suele pre-poblar)
   if (activos.length === 0) {
     return {
       puntajeFinal: 0,
@@ -324,15 +321,18 @@ async function calculateAreaScore(
     };
   }
 
-  //agrupar por "numero" (grupo). Si numero es null, lo tratamos como grupo unico por pregunta
-  type GroupStats = { total: number; answered: number; correct: number };
+  type GroupStats = { total: number; answered: number; correct: number; puntajes: number[] };
   const groups = new Map<number | string, GroupStats>();
 
   for (const qa of activos) {
     const groupKey = qa.preguntas.numero ?? `Q:${qa.pregunta_id}`;
-    const g = groups.get(groupKey) ?? { total: 0, answered: 0, correct: 0 };
+    const g = groups.get(groupKey) ?? { total: 0, answered: 0, correct: 0, puntajes: [] };
 
     g.total += 1;
+
+    const p = qa.preguntas.puntaje;
+    // si puntaje viene null, asumimos 1
+    g.puntajes.push((p === null || p === undefined) ? 1 : Number(p));
 
     if (qa.respuesta !== null && qa.respuesta !== undefined) {
       g.answered += 1;
@@ -343,41 +343,72 @@ async function calculateAreaScore(
   }
 
   const totalGrupos = groups.size;
-
-  //Grupo aprobado si correctas >= ceil(total/2)  (50% o +)
-  let gruposAprobados = 0;
   let completado = true;
+  let gruposAprobados = 0;
 
-  for (const [, g] of groups) {
+  let puntajeFinal = 0;
+
+  // total puntos posibles: suma del valor del grupo (según su puntaje)
+  let totalPuntosPosibles = 0;
+
+  for (const [groupKey, g] of groups) {
     if (g.answered < g.total) completado = false;
 
     const needed = Math.ceil(g.total / 2);
-    if (g.correct >= needed) gruposAprobados += 1;
+    const apruebaGrupo = g.correct >= needed;
+
+    //valor del grupo según puntajes de sus preguntas
+    const unique = Array.from(new Set(g.puntajes));
+
+    let groupValue: number;
+    if (unique.length === 1) {
+      groupValue = unique[0];
+    } else {
+      //hay preguntas del mismo grupo con puntajes distintos
+      // decisión: usamos el maximo valor como valor de ese grupo
+      groupValue = Math.max(...unique);
+
+      // Log para que detectes datos raros
+      console.warn(`[calculateAreaScore] Grupo ${String(groupKey)} tiene puntajes distintos:`, unique, "-> usando", groupValue);
+    }
+
+    totalPuntosPosibles += groupValue;
+
+    if (apruebaGrupo) {
+      gruposAprobados += 1;
+      puntajeFinal += groupValue;
+    }
   }
 
-  //Regla del area: cuántos grupos deben aprobarse para aprobar el área (tabla reglas_aprobacion)
+  // regla del area: minimo para aprobar
   const areaRule = await tx.reglasAprobacion.findFirst({
     where: { sala_id: salaId, area_id: areaId },
     select: { aprueba_con: true, puntaje_total: true }
   });
 
-  const totalPuntosPosibles = areaRule?.puntaje_total ?? totalGrupos;
-  const requiredToPass = areaRule?.aprueba_con ?? Math.ceil(totalGrupos * 0.6); // fallback
+  // Si en reglas_aprobacion puntaje_total existe, preferimos ese como total máximo
+  if (areaRule?.puntaje_total !== null && areaRule?.puntaje_total !== undefined) {
+    totalPuntosPosibles = Number(areaRule.puntaje_total);
+  }
 
-  //Estado final del area
+  const requiredToPass =
+    (areaRule?.aprueba_con !== null && areaRule?.aprueba_con !== undefined)
+      ? Number(areaRule.aprueba_con)
+      : Math.ceil(totalPuntosPosibles * 0.6);
+
   let estadoFinalArea = ESTADO_EN_PROGRESO;
   if (completado) {
-    estadoFinalArea = gruposAprobados >= requiredToPass ? ESTADO_APROBADA : ESTADO_DESAPROBADA;
+    estadoFinalArea = puntajeFinal >= requiredToPass ? ESTADO_APROBADA : ESTADO_DESAPROBADA;
   } else if (Array.from(groups.values()).some(g => g.answered > 0)) {
     estadoFinalArea = ESTADO_EN_PROGRESO;
   }
 
   return {
-    puntajeFinal: gruposAprobados, //puntaje = grupos aprobados
+    puntajeFinal,
     completado,
     totalPuntosPosibles,
     estadoFinalArea,
-    aciertosIndividuales: gruposAprobados,
-    totalPreguntasActivas: totalGrupos  //Total de grupos
+    aciertosIndividuales: gruposAprobados, // util para UI (grupos ganados)
+    totalPreguntasActivas: totalGrupos
   };
 }
