@@ -80,7 +80,7 @@ export async function getPreguntasDeArea(req: Request, res: Response) {
 
 export async function guardarRespuestasArea(req: Request, res: Response) {
   try {
-    const { id } = req.params; // evaluacionId
+    const { id } = req.params; //evaluacionId
     const { areaId, questions } = req.body;
 
     const data = await service.guardarRespuestas(id, areaId, questions);

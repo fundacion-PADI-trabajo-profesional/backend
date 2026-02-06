@@ -107,28 +107,127 @@ export const EvaluacionRepository = {
     });
   },
 
+  // async findById(id: string) {
+  //   const prisma = getPrisma();
+  //   const txAny = prisma as any;
+  //   return await txAny.evaluacionEstudiante.findUnique({
+  //     where: { id },
+  //     include: {
+  //       estudiantes: {
+  //         include: {
+  //           personas: true,
+  //           salas: true,
+  //           escuela: { select: { nombre: true } }
+  //         }
+  //       },
+  //       evaluaciones_estudiante_area: {
+  //         include: {
+  //           areas: true,
+  //           estados_evaluacion: true
+  //         },
+  //         orderBy: { areas: { orden: 'asc' } }
+  //       }
+  //     }
+  //   });
+  // },
+
   async findById(id: string) {
     const prisma = getPrisma();
+    if (!prisma) throw new Error("DB not available");
+
     const txAny = prisma as any;
-    return await txAny.evaluacionEstudiante.findUnique({
+
+    const evaluacion = await txAny.evaluacionEstudiante.findUnique({
       where: { id },
       include: {
         estudiantes: {
           include: {
             personas: true,
             salas: true,
-            escuela: { select: { nombre: true } }
-          }
+            escuela: { select: { nombre: true } },
+          },
         },
         evaluaciones_estudiante_area: {
           include: {
             areas: true,
-            estados_evaluacion: true
+            estados_evaluacion: true,
+
+            // ✅ traemos las respuestas y su pregunta (para agrupar por numero y leer puntaje)
+            evaluaciones_estudiante_area_preguntas: {
+              include: {
+                preguntas: { select: { id: true, numero: true, activa: true, puntaje: true } },
+              },
+            },
           },
-          orderBy: { areas: { orden: 'asc' } }
+          orderBy: { areas: { orden: "asc" } },
+        },
+      },
+    });
+
+    if (!evaluacion) return null;
+
+    // ✅ Enriquecemos cada área con aciertos/total por GRUPO
+    for (const area of evaluacion.evaluaciones_estudiante_area) {
+      const qas = area.evaluaciones_estudiante_area_preguntas || [];
+
+      // solo activas (activa true o null)
+      const activos = qas.filter((qa: any) => qa.preguntas && (qa.preguntas.activa === true || qa.preguntas.activa === null));
+
+      // agrupar por "numero" (grupo)
+      type GroupStats = { total: number; correct: number; answered: number; puntajes: number[] };
+      const groups = new Map<number | string, GroupStats>();
+
+      for (const qa of activos) {
+        const groupKey = qa.preguntas.numero ?? `Q:${qa.pregunta_id}`;
+        const g = groups.get(groupKey) ?? { total: 0, correct: 0, answered: 0, puntajes: [] };
+
+        g.total += 1;
+
+        const p = qa.preguntas.puntaje;
+        g.puntajes.push((p === null || p === undefined) ? 1 : Number(p));
+
+        if (qa.respuesta !== null && qa.respuesta !== undefined) {
+          g.answered += 1;
+          if (qa.respuesta === 1) g.correct += 1;
+        }
+
+        groups.set(groupKey, g);
+      }
+
+      const totalGrupos = groups.size;
+
+      let gruposAprobados = 0;
+      let totalPuntosPosibles = 0;
+      let puntajeFinal = 0;
+
+      for (const [, g] of groups) {
+        const needed = Math.ceil(g.total / 2);
+        const apruebaGrupo = g.correct >= needed;
+
+        const unique = Array.from(new Set(g.puntajes));
+        const groupValue = unique.length === 1 ? unique[0] : Math.max(...unique);
+
+        totalPuntosPosibles += groupValue;
+
+        if (apruebaGrupo) {
+          gruposAprobados += 1;
+          puntajeFinal += groupValue;
         }
       }
-    });
+
+      // ✅ campos que el front ya intenta leer (snake_case y camelCase)
+      area.aciertos_individuales = gruposAprobados;
+      area.totalPreguntas = totalGrupos;
+
+      // opcionales (por si querés mostrar puntos)
+      area.totalPuntosPosibles = totalPuntosPosibles;
+      area.puntajeFinal = puntajeFinal;
+
+      // si querés, también: cuántos grupos respondidos
+      area.gruposRespondidos = Array.from(groups.values()).filter(g => g.answered === g.total).length;
+    }
+
+    return evaluacion;
   },
 
   async delete(id: string) {
