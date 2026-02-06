@@ -1,5 +1,5 @@
-import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+import { Prisma } from "@prisma/client";
+import { getPrisma } from "../config/prismaClient";
 
 const ESTADO_NO_INICIADA = "N";
 
@@ -8,7 +8,11 @@ console.error("✅ CARGUE evaluacion.repository.ts (SRC)");
 
 export const EvaluacionRepository = {
   async findEstudianteByDni(dni: string) {
-    return await prisma.estudiantes.findFirst({
+    const prisma = getPrisma();
+    if (!prisma) throw new Error("DB not available");
+
+    const txAny = prisma as any;
+    return await txAny.estudiantes.findFirst({
       where: { personas: { dni } },
       select: { id: true, sala_id: true }
     });
@@ -21,33 +25,35 @@ export const EvaluacionRepository = {
     tipo_id: string;
     fecha_creacion: Date;
   }) {
+    const prisma = getPrisma();
+    if (!prisma) throw new Error("DB not available");
+
     return await prisma.$transaction(async (tx) => {
-      //Crear la evaluación principal
-      const evaluacion = await tx.evaluacionEstudiante.create({
+      const txAny = tx as any;
+
+      const evaluacion = await txAny.evaluacionEstudiante.create({
         data: {
           estudiante_id: data.estudiante_id,
           profesor_id: data.profesor_id,
           sala_id: data.sala_id,
           tipo_id: data.tipo_id,
-          estado_id: ESTADO_NO_INICIADA, // Estado inicial: No Iniciada [cite: 15]
+          estado_id: ESTADO_NO_INICIADA,
           fecha_creacion: data.fecha_creacion,
         }
       });
 
-      //Obtener todas las áreas disponibles
-      const todasLasAreas = await tx.areas.findMany({
+      const todasLasAreas = await txAny.areas.findMany({
         orderBy: { orden: 'asc' }
       });
 
-      //Crear registros de área inicializados en 'N' 
-      const areasData = todasLasAreas.map(area => ({
+      const areasData = todasLasAreas.map((area: any) => ({
         evaluacion_estudiante_id: evaluacion.id,
         area_id: area.id,
-        estado_id: ESTADO_NO_INICIADA, // Cada área nace como "No Iniciada" 
+        estado_id: ESTADO_NO_INICIADA,
         puntaje: 0
       }));
 
-      await tx.evaluacionesEstudianteArea.createMany({
+      await txAny.evaluacionesEstudianteArea.createMany({
         data: areasData
       });
 
@@ -56,7 +62,9 @@ export const EvaluacionRepository = {
   },
 
   async findAllByProfesor(profesor_id: string) {
-    return await prisma.evaluacionEstudiante.findMany({
+    const prisma = getPrisma();
+    const txAny = prisma as any;
+    return await txAny.evaluacionEstudiante.findMany({
       where: { profesor_id },
       include: {
         estudiantes: {
@@ -73,17 +81,40 @@ export const EvaluacionRepository = {
     });
   },
 
-  async findById(id: string) {
-    //console.error("🔥🔥🔥 ENTRO A FIREBASE GET /evaluaciones/:id");
+  // Lista global para Administradores
+  async list() {
+    const prisma = getPrisma();
+    const txAny = prisma as any;
+    return await txAny.evaluacionEstudiante.findMany({
+      include: this._commonIncludes(),
+      orderBy: { fecha_creacion: 'desc' }
+    });
+  },
 
-    const ret = await prisma.evaluacionEstudiante.findUnique({
+  // Lista filtrada por Escuela para Directores y Docentes
+  async listByEscuela(escuelaId: string) {
+    const prisma = getPrisma();
+    const txAny = prisma as any;
+    return await txAny.evaluacionEstudiante.findMany({
+      where: {
+        estudiantes: { escuela_id: escuelaId }
+      },
+      include: this._commonIncludes(),
+      orderBy: { fecha_creacion: 'desc' }
+    });
+  },
+
+  async findById(id: string) {
+    const prisma = getPrisma();
+    const txAny = prisma as any;
+    return await txAny.evaluacionEstudiante.findUnique({
       where: { id },
       include: {
         estudiantes: {
           include: {
             personas: true,
             salas: true,
-            escuela: true //creo que esto ralentiza porque te trae toda la info de la escuela en vez de solo lo que se usa.
+            escuela: { select: { nombre: true } }
           }
         },
         evaluaciones_estudiante_area: {
@@ -95,15 +126,29 @@ export const EvaluacionRepository = {
         }
       }
     });
-
-    console.error("✅ DEBUG prisma findById:", JSON.stringify(ret, null, 2));
-
-    return ret;
   },
 
   async delete(id: string) {
-    return await prisma.evaluacionEstudiante.delete({
+    const prisma = getPrisma();
+    const txAny = prisma as any;
+    return await txAny.evaluacionEstudiante.delete({
       where: { id }
     });
+  },
+
+  // Helper para mantener los joins consistentes
+  _commonIncludes() {
+    return {
+      estudiantes: {
+        include: {
+          personas: { select: { nombre: true, primer_apellido: true } },
+          escuela: { select: { nombre: true } },
+          salas: { select: { nombre: true } }
+        }
+      },
+      tipos_evaluacion: { select: { descripcion: true } },
+      estados_evaluacion: { select: { descripcion: true } }
+    };
   }
+
 };

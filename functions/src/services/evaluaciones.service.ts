@@ -1,12 +1,14 @@
 import { EvaluacionRepository } from "../repositories/evaluacion.repository";
-import { CreateEvaluacionDTO } from "../interfaces/evaluacion.interface";
+import type { CreateEvaluacionDTO } from "../interfaces/evaluacion.interface";
 
 export class EvaluacionService {
+  private repo = EvaluacionRepository;
+
   async createEvaluacion(data: CreateEvaluacionDTO) {
-    const estudiante = await EvaluacionRepository.findEstudianteByDni(data.dni);
+    const estudiante = await this.repo.findEstudianteByDni(data.dni);
     if (!estudiante) throw new Error("Estudiante no encontrado");
 
-    return await EvaluacionRepository.create({
+    return await this.repo.create({
       estudiante_id: estudiante.id,
       profesor_id: data.profesor_id,
       sala_id: estudiante.sala_id,
@@ -16,16 +18,24 @@ export class EvaluacionService {
   }
 
   async getListByDocente(profesorId: string) {
-    return await EvaluacionRepository.findAllByProfesor(profesorId);
+    return await this.repo.findAllByProfesor(profesorId);
+  }
+
+  async list() {
+    return await this.repo.list();
+  }
+
+  async listByEscuela(escuelaId: string) {
+    return await this.repo.listByEscuela(escuelaId);
   }
 
   async getDetalle(id: string) {
-    const evaluacion = await EvaluacionRepository.findById(id);
+    const evaluacion = await this.repo.findById(id);
     if (!evaluacion) throw new Error("Evaluación no encontrada");
     return evaluacion;
   }
 
   async remove(id: string) {
-    return await EvaluacionRepository.delete(id);
+    return await this.repo.delete(id);
   }
 }

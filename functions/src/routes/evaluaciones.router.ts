@@ -10,10 +10,10 @@ import {
 export function createEvaluacionesRouter() {
     const router = Router();
 
-    router.post("/", createEvaluacion);
-    router.get("/", getEvaluaciones);
-    router.get("/:id", getEvaluacionById);
-    router.delete("/:id", deleteEvaluacion);
+    router.post("/evaluaciones", createEvaluacion);
+    router.get("/evaluaciones", getEvaluaciones);
+    router.get("/evaluaciones/:id", getEvaluacionById);
+    router.delete("/evaluaciones/:id", deleteEvaluacion);
 
     return router;
 }

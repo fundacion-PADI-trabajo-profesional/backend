@@ -1,41 +1,68 @@
 import { Request, Response } from "express";
 import { EvaluacionService } from "../services/evaluaciones.service";
+import { commonResponse } from "../interfaces/common-response.interface";
+
 
 const service = new EvaluacionService();
 
-export const createEvaluacion = async (req: Request, res: Response) => {
+export async function createEvaluacion(req: Request, res: Response) {
   try {
     const data = await service.createEvaluacion(req.body);
-    res.status(201).json({ success: true, data });
+    res.status(201).json(commonResponse(true, "Evaluación creada con éxito", data));
   } catch (error: any) {
-    res.status(400).json({ success: false, message: error.message });
+    const message = error.message || "Error al crear evaluación";
+    res.status(400).json(commonResponse(false, message, null, { code: "CREATE_ERROR" }));
   }
-};
+}
 
-export const getEvaluaciones = async (req: Request, res: Response) => {
+// export async function getEvaluaciones(req: Request, res: Response) {
+//   try {
+//     const { profesorId } = req.query;
+//     if (!profesorId) {
+//       return res.status(400).json(commonResponse(false, "Falta profesorId", null));
+//     }
+//     const data = await service.getListByDocente(String(profesorId));
+//     res.status(200).json(commonResponse(true, "ok", data));
+//   } catch (error: any) {
+//     res.status(500).json(commonResponse(false, error.message, null));
+//   }
+// }
+
+export async function getEvaluaciones(req: Request, res: Response) {
   try {
-    const { profesorId } = req.query;
-    const data = await service.getListByDocente(profesorId as string);
-    res.json({ success: true, data });
-  } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
+    const { escuela_id, rol } = req.query; // Extraemos filtros de la query
+    let data;
 
-export const getEvaluacionById = async (req: Request, res: Response) => {
+    // Si es docente o director, filtramos por su escuela asignada
+    if ((rol === "docente" || rol === "director") && escuela_id) {
+      data = await service.listByEscuela(String(escuela_id));
+    } else if ((rol === "docente" || rol === "director") && !escuela_id) {
+      return res.status(400).json(commonResponse(false, "Usted no tiene una escuela asignada.", null, { code: "VALIDATION_ERROR" }));
+    } else {
+      // Usuarios admin ven todo el listado
+      data = await service.list();
+    }
+
+    res.status(200).json(commonResponse(true, "ok", data));
+  } catch (error: any) {
+    res.status(500).json(commonResponse(false, error.message, null, { code: "INTERNAL_ERROR" }));
+  }
+}
+
+export async function getEvaluacionById(req: Request, res: Response) {
   try {
     const data = await service.getDetalle(req.params.id);
-    res.json({ success: true, data });
+    res.status(200).json(commonResponse(true, "ok", data));
   } catch (error: any) {
-    res.status(404).json({ success: false, message: error.message });
+    res.status(404).json(commonResponse(false, "Evaluación no encontrada", null));
   }
-};
+}
 
-export const deleteEvaluacion = async (req: Request, res: Response) => {
+export async function deleteEvaluacion(req: Request, res: Response) {
   try {
     await service.remove(req.params.id);
-    res.json({ success: true, message: "Evaluación eliminada" });
+    res.status(200).json(commonResponse(true, "Evaluación eliminada", null));
   } catch (error: any) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json(commonResponse(false, error.message, null));
   }
-};
+}
