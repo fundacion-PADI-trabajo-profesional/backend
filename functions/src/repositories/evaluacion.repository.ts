@@ -303,12 +303,39 @@ export const EvaluacionRepository = {
         },
       });
 
+      // Propagar estado a la evaluacion padre segun estados de áreas
+      const areas = await txAny.evaluacionesEstudianteArea.findMany({
+        where: { evaluacion_estudiante_id: evaluacionId },
+        select: { estado_id: true }
+      });
+
+      const areaEstados = areas.map((a: any) => a.estado_id);
+      const nuevoEstadoEvaluacion = computeEvaluacionEstadoFromAreas(areaEstados);
+
+      await txAny.evaluacionEstudiante.update({
+        where: { id: evaluacionId },
+        data: { estado_id: nuevoEstadoEvaluacion }
+      });
+
       //util para el front
       return {
-        estado: scoreResult.estadoFinalArea,
-        puntaje: scoreResult.puntajeFinal,
-        aciertosIndividuales: scoreResult.aciertosIndividuales, // grupos aprobados
-        totalPreguntas: scoreResult.totalPreguntasActivas       // total grupos
+        area: {
+          areaId,
+          evaluacionAreaId: evalArea.id,
+          estado: scoreResult.estadoFinalArea,
+          puntaje: scoreResult.puntajeFinal,
+          aciertosIndividuales: scoreResult.aciertosIndividuales,
+          totalPreguntas: scoreResult.totalPreguntasActivas,
+        },
+        evaluacion: {
+          id: evaluacionId,
+          estado: nuevoEstadoEvaluacion,
+        },
+        areasSnapshot: areas.map((a: any) => ({
+          areaId: a.area_id,
+          estado: a.estado_id,
+          puntaje: a.puntaje,
+        })),
       };
     });
   },
@@ -456,4 +483,22 @@ async function calculateAreaScore(
     aciertosIndividuales: gruposAprobados, // util para UI (grupos ganados)
     totalPreguntasActivas: totalGrupos
   };
+}
+
+function computeEvaluacionEstadoFromAreas(areaEstados: string[]) {
+  const allN = areaEstados.every(s => s === ESTADO_NO_INICIADA);
+  if (allN) return ESTADO_NO_INICIADA;
+
+  const anyE = areaEstados.some(s => s === ESTADO_EN_PROGRESO);
+  if (anyE) return ESTADO_EN_PROGRESO;
+
+  // finalizadas: solo A o D (si tuvieras "C", incluirlo como finalizada)
+  const allFinal = areaEstados.every(s => s === ESTADO_APROBADA || s === ESTADO_DESAPROBADA);
+  if (!allFinal) return ESTADO_EN_PROGRESO;
+
+  const allA = areaEstados.every(s => s === ESTADO_APROBADA);
+  if (allA) return ESTADO_APROBADA;
+
+  // todas finalizadas y alguna D
+  return ESTADO_DESAPROBADA;
 }

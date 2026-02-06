@@ -15,19 +15,6 @@ export async function createEvaluacion(req: Request, res: Response) {
   }
 }
 
-// export async function getEvaluaciones(req: Request, res: Response) {
-//   try {
-//     const { profesorId } = req.query;
-//     if (!profesorId) {
-//       return res.status(400).json(commonResponse(false, "Falta profesorId", null));
-//     }
-//     const data = await service.getListByDocente(String(profesorId));
-//     res.status(200).json(commonResponse(true, "ok", data));
-//   } catch (error: any) {
-//     res.status(500).json(commonResponse(false, error.message, null));
-//   }
-// }
-
 export async function getEvaluaciones(req: Request, res: Response) {
   try {
     const { escuela_id, rol } = req.query; // Extraemos filtros de la query
@@ -79,13 +66,26 @@ export async function getPreguntasDeArea(req: Request, res: Response) {
   }
 }
 
+// export async function guardarRespuestasArea(req: Request, res: Response) {
+//   try {
+//     const { id } = req.params; // evaluacionId
+//     const { areaId, questions } = req.body;
+
+//     await service.guardarRespuestas(id, areaId, questions);
+//     res.status(200).json(commonResponse(true, "ok", null));
+//   } catch (error: any) {
+//     res.status(400).json(commonResponse(false, error.message, null));
+//   }
+// }
+
 export async function guardarRespuestasArea(req: Request, res: Response) {
   try {
     const { id } = req.params; // evaluacionId
     const { areaId, questions } = req.body;
 
-    await service.guardarRespuestas(id, areaId, questions);
-    res.status(200).json(commonResponse(true, "ok", null));
+    const data = await service.guardarRespuestas(id, areaId, questions);
+
+    res.status(200).json(commonResponse(true, "ok", data));
   } catch (error: any) {
     res.status(400).json(commonResponse(false, error.message, null));
   }
