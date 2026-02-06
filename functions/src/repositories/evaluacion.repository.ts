@@ -133,10 +133,55 @@ export const EvaluacionRepository = {
 
   async delete(id: string) {
     const prisma = getPrisma();
-    const txAny = prisma as any;
-    return await txAny.evaluacionEstudiante.delete({
-      where: { id }
-    });
+    if (!prisma) throw new Error("DB not available");
+
+    try {
+      return await prisma.$transaction(async (tx) => {
+        const txAny = tx as any;
+
+        // 1) Verificar existencia
+        const exists = await txAny.evaluacionEstudiante.findUnique({
+          where: { id },
+          select: { id: true }
+        });
+        if (!exists) {
+          throw new Error("La evaluación no existe");
+        }
+
+        // 2) Buscar áreas asociadas
+        const areas = await txAny.evaluacionesEstudianteArea.findMany({
+          where: { evaluacion_estudiante_id: id },
+          select: { id: true }
+        });
+
+        const areaIds = areas.map((a: { id: string }) => a.id);
+
+        // 3) Borrar respuestas (hijas) primero
+        if (areaIds.length > 0) {
+          await txAny.evaluacionesEstudianteAreaPreguntas.deleteMany({
+            where: { evaluaciones_area_id: { in: areaIds } }
+          });
+        }
+
+        // 4) Borrar áreas
+        await txAny.evaluacionesEstudianteArea.deleteMany({
+          where: { evaluacion_estudiante_id: id }
+        });
+
+        // 5) Borrar evaluación principal
+        const deleted = await txAny.evaluacionEstudiante.delete({
+          where: { id }
+        });
+
+        return deleted;
+      });
+    } catch (error: any) {
+      // Para debug real: logueá el error de Prisma
+      console.error("❌ Error en deleteEvaluacion:", error);
+
+      // Si querés, podés mejorar el mensaje según error.code (P2003, etc.)
+      throw new Error(error?.message || "Error al eliminar evaluación");
+    }
   },
 
   //PREGUNTAS AREAS

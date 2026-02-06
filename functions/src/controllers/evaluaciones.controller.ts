@@ -63,7 +63,9 @@ export async function deleteEvaluacion(req: Request, res: Response) {
     await service.remove(req.params.id);
     res.status(200).json(commonResponse(true, "Evaluación eliminada", null));
   } catch (error: any) {
-    res.status(500).json(commonResponse(false, error.message, null));
+    const msg = error?.message || "Error al eliminar la evaluación";
+    const status = msg.includes("no existe") ? 404 : 500;
+    res.status(status).json(commonResponse(false, msg, null));
   }
 }
 
