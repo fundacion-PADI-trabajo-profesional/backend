@@ -6,8 +6,6 @@ const ESTADO_EN_PROGRESO = "E";
 const ESTADO_APROBADA = "A";
 const ESTADO_DESAPROBADA = "D";
 
-console.error("✅ CARGUE evaluacion.repository.ts (SRC)");
-
 
 export const EvaluacionRepository = {
   async findEstudianteByDni(dni: string) {
