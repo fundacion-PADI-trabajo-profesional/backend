@@ -66,17 +66,6 @@ export async function getPreguntasDeArea(req: Request, res: Response) {
   }
 }
 
-// export async function guardarRespuestasArea(req: Request, res: Response) {
-//   try {
-//     const { id } = req.params; // evaluacionId
-//     const { areaId, questions } = req.body;
-
-//     await service.guardarRespuestas(id, areaId, questions);
-//     res.status(200).json(commonResponse(true, "ok", null));
-//   } catch (error: any) {
-//     res.status(400).json(commonResponse(false, error.message, null));
-//   }
-// }
 
 export async function guardarRespuestasArea(req: Request, res: Response) {
   try {

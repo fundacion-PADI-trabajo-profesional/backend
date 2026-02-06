@@ -107,30 +107,6 @@ export const EvaluacionRepository = {
     });
   },
 
-  // async findById(id: string) {
-  //   const prisma = getPrisma();
-  //   const txAny = prisma as any;
-  //   return await txAny.evaluacionEstudiante.findUnique({
-  //     where: { id },
-  //     include: {
-  //       estudiantes: {
-  //         include: {
-  //           personas: true,
-  //           salas: true,
-  //           escuela: { select: { nombre: true } }
-  //         }
-  //       },
-  //       evaluaciones_estudiante_area: {
-  //         include: {
-  //           areas: true,
-  //           estados_evaluacion: true
-  //         },
-  //         orderBy: { areas: { orden: 'asc' } }
-  //       }
-  //     }
-  //   });
-  // },
-
   async findById(id: string) {
     const prisma = getPrisma();
     if (!prisma) throw new Error("DB not available");
@@ -444,15 +420,44 @@ export const EvaluacionRepository = {
     return {
       estudiantes: {
         include: {
-          personas: { select: { nombre: true, primer_apellido: true } },
-          escuela: { select: { nombre: true } },
-          salas: { select: { nombre: true } }
+          personas: { select: { nombre: true, primer_apellido: true, dni: true } },
+          salas: { select: { nombre: true, grado: true } },
+          escuela: { select: { nombre: true } }
+        }
+      },
+      profesores: {
+        include: {
+          personas: { select: { nombre: true, primer_apellido: true } }
         }
       },
       tipos_evaluacion: { select: { descripcion: true } },
-      estados_evaluacion: { select: { descripcion: true } }
-    };
+      estados_evaluacion: { select: { descripcion: true } },
+
+      evaluaciones_estudiante_area: {
+        select: {
+          id: true,
+          area_id: true,
+          estado_id: true,
+          puntaje: true,
+          areas: {
+            select: {
+              nombre: true,
+              orden: true
+            }
+          },
+          estados_evaluacion: {
+            select: {
+              descripcion: true
+            }
+          }
+        },
+        orderBy: {
+          areas: { orden: "asc" }
+        }
+      }
+    }
   }
+
 };
 
 async function calculateAreaScore(
