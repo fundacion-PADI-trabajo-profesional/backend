@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { getPrisma } from "../config/prismaClient";
+import { select } from "firebase-functions/params";
 
 const ESTADO_NO_INICIADA = "N";
 const ESTADO_EN_PROGRESO = "E";
@@ -117,6 +118,7 @@ export const EvaluacionRepository = {
         estudiantes: {
           include: {
             personas: true,
+            generos: { select: { descripcion: true } },
             salas: true,
             escuela: { select: { nombre: true } },
           },
@@ -419,6 +421,7 @@ export const EvaluacionRepository = {
       estudiantes: {
         include: {
           personas: { select: { nombre: true, primer_apellido: true, dni: true } },
+          generos: { select: { descripcion: true } },
           salas: { select: { nombre: true, grado: true } },
           escuela: { select: { nombre: true } }
         }
