@@ -6,4 +6,5 @@ export interface CreateEstudianteData {
     genero_id: string
     sala_id: number // id de la sala
     escuela_id: string // id de la escuela
+    aula_id?: string // opcional: aula concreta para asignación en _EstudiantesToAulas
 }

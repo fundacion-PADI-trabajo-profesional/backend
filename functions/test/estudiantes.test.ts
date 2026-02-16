@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/server";
 import { EstudianteRepository } from "../src/repositories/estudiante.repository";
+import * as prismaClient from "../src/config/prismaClient";
 
 const app = createApp();
 
@@ -132,6 +133,86 @@ describe("estudiantes endpoints", () => {
       error: { code: "INTERNAL_ERROR" },
     });
     expect(String(res.body.error?.description || "")).toContain("La sala seleccionada no existe");
+  });
+
+  it("POST /estudiantes as docente creates student in assigned aula", async () => {
+    const created = {
+      id: "s2",
+      persona_id: "p2",
+      genero_id: "F",
+      grado: 3,
+      sala_id: 3,
+      fecha_creacion: new Date().toISOString(),
+      persona: {
+        id: "p2",
+        dni: "44999111",
+        nombre: "Lara",
+        primer_apellido: "Gomez",
+      },
+    };
+
+    const fakePrisma = {
+      profesoresAulas: {
+        findFirst: vi.fn().mockResolvedValue({
+          aula: { id: "aula-1", sala_id: 3, escuela_id: "escuela-10" },
+        }),
+      },
+    };
+
+    vi.spyOn(prismaClient, "getPrisma").mockReturnValue(fakePrisma as any);
+    const createSpy = vi.spyOn(EstudianteRepository, "create").mockResolvedValue(created as any);
+
+    const res = await request(app)
+      .post("/estudiantes")
+      .send({
+        dni: "44999111",
+        nombre: "Lara",
+        apellido: "Gomez",
+        fecha_nacimiento: "2019-01-02",
+        genero_id: "F",
+        sala_id: 99,
+        escuela_id: "escuela-otra",
+        aula_id: "aula-1",
+        usuario_id: "docente-1",
+        rol: "docente",
+      })
+      .set("Content-Type", "application/json");
+
+    expect(res.status).toBe(201);
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sala_id: 3,
+        escuela_id: "escuela-10",
+        aula_id: "aula-1",
+      }),
+    );
+  });
+
+  it("POST /estudiantes as docente returns 400 if aula is not assigned", async () => {
+    const fakePrisma = {
+      profesoresAulas: {
+        findFirst: vi.fn().mockResolvedValue(null),
+      },
+    };
+
+    vi.spyOn(prismaClient, "getPrisma").mockReturnValue(fakePrisma as any);
+
+    const res = await request(app)
+      .post("/estudiantes")
+      .send({
+        ...payloadOk,
+        aula_id: "aula-invalida",
+        usuario_id: "docente-1",
+        rol: "docente",
+      })
+      .set("Content-Type", "application/json");
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({
+      success: false,
+      error: { code: "INTERNAL_ERROR" },
+    });
+    expect(String(res.body.message || "")).toContain("No tienes permisos");
   });
 });
 

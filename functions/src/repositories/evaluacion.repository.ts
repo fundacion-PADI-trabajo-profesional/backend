@@ -24,6 +24,7 @@ export const EvaluacionRepository = {
     estudiante_id: string;
     profesor_id: string;
     sala_id: number;
+    aula_id?: string;
     tipo_id: string;
     fecha_creacion: Date;
   }) {
@@ -38,6 +39,7 @@ export const EvaluacionRepository = {
           estudiante_id: data.estudiante_id,
           profesor_id: data.profesor_id,
           sala_id: data.sala_id,
+          aula_id: data.aula_id ?? null,
           tipo_id: data.tipo_id,
           estado_id: ESTADO_NO_INICIADA,
           fecha_creacion: data.fecha_creacion,
@@ -69,6 +71,9 @@ export const EvaluacionRepository = {
     return await txAny.evaluacionEstudiante.findMany({
       where: { profesor_id },
       include: {
+        aulas: {
+          select: { id: true, comision: true, turno: true },
+        },
         estudiantes: {
           include: {
             personas: { select: { nombre: true, primer_apellido: true } },
@@ -90,6 +95,57 @@ export const EvaluacionRepository = {
     return await txAny.evaluacionEstudiante.findMany({
       include: this._commonIncludes(),
       orderBy: { fecha_creacion: 'desc' }
+    });
+  },
+
+  async listWithFilters(filters?: {
+    estudianteId?: string;
+    profesorId?: string;
+    salaId?: number;
+    tipoId?: string;
+    estadoId?: string;
+    escuelaId?: string;
+  }) {
+    const prisma = getPrisma();
+    const txAny = prisma as any;
+
+    const where: any = {};
+    if (filters?.estudianteId) where.estudiante_id = filters.estudianteId;
+    if (filters?.profesorId) where.profesor_id = filters.profesorId;
+    if (filters?.salaId !== undefined) where.sala_id = filters.salaId;
+    if (filters?.tipoId) where.tipo_id = filters.tipoId;
+    if (filters?.estadoId) where.estado_id = filters.estadoId;
+    if (filters?.escuelaId) {
+      where.estudiantes = { escuela_id: filters.escuelaId };
+    }
+
+    return await txAny.evaluacionEstudiante.findMany({
+      where,
+      include: this._commonIncludes(),
+      orderBy: { fecha_creacion: "desc" },
+    });
+  },
+
+  async findActiveEstudianteAula(estudianteId: string, aulaId: string) {
+    const prisma = getPrisma();
+    if (!prisma) throw new Error("DB not available");
+    const txAny = prisma as any;
+
+    return await txAny.estudiantesAulas.findFirst({
+      where: {
+        estudiante_id: estudianteId,
+        aula_id: aulaId,
+        fecha_fin: null,
+      },
+      include: {
+        aula: {
+          select: {
+            id: true,
+            sala_id: true,
+            escuela_id: true,
+          },
+        },
+      },
     });
   },
 
@@ -115,6 +171,9 @@ export const EvaluacionRepository = {
     const evaluacion = await txAny.evaluacionEstudiante.findUnique({
       where: { id },
       include: {
+        aulas: {
+          select: { id: true, comision: true, turno: true, escuela_id: true },
+        },
         estudiantes: {
           include: {
             personas: true,
@@ -418,6 +477,13 @@ export const EvaluacionRepository = {
   // Helper para mantener los joins consistentes
   _commonIncludes() {
     return {
+      aulas: {
+        select: {
+          id: true,
+          comision: true,
+          turno: true,
+        }
+      },
       estudiantes: {
         include: {
           personas: { select: { nombre: true, primer_apellido: true, dni: true } },

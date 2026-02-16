@@ -49,10 +49,12 @@ model EvaluacionEstudiante {
   estudiante_id                String                       @db.Uuid
   profesor_id                  String                       @db.Uuid
   sala_id                      Int                          @db.SmallInt
+  aula_id                      String?                      @db.Uuid
   tipo_id                      String
   puntaje                      Float?                       @db.Real
   estado_id                    String
   fecha_creacion               DateTime                     @default(now()) @db.Timestamptz(6)
+  aulas                        Aulas?                       @relation(fields: [aula_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   estados_evaluacion           EstadosEvaluacion            @relation(fields: [estado_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "evaluaciones_estudiante_estado_fkey")
   estudiantes                  Estudiantes                  @relation(fields: [estudiante_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "evaluaciones_estudiante_estudiante_fkey")
   profesores                   Profesores                   @relation(fields: [profesor_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "evaluaciones_estudiante_profesor_fkey")
@@ -245,6 +247,7 @@ model Aulas {
 
   profesores_aulas  ProfesoresAulas[]
   estudiantes_aulas EstudiantesAulas[]
+  evaluaciones_estudiante EvaluacionEstudiante[]
 
   @@map("aulas")
 }

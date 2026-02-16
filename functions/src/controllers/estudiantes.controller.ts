@@ -6,13 +6,19 @@ import { commonResponse } from "../interfaces/common-response.interface"
 const service = new EstudiantesService()
 export async function createEstudiante(req: Request, res: Response) {
     try {
-        const { dni, nombre, apellido, fecha_nacimiento, genero_id, sala_id, escuela_id } = req.body
+        const { dni, nombre, apellido, fecha_nacimiento, genero_id, sala_id, escuela_id, aula_id, usuario_id, rol } = req.body
 
         // Validación básica de campos obligatorios
         if (!dni || !nombre || !apellido || !fecha_nacimiento || !genero_id || !sala_id || !escuela_id) {
             return res
                 .status(400)
                 .json(commonResponse(false, "Faltan datos obligatorios", null, { code: "VALIDATION_ERROR" }))
+        }
+
+        if (rol === "docente" && (!usuario_id || !aula_id)) {
+            return res
+                .status(400)
+                .json(commonResponse(false, "Para docentes, usuario_id y aula_id son obligatorios", null, { code: "VALIDATION_ERROR" }))
         }
 
         const data = await service.create({
@@ -22,8 +28,9 @@ export async function createEstudiante(req: Request, res: Response) {
             fecha_nacimiento,
             genero_id,
             sala_id: Number(sala_id), // Aseguramos que sala_id sea número
-            escuela_id
-        })
+            escuela_id,
+            aula_id: typeof aula_id === "string" ? aula_id : undefined,
+        }, (usuario_id && rol) ? { id: String(usuario_id), rol: String(rol) } : undefined)
 
         res.status(201).json(commonResponse(true, "Estudiante creado con éxito", data))
 

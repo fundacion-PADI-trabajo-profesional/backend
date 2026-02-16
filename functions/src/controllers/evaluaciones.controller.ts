@@ -17,18 +17,32 @@ export async function createEvaluacion(req: Request, res: Response) {
 
 export async function getEvaluaciones(req: Request, res: Response) {
   try {
-    const { escuela_id, rol } = req.query; // Extraemos filtros de la query
-    let data;
+    const { escuela_id, rol, estudianteId, profesorId, salaId, tipoId, estadoId } = req.query;
 
-    // Si es docente o director, filtramos por su escuela asignada
-    if ((rol === "docente" || rol === "director") && escuela_id) {
-      data = await service.listByEscuela(String(escuela_id));
-    } else if ((rol === "docente" || rol === "director") && !escuela_id) {
-      return res.status(400).json(commonResponse(false, "Usted no tiene una escuela asignada.", null, { code: "VALIDATION_ERROR" }));
-    } else {
-      // Usuarios admin ven todo el listado
-      data = await service.list();
+    const filters = {
+      estudianteId: typeof estudianteId === "string" ? estudianteId : undefined,
+      profesorId: typeof profesorId === "string" ? profesorId : undefined,
+      salaId: typeof salaId === "string" ? Number(salaId) : undefined,
+      tipoId: typeof tipoId === "string" ? tipoId : undefined,
+      estadoId: typeof estadoId === "string" ? estadoId : undefined,
+      escuelaId: typeof escuela_id === "string" ? escuela_id : undefined,
+    };
+
+    let data;
+    // Director debe tener escuela asignada para listar.
+    if (rol === "director" && !filters.escuelaId) {
+      return res
+        .status(400)
+        .json(commonResponse(false, "Usted no tiene una escuela asignada.", null, { code: "VALIDATION_ERROR" }));
     }
+
+    // Docente puede listar por profesorId (mis evaluaciones) o por escuela.
+    if (rol === "docente" && !filters.escuelaId && !filters.profesorId) {
+      return res
+        .status(400)
+        .json(commonResponse(false, "Faltan filtros para listar evaluaciones del docente.", null, { code: "VALIDATION_ERROR" }));
+    }
+    data = await service.listWithFilters(filters);
 
     res.status(200).json(commonResponse(true, "ok", data));
   } catch (error: any) {

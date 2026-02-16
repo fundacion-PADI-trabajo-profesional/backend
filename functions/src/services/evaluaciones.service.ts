@@ -8,10 +8,23 @@ export class EvaluacionService {
     const estudiante = await this.repo.findEstudianteByDni(data.dni);
     if (!estudiante) throw new Error("Estudiante no encontrado");
 
+    let salaId = estudiante.sala_id;
+    let aulaId: string | undefined = undefined;
+
+    if (data.aula_id) {
+      const asignacion = await this.repo.findActiveEstudianteAula(estudiante.id, data.aula_id);
+      if (!asignacion?.aula) {
+        throw new Error("El estudiante no está asignado activamente al aula indicada.");
+      }
+      aulaId = data.aula_id;
+      salaId = asignacion.aula.sala_id;
+    }
+
     return await this.repo.create({
       estudiante_id: estudiante.id,
       profesor_id: data.profesor_id,
-      sala_id: estudiante.sala_id,
+      sala_id: salaId,
+      aula_id: aulaId,
       tipo_id: data.tipo_id,
       fecha_creacion: new Date(data.fecha_creacion)
     });
@@ -23,6 +36,17 @@ export class EvaluacionService {
 
   async list() {
     return await this.repo.list();
+  }
+
+  async listWithFilters(filters?: {
+    estudianteId?: string;
+    profesorId?: string;
+    salaId?: number;
+    tipoId?: string;
+    estadoId?: string;
+    escuelaId?: string;
+  }) {
+    return await this.repo.listWithFilters(filters);
   }
 
   async listByEscuela(escuelaId: string) {
