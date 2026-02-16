@@ -337,4 +337,42 @@ export async function listDocenteAulas(req: Request, res: Response) {
   }
 }
 
+// GET /aulas/:id/estudiantes
+export async function listAulaEstudiantes(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { usuario_id, rol } = req.query;
+
+    if (!id || !usuario_id || !rol) {
+      return res
+        .status(400)
+        .json(
+          commonResponse(false, "Faltan datos obligatorios", null, {
+            code: "VALIDATION_ERROR",
+          }),
+        );
+    }
+
+    const user = {
+      id: String(usuario_id),
+      rol: String(rol),
+    };
+
+    const data = await service.listEstudiantesAula(id, user);
+    return res.status(200).json(commonResponse(true, "ok", data));
+  } catch (error: any) {
+    const message = error.message || "Error al obtener estudiantes del aula";
+    console.error("[listAulaEstudiantes] Error:", error);
+
+    return res
+      .status(400)
+      .json(
+        commonResponse(false, message, null, {
+          code: "LIST_ERROR",
+          description: message,
+        }),
+      );
+  }
+}
+
 

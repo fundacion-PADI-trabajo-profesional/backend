@@ -306,6 +306,33 @@ export class AulasService {
 
     return await this.repo.listByProfesor(user.id);
   }
+
+  async listEstudiantesAula(aulaId: string, user: { id: string; rol: string }) {
+    const userPerms = await this.getUserWithPermissions(user);
+    const { prismaAny } = userPerms;
+
+    const aula = await prismaAny.aulas.findUnique({
+      where: { id: aulaId },
+      select: { id: true, escuela_id: true },
+    });
+
+    if (!aula) {
+      throw new Error("Aula no encontrada.");
+    }
+
+    if (userPerms.userType === "director" && aula.escuela_id !== userPerms.escuelaId) {
+      throw new Error("No tienes permisos para ver estudiantes de esta aula.");
+    }
+
+    if (
+      userPerms.userType === "encargado"
+      && !userPerms.allowedEscuelas.includes(aula.escuela_id)
+    ) {
+      throw new Error("No tienes permisos para ver estudiantes de esta aula.");
+    }
+
+    return await this.repo.listEstudiantesByAula(aulaId);
+  }
 }
 
 

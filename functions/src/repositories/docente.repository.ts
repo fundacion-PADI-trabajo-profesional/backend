@@ -22,6 +22,28 @@ export const DocenteRepository = {
             primer_apellido: true,
           },
         },
+        profesores_aulas: {
+          where: { fecha_fin: null },
+          include: {
+            aula: {
+              select: {
+                id: true,
+                comision: true,
+                turno: true,
+                sala: {
+                  select: {
+                    grado: true,
+                  },
+                },
+                escuela: {
+                  select: {
+                    nombre: true,
+                  },
+                },
+              },
+            },
+          },
+        },
       },
       orderBy: {
         personas: {

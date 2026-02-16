@@ -211,6 +211,58 @@ describe("aulas endpoints", () => {
     });
     expect(fakePrisma.profesoresAulas.findMany).toHaveBeenCalled();
   });
+
+  it("GET /aulas/:id/estudiantes returns students for a director aula", async () => {
+    const aulaId = "a1";
+    const fakePrisma = {
+      usuarioPerfil: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: payloadOk.usuario_id,
+          rol: "director",
+          escuela_id: "esc1",
+        }),
+      },
+      aulas: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: aulaId,
+          escuela_id: "esc1",
+        }),
+      },
+      estudiantesAulas: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            estudiante: {
+              id: "s1",
+              persona_id: "per1",
+              genero_id: "M",
+              grado: 3,
+              sala_id: 3,
+              fecha_creacion: new Date().toISOString(),
+              personas: { nombre: "Juan", primer_apellido: "Perez", dni: "12345678" },
+              generos: { id: "M", descripcion: "Masculino" },
+              salas: { id: 3, nombre: "Sala 3", grado: 3 },
+              escuela: { id: "esc1", nombre: "Escuela Norte" },
+            },
+          },
+        ]),
+      },
+    };
+
+    vi.spyOn(prismaClient, "getPrisma").mockReturnValue(fakePrisma as any);
+
+    const res = await request(app).get(
+      `/aulas/${aulaId}/estudiantes?usuario_id=${payloadOk.usuario_id}&rol=${payloadOk.rol}`,
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ success: true, message: "ok" });
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.data[0]).toMatchObject({
+      id: "s1",
+      personas: { nombre: "Juan", primer_apellido: "Perez" },
+    });
+    expect(fakePrisma.estudiantesAulas.findMany).toHaveBeenCalled();
+  });
 });
 
 

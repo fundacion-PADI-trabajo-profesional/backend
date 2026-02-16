@@ -240,6 +240,58 @@ export const AulasRepository = {
 
     return Array.from(byAulaId.values());
   },
+
+  async listEstudiantesByAula(aula_id: string) {
+    const prisma = getPrisma();
+    if (!prisma) throw new Error("DB not available to list aula students");
+
+    const prismaAny = prisma as any;
+
+    const asignaciones = await prismaAny.estudiantesAulas.findMany({
+      where: {
+        aula_id,
+        fecha_fin: null,
+      },
+      include: {
+        estudiante: {
+          include: {
+            personas: {
+              select: {
+                id: true,
+                nombre: true,
+                primer_apellido: true,
+                segundo_apellido: true,
+                dni: true,
+                fecha_nacimiento: true,
+              },
+            },
+            generos: {
+              select: {
+                id: true,
+                descripcion: true,
+              },
+            },
+            salas: {
+              select: {
+                id: true,
+                nombre: true,
+                grado: true,
+              },
+            },
+            escuela: {
+              select: {
+                id: true,
+                nombre: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: [{ estudiante: { personas: { primer_apellido: "asc" } } }, { estudiante: { personas: { nombre: "asc" } } }],
+    });
+
+    return asignaciones.map((ea: any) => ea.estudiante);
+  },
 };
 
 
