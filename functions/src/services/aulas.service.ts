@@ -298,6 +298,14 @@ export class AulasService {
 
     await this.profAulaRepo.remove(profesorId, aulaId);
   }
+
+  async listDocenteAulas(user: { id: string; rol: string }) {
+    if (user.rol !== "docente") {
+      throw new Error("No tienes permisos para ver tus aulas.");
+    }
+
+    return await this.repo.listByProfesor(user.id);
+  }
 }
 
 

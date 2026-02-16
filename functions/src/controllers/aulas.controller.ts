@@ -300,4 +300,41 @@ export async function desasignarDocenteAula(req: Request, res: Response) {
   }
 }
 
+// GET /docentes/aulas
+export async function listDocenteAulas(req: Request, res: Response) {
+  try {
+    const { usuario_id, rol } = req.query;
+
+    if (!usuario_id || !rol) {
+      return res
+        .status(400)
+        .json(
+          commonResponse(false, "Faltan datos de usuario", null, {
+            code: "VALIDATION_ERROR",
+          }),
+        );
+    }
+
+    const user = {
+      id: String(usuario_id),
+      rol: String(rol),
+    };
+
+    const data = await service.listDocenteAulas(user);
+    return res.status(200).json(commonResponse(true, "ok", data));
+  } catch (error: any) {
+    const message = error.message || "Error al obtener aulas del docente";
+    console.error("[listDocenteAulas] Error:", error);
+
+    return res
+      .status(400)
+      .json(
+        commonResponse(false, message, null, {
+          code: "LIST_ERROR",
+          description: message,
+        }),
+      );
+  }
+}
+
 

@@ -17,6 +17,7 @@ describe("estudiantes endpoints", () => {
     fecha_nacimiento: "2018-05-10",
     genero_id: "F",
     sala_id: 1,
+    escuela_id: "escuela-1",
   };
 
   beforeEach(() => {
@@ -83,6 +84,7 @@ describe("estudiantes endpoints", () => {
       fecha_nacimiento: payloadOk.fecha_nacimiento,
       genero_id: payloadOk.genero_id,
       sala_id: payloadOk.sala_id,
+      escuela_id: payloadOk.escuela_id,
     });
   });
 

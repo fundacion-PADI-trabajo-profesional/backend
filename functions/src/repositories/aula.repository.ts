@@ -148,6 +148,98 @@ export const AulasRepository = {
 
     await prismaAny.aulas.delete({ where: { id } });
   },
+
+  async listByProfesor(profesor_id: string) {
+    const prisma = getPrisma();
+    if (!prisma) throw new Error("DB not available to list docente aulas");
+
+    const prismaAny = prisma as any;
+
+    const asignaciones = await prismaAny.profesoresAulas.findMany({
+      where: {
+        profesor_id,
+        fecha_fin: null,
+      },
+      include: {
+        aula: {
+          include: {
+            sala: {
+              select: {
+                id: true,
+                nombre: true,
+                grado: true,
+              },
+            },
+            escuela: {
+              select: {
+                id: true,
+                nombre: true,
+              },
+            },
+            estudiantes_aulas: {
+              where: { fecha_fin: null },
+              include: {
+                estudiante: {
+                  include: {
+                    personas: {
+                      select: {
+                        id: true,
+                        nombre: true,
+                        primer_apellido: true,
+                        segundo_apellido: true,
+                        dni: true,
+                        fecha_nacimiento: true,
+                      },
+                    },
+                    generos: {
+                      select: {
+                        id: true,
+                        descripcion: true,
+                      },
+                    },
+                    salas: {
+                      select: {
+                        id: true,
+                        nombre: true,
+                        grado: true,
+                      },
+                    },
+                    escuela: {
+                      select: {
+                        id: true,
+                        nombre: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      orderBy: [{ aula: { escuela_id: "asc" } }, { aula: { sala_id: "asc" } }, { aula: { comision: "asc" } }],
+    });
+
+    const byAulaId = new Map<string, any>();
+    for (const asignacion of asignaciones) {
+      const aula = asignacion.aula;
+      if (!aula || byAulaId.has(aula.id)) continue;
+
+      byAulaId.set(aula.id, {
+        id: aula.id,
+        sala_id: aula.sala_id,
+        escuela_id: aula.escuela_id,
+        comision: aula.comision,
+        turno: aula.turno,
+        fecha_creacion: aula.fecha_creacion,
+        sala: aula.sala,
+        escuela: aula.escuela,
+        estudiantes: (aula.estudiantes_aulas || []).map((ea: any) => ea.estudiante),
+      });
+    }
+
+    return Array.from(byAulaId.values());
+  },
 };
 
 

@@ -170,6 +170,47 @@ describe("aulas endpoints", () => {
       error: { code: "CREATE_ERROR" },
     });
   });
+
+  it("GET /docentes/aulas returns assigned aulas including empty aulas", async () => {
+    const docenteId = "docente-1";
+    const fakePrisma = {
+      profesoresAulas: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            aula: {
+              id: "a1",
+              sala_id: 3,
+              escuela_id: "esc1",
+              comision: "Delfines",
+              turno: "mañana",
+              fecha_creacion: new Date().toISOString(),
+              sala: { id: 3, nombre: "Sala 3", grado: 3 },
+              escuela: { id: "esc1", nombre: "Escuela Norte" },
+              estudiantes_aulas: [],
+            },
+          },
+        ]),
+      },
+    };
+
+    vi.spyOn(prismaClient, "getPrisma").mockReturnValue(fakePrisma as any);
+
+    const res = await request(app).get(
+      `/docentes/aulas?usuario_id=${docenteId}&rol=docente`,
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ success: true, message: "ok" });
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.data.length).toBe(1);
+    expect(res.body.data[0]).toMatchObject({
+      id: "a1",
+      comision: "Delfines",
+      escuela: { nombre: "Escuela Norte" },
+      estudiantes: [],
+    });
+    expect(fakePrisma.profesoresAulas.findMany).toHaveBeenCalled();
+  });
 });
 
 
