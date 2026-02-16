@@ -222,8 +222,8 @@ model Escuelas {
   // Relación con Personas
   directivos UsuarioPerfil[] // Directores asignados a esta escuela
 
-  // Relación Muchos a Muchos: Una escuela tiene muchos profesores y viceversa
-  profesores Profesores[]
+  // Relación de asignaciones explícitas docente-escuela
+  profesores_escuelas ProfesoresEscuelas[]
 
   // Un estudiante pertenece a una escuela
   estudiantes Estudiantes[]
@@ -256,8 +256,8 @@ model Profesores {
   id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   persona_id String @db.Uuid
 
-  // Relación Muchos a Muchos con Escuelas (El profe trabaja en varias)
-  escuelas Escuelas[]
+  // Relación de asignaciones explícitas docente-escuela
+  profesores_escuelas ProfesoresEscuelas[]
 
   evaluaciones_estudiante EvaluacionEstudiante[]
   personas                Personas               @relation(fields: [persona_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "profesores_persona_fkey")
@@ -279,6 +279,19 @@ model ProfesoresAulas {
   aula     Aulas      @relation(fields: [aula_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@map("_ProfesoresToAulas")
+}
+
+model ProfesoresEscuelas {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profesor_id  String    @db.Uuid
+  escuela_id   String
+  fecha_inicio DateTime  @default(now()) @db.Timestamptz(6)
+  fecha_fin    DateTime? @db.Timestamptz(6)
+
+  profesor Profesores @relation(fields: [profesor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  escuela  Escuelas   @relation(fields: [escuela_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("_ProfesoresToEscuelas")
 }
 
 model ReglasAprobacion {

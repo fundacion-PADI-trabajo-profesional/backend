@@ -13,7 +13,7 @@ export class DirectivosService {
     }
 
     async assignEscuela(directorId: string, escuelaId: string, user: { id: string; rol: string }) {
-        if (user.rol !== "encargado_zona") {
+        if (user.rol !== "encargado_zona" && user.rol !== "equipo_padi") {
             throw new Error("No tenés permisos para asignar escuelas a directivos.");
         }
 
@@ -21,17 +21,7 @@ export class DirectivosService {
         if (!prisma) throw new Error("DB not available");
         const prismaAny = prisma as any;
 
-        // 1) Verificar que el usuario sea un encargado válido y obtener su zona
-        const encargado = await prismaAny.encargados.findUnique({
-            where: { usuario_id: user.id },
-            select: { id: true, zona: true },
-        });
-
-        if (!encargado) {
-            throw new Error("No se encontró perfil de encargado de zona.");
-        }
-
-        // 2) Verificar que la escuela exista y sea de su zona
+        // 1) Verificar que la escuela exista
         const escuela = await prismaAny.escuelas.findUnique({
             where: { id: escuelaId },
             select: { id: true, zona: true },
@@ -41,8 +31,20 @@ export class DirectivosService {
             throw new Error("Escuela no encontrada.");
         }
 
-        if (escuela.zona !== encargado.zona) {
-            throw new Error("Solo podés asignar escuelas de tu propia zona.");
+        // Si es encargado, limitamos la asignación a su zona.
+        if (user.rol === "encargado_zona") {
+            const encargado = await prismaAny.encargados.findUnique({
+                where: { usuario_id: user.id },
+                select: { id: true, zona: true },
+            });
+
+            if (!encargado) {
+                throw new Error("No se encontró perfil de encargado de zona.");
+            }
+
+            if (escuela.zona !== encargado.zona) {
+                throw new Error("Solo podés asignar escuelas de tu propia zona.");
+            }
         }
 
         // 3) Verificar que el directivo exista y tenga rol director
@@ -55,21 +57,33 @@ export class DirectivosService {
             throw new Error("No se encontró un directivo válido con ese ID.");
         }
 
-        // 4) Actualizar su escuela asignada
-        const updated = await prismaAny.usuarioPerfil.update({
-            where: { id: directorId },
-            data: { escuela_id: escuela.id },
-            select: {
-                id: true,
-                nombre: true,
-                apellido: true,
-                escuela: {
-                    select: {
-                        id: true,
-                        nombre: true,
+        // 4) Regla de negocio: solo un director activo por escuela.
+        // Se desasignan primero otros directores de esa escuela y luego se asigna el nuevo.
+        const updated = await prismaAny.$transaction(async (tx: any) => {
+            await tx.usuarioPerfil.updateMany({
+                where: {
+                    rol: "director",
+                    escuela_id: escuela.id,
+                    NOT: { id: directorId },
+                },
+                data: { escuela_id: null },
+            });
+
+            return await tx.usuarioPerfil.update({
+                where: { id: directorId },
+                data: { escuela_id: escuela.id },
+                select: {
+                    id: true,
+                    nombre: true,
+                    apellido: true,
+                    escuela: {
+                        select: {
+                            id: true,
+                            nombre: true,
+                        },
                     },
                 },
-            },
+            });
         });
 
         return updated;

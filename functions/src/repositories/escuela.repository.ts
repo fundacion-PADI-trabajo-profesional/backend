@@ -1,4 +1,3 @@
-import { PrismaClient } from "@prisma/client";
 import { getPrisma } from "../config/prismaClient";
 import { CreateEscuelaDto } from "../interfaces/escuela.interface";
 
@@ -55,20 +54,33 @@ export const EscuelasRepository = {
                 data: { escuela_id: null }
             });
 
-            // 3. Desasignar docentes de esta escuela (relación many-to-many)
-            await tx.escuelas.update({
-                where: { id },
+            // 3. Cerrar asignaciones docentes de esta escuela
+            await tx.profesoresEscuelas.updateMany({
+                where: {
+                    escuela_id: id,
+                    fecha_fin: null,
+                },
                 data: {
-                    profesores: {
-                        set: [] // Esto elimina todas las relaciones many-to-many
-                    }
-                }
+                    fecha_fin: new Date(),
+                },
             });
 
             return await tx.escuelas.delete({
                 where: { id }
             });
         });
+    },
+
+    mapEscuelaDocentes(data: any[]) {
+        return data.map((escuela) => ({
+            ...escuela,
+            profesores: (escuela.profesores_escuelas || [])
+                .filter((pe: any) => pe.profesor)
+                .map((pe: any) => ({
+                    id: pe.profesor.id,
+                    personas: pe.profesor.personas,
+                })),
+        }));
     },
 
     async update(id: string, data: {
@@ -102,7 +114,7 @@ export const EscuelasRepository = {
         const prisma = getPrisma();
         if (!prisma) throw new Error("DB not available");
 
-        return await prisma.escuelas.findMany({
+        const rows = await prisma.escuelas.findMany({
             include: {
                 zona: true,
                 directivos: {
@@ -113,9 +125,14 @@ export const EscuelasRepository = {
                         apellido: true,
                     },
                 },
-                profesores: {
+                profesores_escuelas: {
+                    where: { fecha_fin: null },
                     include: {
-                        personas: { select: { nombre: true, primer_apellido: true } }
+                        profesor: {
+                            include: {
+                                personas: { select: { nombre: true, primer_apellido: true } },
+                            },
+                        },
                     }
                 },
                 estudiantes: {
@@ -126,6 +143,46 @@ export const EscuelasRepository = {
             },
             orderBy: { createdAt: 'desc' }
         });
+
+        return this.mapEscuelaDocentes(rows);
+    },
+
+    async findByZonaId(zonaId: string) {
+        const prisma = getPrisma();
+        if (!prisma) throw new Error("DB not available");
+
+        const rows = await prisma.escuelas.findMany({
+            where: { zona_id: zonaId },
+            include: {
+                zona: true,
+                directivos: {
+                    where: { rol: "director" },
+                    select: {
+                        id: true,
+                        nombre: true,
+                        apellido: true,
+                    },
+                },
+                profesores_escuelas: {
+                    where: { fecha_fin: null },
+                    include: {
+                        profesor: {
+                            include: {
+                                personas: { select: { nombre: true, primer_apellido: true } },
+                            },
+                        },
+                    },
+                },
+                estudiantes: {
+                    include: {
+                        personas: true,
+                    },
+                },
+            },
+            orderBy: { createdAt: "desc" },
+        });
+
+        return this.mapEscuelaDocentes(rows);
     },
 
     // Lista solo escuelas de un encargado específico (Para Encargado Zona)
@@ -133,7 +190,7 @@ export const EscuelasRepository = {
         const prisma = getPrisma();
         if (!prisma) throw new Error("DB not available");
 
-        return await prisma.escuelas.findMany({
+        const rows = await prisma.escuelas.findMany({
             where: { encargado_id: encargadoId },
             include: {
                 directivos: {
@@ -146,6 +203,8 @@ export const EscuelasRepository = {
             },
             orderBy: { createdAt: 'desc' }
         });
+
+        return this.mapEscuelaDocentes(rows);
     },
 
     // Lista escuelas por zona (para encargados de esa zona)
@@ -153,7 +212,7 @@ export const EscuelasRepository = {
         const prisma = getPrisma();
         if (!prisma) throw new Error("DB not available");
 
-        return await prisma.escuelas.findMany({
+        const rows = await prisma.escuelas.findMany({
             where: {
                 zona: {
                     nombre: nombreZona
@@ -173,30 +232,29 @@ export const EscuelasRepository = {
             },
             orderBy: { createdAt: 'desc' }
         });
+
+        return this.mapEscuelaDocentes(rows);
     },
 
     async addDocenteRelation(escuelaId: string, profesorId: string) {
-    const prisma = getPrisma();
-    const prismaAny = prisma as any;
+        const prisma = getPrisma();
+        const prismaAny = prisma as any;
 
-    return await prismaAny.$transaction(async (tx: any) => {
-            // 1. Crear la relación many-to-many (como ya hacés)
-            await tx.escuelas.update({
-                where: { id: escuelaId },
-                data: { profesores: { connect: { id: profesorId } } }
+        return await prismaAny.$transaction(async (tx: any) => {
+            const existing = await tx.profesoresEscuelas.findFirst({
+                where: {
+                    profesor_id: profesorId,
+                    escuela_id: escuelaId,
+                    fecha_fin: null,
+                },
             });
 
-            // 2. Buscar al usuario asociado a ese profesor
-            const profesor = await tx.profesores.findUnique({
-                where: { id: profesorId },
-                include: { personas: true }
-            });
-
-            // 3. Actualizar el escuela_id en el perfil del usuario
-            if (profesor?.personas?.usuario_id) {
-                await tx.usuarioPerfil.update({
-                    where: { id: profesor.personas.usuario_id },
-                    data: { escuela_id: escuelaId }
+            if (!existing) {
+                await tx.profesoresEscuelas.create({
+                    data: {
+                        profesor_id: profesorId,
+                        escuela_id: escuelaId,
+                    },
                 });
             }
         });
@@ -206,14 +264,31 @@ export const EscuelasRepository = {
         const prisma = getPrisma();
         if (!prisma) throw new Error("DB not available");
 
-        // Usamos 'disconnect' para borrar la relación
-        return await prisma.escuelas.update({
-            where: { id: escuelaId },
-            data: {
-                profesores: {
-                    disconnect: { id: profesorId }
-                }
-            }
+        const prismaAny = prisma as any;
+        const now = new Date();
+
+        return await prismaAny.$transaction(async (tx: any) => {
+            await tx.profesoresEscuelas.updateMany({
+                where: {
+                    profesor_id: profesorId,
+                    escuela_id: escuelaId,
+                    fecha_fin: null,
+                },
+                data: {
+                    fecha_fin: now,
+                },
+            });
+
+            await tx.profesoresAulas.updateMany({
+                where: {
+                    profesor_id: profesorId,
+                    fecha_fin: null,
+                    aula: { escuela_id: escuelaId },
+                },
+                data: {
+                    fecha_fin: now,
+                },
+            });
         });
     },
 

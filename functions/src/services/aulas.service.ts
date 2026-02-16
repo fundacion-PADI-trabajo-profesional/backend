@@ -2,10 +2,12 @@ import { getPrisma } from "../config/prismaClient";
 import { CreateAulaDto } from "../interfaces/aula.interface";
 import { AulasRepository, CreateAulaData, UpdateAulaData } from "../repositories/aula.repository";
 import { ProfesoresAulasRepository } from "../repositories/profesor-aula.repository";
+import { DocenteRepository } from "../repositories/docente.repository";
 
 export class AulasService {
   private repo = AulasRepository;
   private profAulaRepo = ProfesoresAulasRepository;
+  private docenteRepo = DocenteRepository;
 
   private async getUserWithPermissions(user: { id: string; rol: string }) {
     const prisma = getPrisma();
@@ -83,6 +85,10 @@ export class AulasService {
     const userPerms = await this.getUserWithPermissions(user);
     const { prismaAny } = userPerms;
 
+    if (userPerms.userType === "encargado") {
+      throw new Error("El encargado de zona solo tiene acceso de lectura a aulas.");
+    }
+
     // Verificar que la sala exista
     const sala = await prismaAny.salas.findUnique({
       where: { id: data.sala_id },
@@ -99,18 +105,10 @@ export class AulasService {
     if (userPerms.userType === "director") {
       escuela_id = userPerms.escuelaId!;
     } else {
-      // Para PADI y encargados, necesitamos que especifiquen la escuela
+      // Para PADI, necesitamos que especifique la escuela
       if (!data.escuela_id) {
         throw new Error("Debe especificar la escuela para crear el aula.");
       }
-
-      // Verificar permisos sobre la escuela
-      if (userPerms.userType === "encargado") {
-        if (!userPerms.allowedEscuelas.includes(data.escuela_id)) {
-          throw new Error("No tienes permisos para crear aulas en esta escuela.");
-        }
-      }
-      // PADI puede crear en cualquier escuela
 
       escuela_id = data.escuela_id;
     }
@@ -143,6 +141,10 @@ export class AulasService {
     const userPerms = await this.getUserWithPermissions(user);
     const { prismaAny } = userPerms;
 
+    if (userPerms.userType === "encargado") {
+      throw new Error("El encargado de zona solo tiene acceso de lectura a aulas.");
+    }
+
     const aula = await prismaAny.aulas.findUnique({
       where: { id },
       select: { id: true, escuela_id: true },
@@ -157,12 +159,8 @@ export class AulasService {
       if (aula.escuela_id !== userPerms.escuelaId) {
         throw new Error("No tienes permisos para modificar esta aula.");
       }
-    } else if (userPerms.userType === "encargado") {
-      if (!userPerms.allowedEscuelas.includes(aula.escuela_id)) {
-        throw new Error("No tienes permisos para modificar esta aula.");
-      }
     }
-    // PADI puede modificar cualquier aula
+    // PADI puede modificar cualquier aula.
 
     return await this.repo.update(id, data);
   }
@@ -171,6 +169,10 @@ export class AulasService {
     const userPerms = await this.getUserWithPermissions(user);
     const { prismaAny } = userPerms;
 
+    if (userPerms.userType === "encargado") {
+      throw new Error("El encargado de zona solo tiene acceso de lectura a aulas.");
+    }
+
     const aula = await prismaAny.aulas.findUnique({
       where: { id },
       select: { id: true, escuela_id: true },
@@ -185,12 +187,8 @@ export class AulasService {
       if (aula.escuela_id !== userPerms.escuelaId) {
         throw new Error("No tienes permisos para eliminar esta aula.");
       }
-    } else if (userPerms.userType === "encargado") {
-      if (!userPerms.allowedEscuelas.includes(aula.escuela_id)) {
-        throw new Error("No tienes permisos para eliminar esta aula.");
-      }
     }
-    // PADI puede eliminar cualquier aula
+    // PADI puede eliminar cualquier aula.
 
     // Verificar que no tenga asignaciones de estudiantes o profesores
     const [estCount, profCount] = await Promise.all([
@@ -237,6 +235,10 @@ export class AulasService {
     const userPerms = await this.getUserWithPermissions(user);
     const { prismaAny } = userPerms;
 
+    if (userPerms.userType === "encargado") {
+      throw new Error("El encargado de zona no puede gestionar docentes en aulas.");
+    }
+
     const aula = await prismaAny.aulas.findUnique({
       where: { id: aulaId },
       select: { id: true, escuela_id: true },
@@ -251,12 +253,8 @@ export class AulasService {
       if (aula.escuela_id !== userPerms.escuelaId) {
         throw new Error("No tienes permisos para gestionar docentes de esta aula.");
       }
-    } else if (userPerms.userType === "encargado") {
-      if (!userPerms.allowedEscuelas.includes(aula.escuela_id)) {
-        throw new Error("No tienes permisos para gestionar docentes de esta aula.");
-      }
     }
-    // PADI puede gestionar cualquier aula
+    // PADI puede gestionar cualquier aula.
 
     // Validar que el profesor exista
     const profesor = await prismaAny.profesores.findUnique({
@@ -268,12 +266,24 @@ export class AulasService {
       throw new Error("Docente no encontrado.");
     }
 
+    const isAssignedToEscuela = await this.docenteRepo.hasActiveEscuelaAssignment(
+      profesorId,
+      aula.escuela_id,
+    );
+    if (!isAssignedToEscuela) {
+      throw new Error("El docente no está asignado al colegio de esta aula.");
+    }
+
     return this.profAulaRepo.add(profesorId, aulaId);
   }
 
   async desasignarDocente(aulaId: string, profesorId: string, user: { id: string; rol: string }) {
     const userPerms = await this.getUserWithPermissions(user);
     const { prismaAny } = userPerms;
+
+    if (userPerms.userType === "encargado") {
+      throw new Error("El encargado de zona no puede gestionar docentes en aulas.");
+    }
 
     const aula = await prismaAny.aulas.findUnique({
       where: { id: aulaId },
@@ -289,12 +299,8 @@ export class AulasService {
       if (aula.escuela_id !== userPerms.escuelaId) {
         throw new Error("No tienes permisos para gestionar docentes de esta aula.");
       }
-    } else if (userPerms.userType === "encargado") {
-      if (!userPerms.allowedEscuelas.includes(aula.escuela_id)) {
-        throw new Error("No tienes permisos para gestionar docentes de esta aula.");
-      }
     }
-    // PADI puede gestionar cualquier aula
+    // PADI puede gestionar cualquier aula.
 
     await this.profAulaRepo.remove(profesorId, aulaId);
   }

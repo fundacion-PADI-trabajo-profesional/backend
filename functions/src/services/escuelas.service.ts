@@ -44,14 +44,11 @@ export class EscuelasService {
         }
 
         if (user.rol === "encargado_zona") {
-            // Encargado ve todas las escuelas de su zona
             const encargadoData = await this.repo.findEncargadoProfile(user.id);
-
-            if (!encargadoData || !encargadoData.zona) {
-                throw new Error("No se pudo determinar tu zona para listar las escuelas.");
+            if (!encargadoData?.zona_id) {
+                throw new Error("No se encontró una zona asignada para el encargado.");
             }
-
-            return await this.repo.findByZona(encargadoData.zona.nombre);
+            return await this.repo.findByZonaId(encargadoData.zona_id);
         }
 
         throw new Error("No tienes permisos para ver el listado de escuelas.");
@@ -76,14 +73,6 @@ export class EscuelasService {
         // El repositorio se encargará de setear escuela_id = null en los alumnos 
         // antes de borrar la escuela física.
         return await this.repo.delete(id);
-    }
-
-    async addDocente(escuelaId: string, profesorId: string) {
-        return await this.repo.addDocenteRelation(escuelaId, profesorId);
-    }
-
-    async removeDocente(escuelaId: string, profesorId: string) {
-        return await this.repo.removeDocenteRelation(escuelaId, profesorId);
     }
 
     async addDirectivo(escuelaId: string, usuarioId: string) {

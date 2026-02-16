@@ -18,6 +18,18 @@ describe("directivos assign escuela endpoint", () => {
   });
 
   it("allows encargado_zona to assign escuela to director within same zona", async () => {
+    const txMock = {
+      usuarioPerfil: {
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+        update: vi.fn().mockResolvedValue({
+          id: "dir1",
+          nombre: "Juan",
+          apellido: "Pérez",
+          escuela: { id: "esc1", nombre: "Escuela Norte" },
+        }),
+      },
+    };
+
     const fakePrisma = {
       encargados: {
         findUnique: vi.fn().mockResolvedValue({ id: "enc1", zona: "Norte" }),
@@ -27,13 +39,8 @@ describe("directivos assign escuela endpoint", () => {
       },
       usuarioPerfil: {
         findUnique: vi.fn().mockResolvedValue({ id: "dir1", rol: "director" }),
-        update: vi.fn().mockResolvedValue({
-          id: "dir1",
-          nombre: "Juan",
-          apellido: "Pérez",
-          escuela: { id: "esc1", nombre: "Escuela Norte" },
-        }),
       },
+      $transaction: vi.fn().mockImplementation(async (cb: any) => cb(txMock)),
     };
 
     vi.spyOn(prismaClient, "getPrisma").mockReturnValue(fakePrisma as any);
@@ -49,7 +56,8 @@ describe("directivos assign escuela endpoint", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ success: true });
-    expect(fakePrisma.usuarioPerfil.update).toHaveBeenCalled();
+    expect(txMock.usuarioPerfil.updateMany).toHaveBeenCalled();
+    expect(txMock.usuarioPerfil.update).toHaveBeenCalled();
   });
 });
 
@@ -64,7 +72,7 @@ describe("evaluaciones endpoint", () => {
   it("returns 404 when not found", async () => {
     const res = await request(app).get("/evaluaciones/does-not-exist");
     expect(res.status).toBe(404);
-    expect(res.body).toMatchObject({ success: false, message: "Evaluación no encontrada." });
+    expect(res.body).toMatchObject({ success: false, message: "Evaluación no encontrada" });
   });
 });
 

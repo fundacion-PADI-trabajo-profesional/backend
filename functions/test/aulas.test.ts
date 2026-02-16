@@ -76,6 +76,13 @@ describe("aulas endpoints", () => {
           id: profesorId,
         }),
       },
+      profesoresEscuelas: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "pe1",
+          profesor_id: profesorId,
+          escuela_id: "esc1",
+        }),
+      },
       profesoresAulas: {
         create: vi.fn().mockResolvedValue({
           id: "pa1",
