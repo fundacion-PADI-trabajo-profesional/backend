@@ -18,6 +18,18 @@ export const ZonasRepository = {
 
         return await prismaAny.zonas.findMany({
             include: {
+                encargados: {
+                    include: {
+                        usuario: {
+                            select: {
+                                id: true,
+                                nombre: true,
+                                apellido: true,
+                                email: true,
+                            },
+                        },
+                    },
+                },
                 _count: {
                     select: { escuelas: true, encargados: true }
                 }
@@ -114,6 +126,35 @@ export const ZonasRepository = {
             include: {
                 usuario: true // Para mostrar nombre y apellido
             }
+        });
+    },
+
+    async listEncargados() {
+        const prisma = getPrisma();
+        if (!prisma) throw new Error("DB no disponible");
+        const prismaAny = prisma as any;
+
+        return await prismaAny.encargados.findMany({
+            include: {
+                usuario: {
+                    select: {
+                        id: true,
+                        nombre: true,
+                        apellido: true,
+                        email: true,
+                    },
+                },
+                zona: {
+                    select: {
+                        id: true,
+                        nombre: true,
+                    },
+                },
+            },
+            orderBy: [
+                { usuario: { apellido: "asc" } },
+                { usuario: { nombre: "asc" } },
+            ],
         });
     },
 

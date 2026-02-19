@@ -92,6 +92,16 @@ export async function listEncargadosSinZona(req: Request, res: Response) {
     }
 }
 
+export async function listEncargados(req: Request, res: Response) {
+    try {
+        const { rol } = req.query;
+        const data = await service.getEncargados({ rol: String(rol) });
+        return res.status(200).json(commonResponse(true, "ok", data));
+    } catch (error: any) {
+        return res.status(403).json(commonResponse(false, error.message, null));
+    }
+}
+
 export async function addEncargado(req: Request, res: Response) {
     try {
         const { id } = req.params; // ID de la zona

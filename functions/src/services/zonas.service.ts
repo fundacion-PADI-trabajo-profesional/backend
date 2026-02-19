@@ -59,6 +59,11 @@ export class ZonasService {
         return await this.repo.listEncargadosDisponibles();
     }
 
+    async getEncargados(user: { rol: string }) {
+        this.validatePadi(user.rol);
+        return await this.repo.listEncargados();
+    }
+
     async assignEncargadoToZona(zonaId: string, encargadoId: string, user: { rol: string }) {
         this.validatePadi(user.rol);
         return await this.repo.assignEncargado(zonaId, encargadoId);

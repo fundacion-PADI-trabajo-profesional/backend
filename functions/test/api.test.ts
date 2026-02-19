@@ -76,4 +76,45 @@ describe("evaluaciones endpoint", () => {
   });
 });
 
+describe("zonas encargados endpoint", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("allows equipo_padi to list encargados for zone assignment", async () => {
+    const fakePrisma = {
+      encargados: {
+        findMany: vi.fn().mockResolvedValue([
+          {
+            id: "enc-1",
+            zona_id: null,
+            usuario: {
+              id: "user-1",
+              nombre: "Ana",
+              apellido: "Lopez",
+              email: "ana@test.com",
+            },
+            zona: null,
+          },
+        ]),
+      },
+    };
+
+    vi.spyOn(prismaClient, "getPrisma").mockReturnValue(fakePrisma as any);
+
+    const res = await request(app).get("/zonas/encargados?rol=equipo_padi");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ success: true, message: "ok" });
+    expect(Array.isArray(res.body.data)).toBe(true);
+  });
+
+  it("rejects non equipo_padi roles", async () => {
+    const res = await request(app).get("/zonas/encargados?rol=encargado_zona");
+
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ success: false });
+  });
+});
+
 
