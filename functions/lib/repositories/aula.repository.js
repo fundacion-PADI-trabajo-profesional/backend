@@ -258,16 +258,35 @@ exports.AulasRepository = {
         });
         return asignaciones.map((ea) => ea.estudiante);
     },
-    async asignarEstudiante(prisma, aulaId, estudianteId) {
-        // Acceso dinámico al modelo para evitar errores de 'undefined'
-        const modeloRelacion = "_EstudiantesToAulas"; 
-        
-        return await prisma[modeloRelacion].create({
-            data: {
-                aula_id: aulaId,
-                estudiante_id: estudianteId,
-                fecha_inicio: new Date()
-            }
+    async addEstudiante(estudianteId, aulaId) {
+        const prisma = (0, prismaClient_1.getPrisma)();
+        if (!prisma)
+            throw new Error("DB not available");
+        const prismaAny = prisma;
+        const existing = await prismaAny.estudiantesAulas.findFirst({
+            where: { estudiante_id: estudianteId, aula_id: aulaId, fecha_fin: null },
         });
-    }
+        if (existing) {
+            throw new Error("El estudiante ya está asignado a esta aula.");
+        }
+        return await prismaAny.estudiantesAulas.create({
+            data: { estudiante_id: estudianteId, aula_id: aulaId },
+        });
+    },
+    async removeEstudiante(estudianteId, aulaId) {
+        const prisma = (0, prismaClient_1.getPrisma)();
+        if (!prisma)
+            throw new Error("DB not available");
+        const prismaAny = prisma;
+        const assignment = await prismaAny.estudiantesAulas.findFirst({
+            where: { estudiante_id: estudianteId, aula_id: aulaId, fecha_fin: null },
+        });
+        if (!assignment) {
+            throw new Error("El estudiante no está asignado a esta aula.");
+        }
+        return await prismaAny.estudiantesAulas.update({
+            where: { id: assignment.id },
+            data: { fecha_fin: new Date() },
+        });
+    },
 };

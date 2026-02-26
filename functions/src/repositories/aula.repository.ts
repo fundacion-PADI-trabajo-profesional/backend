@@ -292,6 +292,41 @@ export const AulasRepository = {
 
     return asignaciones.map((ea: any) => ea.estudiante);
   },
+
+  async addEstudiante(estudianteId: string, aulaId: string) {
+    const prisma = getPrisma();
+    if (!prisma) throw new Error("DB not available");
+    const prismaAny = prisma as any;
+
+    const existing = await prismaAny.estudiantesAulas.findFirst({
+      where: { estudiante_id: estudianteId, aula_id: aulaId, fecha_fin: null },
+    });
+    if (existing) {
+      throw new Error("El estudiante ya está asignado a esta aula.");
+    }
+
+    return await prismaAny.estudiantesAulas.create({
+      data: { estudiante_id: estudianteId, aula_id: aulaId },
+    });
+  },
+
+  async removeEstudiante(estudianteId: string, aulaId: string) {
+    const prisma = getPrisma();
+    if (!prisma) throw new Error("DB not available");
+    const prismaAny = prisma as any;
+
+    const assignment = await prismaAny.estudiantesAulas.findFirst({
+      where: { estudiante_id: estudianteId, aula_id: aulaId, fecha_fin: null },
+    });
+    if (!assignment) {
+      throw new Error("El estudiante no está asignado a esta aula.");
+    }
+
+    return await prismaAny.estudiantesAulas.update({
+      where: { id: assignment.id },
+      data: { fecha_fin: new Date() },
+    });
+  },
 };
 
 

@@ -9,6 +9,8 @@ import {
   desasignarDocenteAula,
   listDocenteAulas,
   listAulaEstudiantes,
+  asignarEstudianteAula,
+  desasignarEstudianteAula,
 } from "../controllers/aulas.controller";
 
 export function createAulasRouter() {
@@ -23,6 +25,8 @@ export function createAulasRouter() {
   router.post("/aulas/:id/asignar-docente", asignarDocenteAula);
   router.post("/aulas/:id/desasignar-docente", desasignarDocenteAula);
   router.get("/aulas/:id/estudiantes", listAulaEstudiantes);
+  router.post("/aulas/:id/asignar-estudiante", asignarEstudianteAula);
+  router.post("/aulas/:id/desasignar-estudiante", desasignarEstudianteAula);
   router.get("/docentes/aulas", listDocenteAulas);
 
   return router;

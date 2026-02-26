@@ -5,7 +5,6 @@ const prismaClient_1 = require("../config/prismaClient");
 const aula_repository_1 = require("../repositories/aula.repository");
 const profesor_aula_repository_1 = require("../repositories/profesor-aula.repository");
 const docente_repository_1 = require("../repositories/docente.repository");
-const { v4: uuidv4 } = require('uuid'); // Importamos el generador de UUID
 class AulasService {
     constructor() {
         this.repo = aula_repository_1.AulasRepository;
@@ -255,51 +254,48 @@ class AulasService {
         }
         return await this.repo.listEstudiantesByAula(aulaId);
     }
-
     async asignarEstudiante(aulaId, estudianteId, user) {
         const userPerms = await this.getUserWithPermissions(user);
+        if (userPerms.userType !== "director") {
+            throw new Error("Solo los directores pueden gestionar estudiantes en aulas.");
+        }
         const { prismaAny } = userPerms;
-
-        // Validamos que el aula existe
         const aula = await prismaAny.aulas.findUnique({
             where: { id: aulaId },
             select: { id: true, escuela_id: true },
         });
-
-        if (!aula) {
+        if (!aula)
             throw new Error("Aula no encontrada.");
+        if (aula.escuela_id !== userPerms.escuelaId) {
+            throw new Error("No tienes permisos para gestionar estudiantes de esta aula.");
         }
-
-        // Según el error de Prisma, el campo se llama 'estudiantes_aulas'
-        return await prismaAny.aulas.update({
-            where: { id: aulaId },
-            data: {
-                estudiantes_aulas: { // <--- CAMBIADO DE 'estudiantes' A 'estudiantes_aulas'
-                    create: {
-                        estudiante_id: estudianteId,
-                        fecha_inicio: new Date(),
-                    }
-                }
-            }
+        const estudiante = await prismaAny.estudiantes.findUnique({
+            where: { id: estudianteId },
+            select: { id: true, escuela_id: true },
         });
+        if (!estudiante)
+            throw new Error("Estudiante no encontrado.");
+        if (estudiante.escuela_id !== aula.escuela_id) {
+            throw new Error("El estudiante no pertenece al colegio de esta aula.");
+        }
+        return await this.repo.addEstudiante(estudianteId, aulaId);
     }
-
     async desasignarEstudiante(aulaId, estudianteId, user) {
         const userPerms = await this.getUserWithPermissions(user);
+        if (userPerms.userType !== "director") {
+            throw new Error("Solo los directores pueden gestionar estudiantes en aulas.");
+        }
         const { prismaAny } = userPerms;
-
-        // Usamos el nombre que ya sabemos que funciona: 'estudiantes_aulas'
-        return await prismaAny.aulas.update({
+        const aula = await prismaAny.aulas.findUnique({
             where: { id: aulaId },
-            data: {
-                estudiantes_aulas: {
-                    deleteMany: {
-                        estudiante_id: estudianteId,
-                        aula_id: aulaId
-                    }
-                }
-            }
+            select: { id: true, escuela_id: true },
         });
+        if (!aula)
+            throw new Error("Aula no encontrada.");
+        if (aula.escuela_id !== userPerms.escuelaId) {
+            throw new Error("No tienes permisos para gestionar estudiantes de esta aula.");
+        }
+        await this.repo.removeEstudiante(estudianteId, aulaId);
     }
 }
 exports.AulasService = AulasService;

@@ -19,7 +19,7 @@ export class AuthService {
     // Obtener perfil desde public.usuarios (debe existir para considerar el login válido)
     const { data: profileData, error: profileError } = await (supabase as any)
       .from("usuarios")
-      .select("*")
+      .select("*, escuela:escuelas(id, nombre)")
       .eq("id", data.user.id)
       .single();
 

@@ -8,9 +8,9 @@ exports.listAulaDocentes = listAulaDocentes;
 exports.asignarDocenteAula = asignarDocenteAula;
 exports.desasignarDocenteAula = desasignarDocenteAula;
 exports.listDocenteAulas = listDocenteAulas;
-exports.listAulaEstudiantes = listAulaEstudiantes;
 exports.asignarEstudianteAula = asignarEstudianteAula;
 exports.desasignarEstudianteAula = desasignarEstudianteAula;
+exports.listAulaEstudiantes = listAulaEstudiantes;
 const aulas_service_1 = require("../services/aulas.service");
 const common_response_interface_1 = require("../interfaces/common-response.interface");
 const service = new aulas_service_1.AulasService();
@@ -269,6 +269,58 @@ async function listDocenteAulas(req, res) {
         }));
     }
 }
+// POST /aulas/:id/asignar-estudiante
+async function asignarEstudianteAula(req, res) {
+    try {
+        const { id } = req.params;
+        const { estudiante_id, usuario_id, rol } = req.body;
+        if (!id || !estudiante_id || !usuario_id || !rol) {
+            return res
+                .status(400)
+                .json((0, common_response_interface_1.commonResponse)(false, "Faltan datos obligatorios", null, {
+                code: "VALIDATION_ERROR",
+            }));
+        }
+        const user = { id: String(usuario_id), rol: String(rol) };
+        const data = await service.asignarEstudiante(id, String(estudiante_id), user);
+        return res
+            .status(200)
+            .json((0, common_response_interface_1.commonResponse)(true, "Estudiante asignado al aula", data));
+    }
+    catch (error) {
+        const message = error.message || "Error al asignar estudiante al aula";
+        console.error("[asignarEstudianteAula] Error:", error);
+        return res
+            .status(400)
+            .json((0, common_response_interface_1.commonResponse)(false, message, null, { code: "ASSIGN_ERROR", description: message }));
+    }
+}
+// POST /aulas/:id/desasignar-estudiante
+async function desasignarEstudianteAula(req, res) {
+    try {
+        const { id } = req.params;
+        const { estudiante_id, usuario_id, rol } = req.body;
+        if (!id || !estudiante_id || !usuario_id || !rol) {
+            return res
+                .status(400)
+                .json((0, common_response_interface_1.commonResponse)(false, "Faltan datos obligatorios", null, {
+                code: "VALIDATION_ERROR",
+            }));
+        }
+        const user = { id: String(usuario_id), rol: String(rol) };
+        await service.desasignarEstudiante(id, String(estudiante_id), user);
+        return res
+            .status(200)
+            .json((0, common_response_interface_1.commonResponse)(true, "Estudiante desasignado del aula", null));
+    }
+    catch (error) {
+        const message = error.message || "Error al desasignar estudiante del aula";
+        console.error("[desasignarEstudianteAula] Error:", error);
+        return res
+            .status(400)
+            .json((0, common_response_interface_1.commonResponse)(false, message, null, { code: "UNASSIGN_ERROR", description: message }));
+    }
+}
 // GET /aulas/:id/estudiantes
 async function listAulaEstudiantes(req, res) {
     try {
@@ -297,38 +349,5 @@ async function listAulaEstudiantes(req, res) {
             code: "LIST_ERROR",
             description: message,
         }));
-    }
-}
-
-async function asignarEstudianteAula(req, res) {
-    try {
-        const { id } = req.params;
-        const { estudiante_id, usuario_id, rol } = req.body;
-
-        // Creamos el objeto user que espera el servicio
-        const user = { 
-            id: usuario_id, 
-            rol: rol
-        };
-
-        const data = await service.asignarEstudiante(id, estudiante_id, user);
-        return res.status(200).json((0, common_response_interface_1.commonResponse)(true, "ok", data));
-    } catch (error) {
-        // Si el mensaje es "No tienes permisos...", caerá aquí
-        return res.status(403).json((0, common_response_interface_1.commonResponse)(false, error.message));
-    }
-}
-
-async function desasignarEstudianteAula(req, res) {
-    try {
-        const { id } = req.params; // aulaId
-        const { estudiante_id, usuario_id, rol } = req.body;
-
-        const user = { id: String(usuario_id), rol: String(rol) };
-        await service.desasignarEstudiante(id, estudiante_id, user);
-
-        return res.status(200).json((0, common_response_interface_1.commonResponse)(true, "Estudiante quitado con éxito"));
-    } catch (error) {
-        return res.status(400).json((0, common_response_interface_1.commonResponse)(false, error.message));
     }
 }

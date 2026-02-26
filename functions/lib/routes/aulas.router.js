@@ -13,8 +13,8 @@ function createAulasRouter() {
     router.post("/aulas/:id/asignar-docente", aulas_controller_1.asignarDocenteAula);
     router.post("/aulas/:id/desasignar-docente", aulas_controller_1.desasignarDocenteAula);
     router.get("/aulas/:id/estudiantes", aulas_controller_1.listAulaEstudiantes);
-    router.get("/docentes/aulas", aulas_controller_1.listDocenteAulas);
     router.post("/aulas/:id/asignar-estudiante", aulas_controller_1.asignarEstudianteAula);
     router.post("/aulas/:id/desasignar-estudiante", aulas_controller_1.desasignarEstudianteAula);
+    router.get("/docentes/aulas", aulas_controller_1.listDocenteAulas);
     return router;
 }

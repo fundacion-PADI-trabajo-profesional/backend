@@ -309,6 +309,56 @@ export class AulasService {
 
     return await this.repo.listEstudiantesByAula(aulaId);
   }
+
+  async asignarEstudiante(aulaId: string, estudianteId: string, user: { id: string; rol: string }) {
+    const userPerms = await this.getUserWithPermissions(user);
+    if (userPerms.userType !== "director") {
+      throw new Error("Solo los directores pueden gestionar estudiantes en aulas.");
+    }
+    const { prismaAny } = userPerms;
+
+    const aula = await prismaAny.aulas.findUnique({
+      where: { id: aulaId },
+      select: { id: true, escuela_id: true },
+    });
+
+    if (!aula) throw new Error("Aula no encontrada.");
+    if (aula.escuela_id !== userPerms.escuelaId) {
+      throw new Error("No tienes permisos para gestionar estudiantes de esta aula.");
+    }
+
+    const estudiante = await prismaAny.estudiantes.findUnique({
+      where: { id: estudianteId },
+      select: { id: true, escuela_id: true },
+    });
+
+    if (!estudiante) throw new Error("Estudiante no encontrado.");
+    if (estudiante.escuela_id !== aula.escuela_id) {
+      throw new Error("El estudiante no pertenece al colegio de esta aula.");
+    }
+
+    return await this.repo.addEstudiante(estudianteId, aulaId);
+  }
+
+  async desasignarEstudiante(aulaId: string, estudianteId: string, user: { id: string; rol: string }) {
+    const userPerms = await this.getUserWithPermissions(user);
+    if (userPerms.userType !== "director") {
+      throw new Error("Solo los directores pueden gestionar estudiantes en aulas.");
+    }
+    const { prismaAny } = userPerms;
+
+    const aula = await prismaAny.aulas.findUnique({
+      where: { id: aulaId },
+      select: { id: true, escuela_id: true },
+    });
+
+    if (!aula) throw new Error("Aula no encontrada.");
+    if (aula.escuela_id !== userPerms.escuelaId) {
+      throw new Error("No tienes permisos para gestionar estudiantes de esta aula.");
+    }
+
+    await this.repo.removeEstudiante(estudianteId, aulaId);
+  }
 }
 
 

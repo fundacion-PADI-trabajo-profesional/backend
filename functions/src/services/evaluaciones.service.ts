@@ -1,10 +1,46 @@
 import { EvaluacionRepository } from "../repositories/evaluacion.repository";
 import type { CreateEvaluacionDTO } from "../interfaces/evaluacion.interface";
+import { getPrisma } from "../config/prismaClient";
 
 export class EvaluacionService {
   private repo = EvaluacionRepository;
 
+  private async ensureProfesorRecord(userId: string) {
+    const prisma = getPrisma();
+    if (!prisma) throw new Error("DB no disponible");
+    const prismaAny = prisma as any;
+
+    const existing = await prismaAny.profesores.findUnique({ where: { id: userId } });
+    if (existing) return;
+
+    const user = await prismaAny.usuarioPerfil.findUnique({
+      where: { id: userId },
+      select: { id: true, nombre: true, apellido: true, rol: true },
+    });
+    if (!user) throw new Error("Usuario no encontrado.");
+    if (user.rol !== "director" && user.rol !== "docente") {
+      throw new Error("Solo docentes y directores pueden realizar evaluaciones.");
+    }
+
+    let persona = await prismaAny.personas.findFirst({ where: { usuario_id: userId } });
+    if (!persona) {
+      persona = await prismaAny.personas.create({
+        data: {
+          usuario_id: userId,
+          nombre: user.nombre,
+          primer_apellido: user.apellido,
+        },
+      });
+    }
+
+    await prismaAny.profesores.create({
+      data: { id: userId, persona_id: persona.id },
+    });
+  }
+
   async createEvaluacion(data: CreateEvaluacionDTO) {
+    await this.ensureProfesorRecord(data.profesor_id);
+
     const estudiante = await this.repo.findEstudianteByDni(data.dni);
     if (!estudiante) throw new Error("Estudiante no encontrado");
 

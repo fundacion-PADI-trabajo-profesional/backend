@@ -337,6 +337,68 @@ export async function listDocenteAulas(req: Request, res: Response) {
   }
 }
 
+// POST /aulas/:id/asignar-estudiante
+export async function asignarEstudianteAula(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { estudiante_id, usuario_id, rol } = req.body;
+
+    if (!id || !estudiante_id || !usuario_id || !rol) {
+      return res
+        .status(400)
+        .json(
+          commonResponse(false, "Faltan datos obligatorios", null, {
+            code: "VALIDATION_ERROR",
+          }),
+        );
+    }
+
+    const user = { id: String(usuario_id), rol: String(rol) };
+    const data = await service.asignarEstudiante(id, String(estudiante_id), user);
+
+    return res
+      .status(200)
+      .json(commonResponse(true, "Estudiante asignado al aula", data));
+  } catch (error: any) {
+    const message = error.message || "Error al asignar estudiante al aula";
+    console.error("[asignarEstudianteAula] Error:", error);
+    return res
+      .status(400)
+      .json(commonResponse(false, message, null, { code: "ASSIGN_ERROR", description: message }));
+  }
+}
+
+// POST /aulas/:id/desasignar-estudiante
+export async function desasignarEstudianteAula(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { estudiante_id, usuario_id, rol } = req.body;
+
+    if (!id || !estudiante_id || !usuario_id || !rol) {
+      return res
+        .status(400)
+        .json(
+          commonResponse(false, "Faltan datos obligatorios", null, {
+            code: "VALIDATION_ERROR",
+          }),
+        );
+    }
+
+    const user = { id: String(usuario_id), rol: String(rol) };
+    await service.desasignarEstudiante(id, String(estudiante_id), user);
+
+    return res
+      .status(200)
+      .json(commonResponse(true, "Estudiante desasignado del aula", null));
+  } catch (error: any) {
+    const message = error.message || "Error al desasignar estudiante del aula";
+    console.error("[desasignarEstudianteAula] Error:", error);
+    return res
+      .status(400)
+      .json(commonResponse(false, message, null, { code: "UNASSIGN_ERROR", description: message }));
+  }
+}
+
 // GET /aulas/:id/estudiantes
 export async function listAulaEstudiantes(req: Request, res: Response) {
   try {
