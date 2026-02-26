@@ -33,6 +33,12 @@ exports.AulasRepository = {
                         grado: true,
                     },
                 },
+                profesores_aulas: {
+                    select: {
+                        profesor_id: true,
+                        profesor: { select: { personas: { select: { nombre: true, primer_apellido: true } } } },
+                    },
+                },
             },
             orderBy: [{ sala_id: "asc" }, { comision: "asc" }],
         });
@@ -79,6 +85,12 @@ exports.AulasRepository = {
                         },
                     },
                 },
+                profesores_aulas: {
+                    select: {
+                        profesor_id: true,
+                        profesor: { select: { personas: { select: { nombre: true, primer_apellido: true } } } },
+                    },
+                },
             },
             orderBy: [{ escuela_id: "asc" }, { sala_id: "asc" }, { comision: "asc" }],
         });
@@ -107,6 +119,12 @@ exports.AulasRepository = {
                                 nombre: true,
                             },
                         },
+                    },
+                },
+                profesores_aulas: {
+                    select: {
+                        profesor_id: true,
+                        profesor: { select: { personas: { select: { nombre: true, primer_apellido: true } } } },
                     },
                 },
             },

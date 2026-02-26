@@ -7,7 +7,7 @@ const service = new AulasService();
 // POST /aulas
 export async function createAula(req: Request, res: Response) {
   try {
-    const { sala_id, comision, turno, usuario_id, rol } = req.body;
+    const { sala_id, comision, turno, usuario_id, rol, escuela_id } = req.body;
 
     if (!sala_id || !comision || !turno || !usuario_id || !rol) {
       return res
@@ -29,6 +29,7 @@ export async function createAula(req: Request, res: Response) {
         sala_id: Number(sala_id),
         comision,
         turno,
+        escuela_id: escuela_id ? String(escuela_id) : undefined,
       },
       user,
     );

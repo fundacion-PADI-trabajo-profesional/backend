@@ -83,12 +83,11 @@ export class AulasService {
 
   async create(data: CreateAulaDto, user: { id: string; rol: string }) {
     const userPerms = await this.getUserWithPermissions(user);
-    if (userPerms.userType !== "director") {
-      throw new Error("Solo los directores pueden gestionar aulas.");
+    if (userPerms.userType !== "director" && userPerms.userType !== "encargado") {
+      throw new Error("No tienes permisos para crear aulas.");
     }
     const { prismaAny } = userPerms;
 
-    // Verificar que la sala exista
     const sala = await prismaAny.salas.findUnique({
       where: { id: data.sala_id },
       select: { id: true },
@@ -100,8 +99,17 @@ export class AulasService {
 
     let escuela_id: string;
 
-    // Determinar la escuela según el tipo de usuario
-    escuela_id = userPerms.escuelaId!;
+    if (userPerms.userType === "director") {
+      escuela_id = userPerms.escuelaId!;
+    } else {
+      if (!data.escuela_id) {
+        throw new Error("Se requiere escuela_id para crear un aula.");
+      }
+      if (!(userPerms.allowedEscuelas as string[]).includes(data.escuela_id)) {
+        throw new Error("No tienes permisos para crear aulas en esta escuela.");
+      }
+      escuela_id = data.escuela_id;
+    }
 
     const payload: CreateAulaData = {
       sala_id: data.sala_id,
@@ -152,8 +160,8 @@ export class AulasService {
 
   async delete(id: string, user: { id: string; rol: string }) {
     const userPerms = await this.getUserWithPermissions(user);
-    if (userPerms.userType !== "director") {
-      throw new Error("Solo los directores pueden gestionar aulas.");
+    if (userPerms.userType !== "director" && userPerms.userType !== "encargado") {
+      throw new Error("No tienes permisos para eliminar aulas.");
     }
     const { prismaAny } = userPerms;
 
@@ -166,7 +174,10 @@ export class AulasService {
       throw new Error("Aula no encontrada.");
     }
 
-    if (aula.escuela_id !== userPerms.escuelaId) {
+    if (userPerms.userType === "director" && aula.escuela_id !== userPerms.escuelaId) {
+      throw new Error("No tienes permisos para eliminar esta aula.");
+    }
+    if (userPerms.userType === "encargado" && !(userPerms.allowedEscuelas as string[]).includes(aula.escuela_id)) {
       throw new Error("No tienes permisos para eliminar esta aula.");
     }
 
@@ -213,8 +224,8 @@ export class AulasService {
 
   async asignarDocente(aulaId: string, profesorId: string, user: { id: string; rol: string }) {
     const userPerms = await this.getUserWithPermissions(user);
-    if (userPerms.userType !== "director") {
-      throw new Error("Solo los directores pueden gestionar aulas.");
+    if (userPerms.userType !== "director" && userPerms.userType !== "encargado") {
+      throw new Error("No tienes permisos para gestionar docentes en aulas.");
     }
     const { prismaAny } = userPerms;
 
@@ -227,7 +238,10 @@ export class AulasService {
       throw new Error("Aula no encontrada.");
     }
 
-    if (aula.escuela_id !== userPerms.escuelaId) {
+    if (userPerms.userType === "director" && aula.escuela_id !== userPerms.escuelaId) {
+      throw new Error("No tienes permisos para gestionar docentes de esta aula.");
+    }
+    if (userPerms.userType === "encargado" && !(userPerms.allowedEscuelas as string[]).includes(aula.escuela_id)) {
       throw new Error("No tienes permisos para gestionar docentes de esta aula.");
     }
 
@@ -254,8 +268,8 @@ export class AulasService {
 
   async desasignarDocente(aulaId: string, profesorId: string, user: { id: string; rol: string }) {
     const userPerms = await this.getUserWithPermissions(user);
-    if (userPerms.userType !== "director") {
-      throw new Error("Solo los directores pueden gestionar aulas.");
+    if (userPerms.userType !== "director" && userPerms.userType !== "encargado") {
+      throw new Error("No tienes permisos para gestionar docentes en aulas.");
     }
     const { prismaAny } = userPerms;
 
@@ -268,7 +282,10 @@ export class AulasService {
       throw new Error("Aula no encontrada.");
     }
 
-    if (aula.escuela_id !== userPerms.escuelaId) {
+    if (userPerms.userType === "director" && aula.escuela_id !== userPerms.escuelaId) {
+      throw new Error("No tienes permisos para gestionar docentes de esta aula.");
+    }
+    if (userPerms.userType === "encargado" && !(userPerms.allowedEscuelas as string[]).includes(aula.escuela_id)) {
       throw new Error("No tienes permisos para gestionar docentes de esta aula.");
     }
 
@@ -312,8 +329,8 @@ export class AulasService {
 
   async asignarEstudiante(aulaId: string, estudianteId: string, user: { id: string; rol: string }) {
     const userPerms = await this.getUserWithPermissions(user);
-    if (userPerms.userType !== "director") {
-      throw new Error("Solo los directores pueden gestionar estudiantes en aulas.");
+    if (userPerms.userType !== "director" && userPerms.userType !== "encargado") {
+      throw new Error("No tienes permisos para gestionar estudiantes en aulas.");
     }
     const { prismaAny } = userPerms;
 
@@ -323,7 +340,10 @@ export class AulasService {
     });
 
     if (!aula) throw new Error("Aula no encontrada.");
-    if (aula.escuela_id !== userPerms.escuelaId) {
+    if (userPerms.userType === "director" && aula.escuela_id !== userPerms.escuelaId) {
+      throw new Error("No tienes permisos para gestionar estudiantes de esta aula.");
+    }
+    if (userPerms.userType === "encargado" && !(userPerms.allowedEscuelas as string[]).includes(aula.escuela_id)) {
       throw new Error("No tienes permisos para gestionar estudiantes de esta aula.");
     }
 
@@ -342,8 +362,8 @@ export class AulasService {
 
   async desasignarEstudiante(aulaId: string, estudianteId: string, user: { id: string; rol: string }) {
     const userPerms = await this.getUserWithPermissions(user);
-    if (userPerms.userType !== "director") {
-      throw new Error("Solo los directores pueden gestionar estudiantes en aulas.");
+    if (userPerms.userType !== "director" && userPerms.userType !== "encargado") {
+      throw new Error("No tienes permisos para gestionar estudiantes en aulas.");
     }
     const { prismaAny } = userPerms;
 
@@ -353,7 +373,10 @@ export class AulasService {
     });
 
     if (!aula) throw new Error("Aula no encontrada.");
-    if (aula.escuela_id !== userPerms.escuelaId) {
+    if (userPerms.userType === "director" && aula.escuela_id !== userPerms.escuelaId) {
+      throw new Error("No tienes permisos para gestionar estudiantes de esta aula.");
+    }
+    if (userPerms.userType === "encargado" && !(userPerms.allowedEscuelas as string[]).includes(aula.escuela_id)) {
       throw new Error("No tienes permisos para gestionar estudiantes de esta aula.");
     }
 
