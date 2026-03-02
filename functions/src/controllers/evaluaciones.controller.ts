@@ -7,7 +7,10 @@ const service = new EvaluacionService();
 
 export async function createEvaluacion(req: Request, res: Response) {
   try {
-    const data = await service.createEvaluacion(req.body);
+    const { usuario_id, rol } = req.query;
+    const user = usuario_id && rol ? { id: String(usuario_id), rol: String(rol) } : undefined;
+
+    const data = await service.createEvaluacion(req.body, user);
     res.status(201).json(commonResponse(true, "Evaluación creada con éxito", data));
   } catch (error: any) {
     const message = error.message || "Error al crear evaluación";
@@ -61,7 +64,14 @@ export async function getEvaluacionById(req: Request, res: Response) {
 
 export async function deleteEvaluacion(req: Request, res: Response) {
   try {
-    await service.remove(req.params.id);
+    const { usuario_id, rol } = req.query;
+
+    if (!usuario_id || !rol) {
+      return res.status(400).json(commonResponse(false, "Se requiere usuario_id y rol para eliminar evaluaciones", null));
+    }
+
+    const user = { id: String(usuario_id), rol: String(rol) };
+    await service.remove(req.params.id, user);
     res.status(200).json(commonResponse(true, "Evaluación eliminada", null));
   } catch (error: any) {
     const msg = error?.message || "Error al eliminar la evaluación";

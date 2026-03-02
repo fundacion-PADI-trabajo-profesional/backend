@@ -104,3 +104,51 @@ export async function getSalas(req: Request, res: Response) {
         res.status(500).json(commonResponse(false, message, null, { code: "INTERNAL_ERROR", description: message }))
     }
 }
+
+export async function asignarEstudianteAula(req: Request, res: Response) {
+    try {
+        const { estudianteId, aulaId } = req.body;
+        const { usuario_id, rol } = req.query;
+
+        if (!usuario_id || !rol) {
+            return res.status(400).json(commonResponse(false, "Se requiere usuario_id y rol", null));
+        }
+
+        if (!estudianteId || !aulaId) {
+            return res.status(400).json(commonResponse(false, "Se requiere estudianteId y aulaId", null));
+        }
+
+        const actor = { id: String(usuario_id), rol: String(rol) };
+        const data = await service.asignarEstudianteAula(estudianteId, aulaId, actor);
+        
+        res.status(200).json(commonResponse(true, "Estudiante asignado al aula con éxito", data));
+    } catch (error: any) {
+        const message = error.message || "Error al asignar estudiante al aula";
+        console.error("[asignarEstudianteAula] Error:", error);
+        res.status(400).json(commonResponse(false, message, null, { code: "ASSIGNMENT_ERROR", description: message }));
+    }
+}
+
+export async function desasignarEstudianteAula(req: Request, res: Response) {
+    try {
+        const { estudianteId, aulaId } = req.body;
+        const { usuario_id, rol } = req.query;
+
+        if (!usuario_id || !rol) {
+            return res.status(400).json(commonResponse(false, "Se requiere usuario_id y rol", null));
+        }
+
+        if (!estudianteId || !aulaId) {
+            return res.status(400).json(commonResponse(false, "Se requiere estudianteId y aulaId", null));
+        }
+
+        const actor = { id: String(usuario_id), rol: String(rol) };
+        const data = await service.desasignarEstudianteAula(estudianteId, aulaId, actor);
+        
+        res.status(200).json(commonResponse(true, "Estudiante desasignado del aula con éxito", data));
+    } catch (error: any) {
+        const message = error.message || "Error al desasignar estudiante del aula";
+        console.error("[desasignarEstudianteAula] Error:", error);
+        res.status(400).json(commonResponse(false, message, null, { code: "UNASSIGNMENT_ERROR", description: message }));
+    }
+}

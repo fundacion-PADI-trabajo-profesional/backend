@@ -83,7 +83,8 @@ export class AulasService {
 
   async create(data: CreateAulaDto, user: { id: string; rol: string }) {
     const userPerms = await this.getUserWithPermissions(user);
-    if (userPerms.userType !== "director" && userPerms.userType !== "encargado") {
+    // Ahora PADI también puede crear aulas
+    if (userPerms.userType !== "director" && userPerms.userType !== "encargado" && userPerms.userType !== "padi") {
       throw new Error("No tienes permisos para crear aulas.");
     }
     const { prismaAny } = userPerms;
@@ -102,12 +103,19 @@ export class AulasService {
     if (userPerms.userType === "director") {
       escuela_id = userPerms.escuelaId!;
     } else {
+      // Para PADI y encargados, necesitamos que especifiquen la escuela
       if (!data.escuela_id) {
-        throw new Error("Se requiere escuela_id para crear un aula.");
+        throw new Error("Debe especificar la escuela para crear el aula.");
       }
-      if (!(userPerms.allowedEscuelas as string[]).includes(data.escuela_id)) {
-        throw new Error("No tienes permisos para crear aulas en esta escuela.");
+
+      // Verificar permisos sobre la escuela (solo para encargados, PADI puede crear en cualquier escuela)
+      if (userPerms.userType === "encargado") {
+        if (!(userPerms.allowedEscuelas as string[]).includes(data.escuela_id)) {
+          throw new Error("No tienes permisos para crear aulas en esta escuela.");
+        }
       }
+      // PADI puede crear en cualquier escuela
+
       escuela_id = data.escuela_id;
     }
 

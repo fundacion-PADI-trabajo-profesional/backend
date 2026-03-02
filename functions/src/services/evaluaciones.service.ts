@@ -38,7 +38,14 @@ export class EvaluacionService {
     });
   }
 
-  async createEvaluacion(data: CreateEvaluacionDTO) {
+  async createEvaluacion(data: CreateEvaluacionDTO, user?: { id: string; rol: string }) {
+    // Validar permisos para crear evaluación
+    if (user) {
+      if (user.rol !== "director" && user.rol !== "docente" && user.rol !== "encargado_zona" && user.rol !== "equipo_padi") {
+        throw new Error("No tienes permisos para crear evaluaciones.");
+      }
+    }
+
     await this.ensureProfesorRecord(data.profesor_id);
 
     const estudiante = await this.repo.findEstudianteByDni(data.dni);
@@ -95,7 +102,12 @@ export class EvaluacionService {
     return evaluacion;
   }
 
-  async remove(id: string) {
+  async remove(id: string, user: { id: string; rol: string }) {
+    // Validar permisos para eliminar evaluación
+    if (user.rol !== "equipo_padi" && user.rol !== "encargado_zona" && user.rol !== "docente" && user.rol !== "director") {
+      throw new Error("No tienes permisos para eliminar evaluaciones.");
+    }
+
     return await this.repo.delete(id);
   }
 
