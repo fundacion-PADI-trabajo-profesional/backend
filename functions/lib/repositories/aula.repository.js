@@ -225,7 +225,40 @@ exports.AulasRepository = {
                 estudiantes: (aula.estudiantes_aulas || []).map((ea) => ea.estudiante),
             });
         }
-        return Array.from(byAulaId.values());
+        const aulas = Array.from(byAulaId.values());
+        const estudianteIds = aulas.flatMap((aula) => (aula.estudiantes || []).map((e) => e.id));
+        const resumenPorEstudiante = new Map();
+        if (estudianteIds.length > 0) {
+            const evalRows = await prismaAny.evaluacionEstudiante.findMany({
+                where: {
+                    estudiante_id: { in: estudianteIds },
+                    tipo_id: { in: ["inicial", "cierre"] },
+                },
+                select: {
+                    estudiante_id: true,
+                    tipo_id: true,
+                    estado_id: true,
+                    fecha_creacion: true,
+                    id: true,
+                },
+                orderBy: [{ fecha_creacion: "desc" }, { id: "desc" }],
+            });
+            for (const row of evalRows) {
+                const current = resumenPorEstudiante.get(row.estudiante_id) || { inicial: null, cierre: null };
+                if (row.tipo_id === "inicial" && current.inicial === null)
+                    current.inicial = row.estado_id;
+                if (row.tipo_id === "cierre" && current.cierre === null)
+                    current.cierre = row.estado_id;
+                resumenPorEstudiante.set(row.estudiante_id, current);
+            }
+        }
+        return aulas.map((aula) => ({
+            ...aula,
+            estudiantes: (aula.estudiantes || []).map((est) => ({
+                ...est,
+                evaluaciones_resumen: resumenPorEstudiante.get(est.id) ?? { inicial: null, cierre: null },
+            })),
+        }));
     },
     async listEstudiantesByAula(aula_id) {
         const prisma = (0, prismaClient_1.getPrisma)();

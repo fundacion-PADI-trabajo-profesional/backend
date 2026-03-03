@@ -145,8 +145,8 @@ export class AulasService {
 
   async update(id: string, data: UpdateAulaData, user: { id: string; rol: string }) {
     const userPerms = await this.getUserWithPermissions(user);
-    if (userPerms.userType !== "director") {
-      throw new Error("Solo los directores pueden gestionar aulas.");
+    if (userPerms.userType !== "director" && userPerms.userType !== "padi") {
+      throw new Error("Solo directores y equipo PADI pueden gestionar aulas.");
     }
     const { prismaAny } = userPerms;
 
@@ -159,7 +159,7 @@ export class AulasService {
       throw new Error("Aula no encontrada.");
     }
 
-    if (aula.escuela_id !== userPerms.escuelaId) {
+    if (userPerms.userType === "director" && aula.escuela_id !== userPerms.escuelaId) {
       throw new Error("No tienes permisos para modificar esta aula.");
     }
 
@@ -168,7 +168,7 @@ export class AulasService {
 
   async delete(id: string, user: { id: string; rol: string }) {
     const userPerms = await this.getUserWithPermissions(user);
-    if (userPerms.userType !== "director" && userPerms.userType !== "encargado") {
+    if (userPerms.userType !== "director" && userPerms.userType !== "encargado" && userPerms.userType !== "padi") {
       throw new Error("No tienes permisos para eliminar aulas.");
     }
     const { prismaAny } = userPerms;
@@ -232,7 +232,7 @@ export class AulasService {
 
   async asignarDocente(aulaId: string, profesorId: string, user: { id: string; rol: string }) {
     const userPerms = await this.getUserWithPermissions(user);
-    if (userPerms.userType !== "director" && userPerms.userType !== "encargado") {
+    if (userPerms.userType !== "director" && userPerms.userType !== "encargado" && userPerms.userType !== "padi") {
       throw new Error("No tienes permisos para gestionar docentes en aulas.");
     }
     const { prismaAny } = userPerms;
@@ -276,7 +276,7 @@ export class AulasService {
 
   async desasignarDocente(aulaId: string, profesorId: string, user: { id: string; rol: string }) {
     const userPerms = await this.getUserWithPermissions(user);
-    if (userPerms.userType !== "director" && userPerms.userType !== "encargado") {
+    if (userPerms.userType !== "director" && userPerms.userType !== "encargado" && userPerms.userType !== "padi") {
       throw new Error("No tienes permisos para gestionar docentes en aulas.");
     }
     const { prismaAny } = userPerms;

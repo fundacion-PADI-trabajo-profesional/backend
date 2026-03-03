@@ -170,6 +170,37 @@ describe("evaluaciones instancias (API /evaluaciones)", () => {
     expect(String(res.body.message || "")).toContain("no está asignado activamente al aula");
   });
 
+  it("POST /evaluaciones permite crear evaluación para equipo_padi", async () => {
+    vi.spyOn(EvaluacionService.prototype as any, "ensureProfesorRecord").mockResolvedValue(undefined);
+    vi.spyOn(EvaluacionRepository, "findEstudianteByDni").mockResolvedValue({
+      id: "s1",
+      sala_id: 1,
+    } as any);
+    const createSpy = vi.spyOn(EvaluacionRepository, "create").mockResolvedValue({
+      id: "e200",
+      estudiante_id: "s1",
+      profesor_id: "00000000-0000-0000-0000-000000000001",
+      sala_id: 1,
+      tipo_id: "inicial",
+      estado_id: "N",
+      fecha_creacion: new Date(),
+    } as any);
+
+    const res = await request(app)
+      .post("/evaluaciones?usuario_id=padi-1&rol=equipo_padi")
+      .send({
+        dni: "44111222",
+        profesor_id: "00000000-0000-0000-0000-000000000001",
+        tipo_id: "inicial",
+        fecha_creacion: "2026-02",
+      })
+      .set("Content-Type", "application/json");
+
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ success: true });
+    expect(createSpy).toHaveBeenCalled();
+  });
+
   it("DELETE /evaluaciones/:id permite eliminar para equipo_padi", async () => {
     const deleteSpy = vi.spyOn(EvaluacionRepository, "delete").mockResolvedValue({ id: "e1" } as any);
 

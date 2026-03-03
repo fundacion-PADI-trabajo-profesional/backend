@@ -3,6 +3,42 @@
 import { Prisma, PrismaClient } from "@prisma/client"
 import { getPrisma } from "../config/prismaClient"
 
+type EvaluacionResumen = {
+    inicial: string | null
+    cierre: string | null
+}
+
+async function getEvaluacionesResumenPorEstudiantes(prismaAny: any, estudianteIds: string[]) {
+    const resumen = new Map<string, EvaluacionResumen>()
+    if (estudianteIds.length === 0) return resumen
+
+    const rows = await prismaAny.evaluacionEstudiante.findMany({
+        where: {
+            estudiante_id: { in: estudianteIds },
+            tipo_id: { in: ["inicial", "cierre"] },
+        },
+        select: {
+            estudiante_id: true,
+            tipo_id: true,
+            estado_id: true,
+            fecha_creacion: true,
+        },
+        orderBy: [
+            { fecha_creacion: "desc" },
+            { id: "desc" },
+        ],
+    })
+
+    for (const row of rows) {
+        const current = resumen.get(row.estudiante_id) || { inicial: null, cierre: null }
+        if (row.tipo_id === "inicial" && current.inicial === null) current.inicial = row.estado_id
+        if (row.tipo_id === "cierre" && current.cierre === null) current.cierre = row.estado_id
+        resumen.set(row.estudiante_id, current)
+    }
+
+    return resumen
+}
+
 export interface CreateEstudianteData {
     dni: string
     nombre: string
@@ -88,8 +124,8 @@ export const EstudianteRepository = {
     async list() {
         const prisma = getPrisma()
         if (!prisma) throw new Error("DB not available")
-
-        return await (prisma as any).estudiantes.findMany({
+        const prismaAny = prisma as any
+        const estudiantes = await prismaAny.estudiantes.findMany({
             include: {
                 personas: {
                     select: {
@@ -108,6 +144,52 @@ export const EstudianteRepository = {
                 generos: { select: { descripcion: true } },
             },
         })
+
+        const estudianteIds = estudiantes.map((e: any) => e.id)
+        if (estudianteIds.length === 0) return estudiantes
+        const resumenPorEstudiante = await getEvaluacionesResumenPorEstudiantes(prismaAny, estudianteIds)
+
+        const asignacionesActivas = await prismaAny.estudiantesAulas.findMany({
+            where: {
+                estudiante_id: { in: estudianteIds },
+                fecha_fin: null,
+            },
+            include: {
+                aula: {
+                    select: {
+                        id: true,
+                        comision: true,
+                        turno: true,
+                        sala_id: true,
+                        sala: {
+                            select: {
+                                id: true,
+                                nombre: true,
+                                grado: true,
+                            },
+                        },
+                    },
+                },
+            },
+            orderBy: { fecha_inicio: "desc" },
+        })
+
+        const aulaActivaPorEstudiante = new Map<string, any>()
+        for (const asignacion of asignacionesActivas) {
+            if (!aulaActivaPorEstudiante.has(asignacion.estudiante_id)) {
+                aulaActivaPorEstudiante.set(asignacion.estudiante_id, asignacion.aula)
+            }
+        }
+
+        return estudiantes.map((est: any) => ({
+            ...est,
+            escuela: {
+                escuela_id: est.escuela_id,
+                nombre: est.escuela?.nombre ?? null,
+            },
+            aula_asignada: aulaActivaPorEstudiante.get(est.id) ?? null,
+            evaluaciones_resumen: resumenPorEstudiante.get(est.id) ?? { inicial: null, cierre: null },
+        }))
     },
 
     async getGeneros() {
@@ -155,7 +237,7 @@ export const EstudianteRepository = {
 
         const txAny = prisma as any;
         // Filtramos estudiantes que pertenezcan al UUID de la escuela proporcionado [cite: 17, 18]
-        return await txAny.estudiantes.findMany({
+        const estudiantes = await txAny.estudiantes.findMany({
             where: { escuela_id: escuelaId }, 
             include: {
                 personas: {
@@ -170,5 +252,51 @@ export const EstudianteRepository = {
                 generos: { select: { descripcion: true } },
             },
         });
+
+        const estudianteIds = estudiantes.map((e: any) => e.id)
+        if (estudianteIds.length === 0) return estudiantes
+        const resumenPorEstudiante = await getEvaluacionesResumenPorEstudiantes(txAny, estudianteIds)
+
+        const asignacionesActivas = await txAny.estudiantesAulas.findMany({
+            where: {
+                estudiante_id: { in: estudianteIds },
+                fecha_fin: null,
+            },
+            include: {
+                aula: {
+                    select: {
+                        id: true,
+                        comision: true,
+                        turno: true,
+                        sala_id: true,
+                        sala: {
+                            select: {
+                                id: true,
+                                nombre: true,
+                                grado: true,
+                            },
+                        },
+                    },
+                },
+            },
+            orderBy: { fecha_inicio: "desc" },
+        })
+
+        const aulaActivaPorEstudiante = new Map<string, any>()
+        for (const asignacion of asignacionesActivas) {
+            if (!aulaActivaPorEstudiante.has(asignacion.estudiante_id)) {
+                aulaActivaPorEstudiante.set(asignacion.estudiante_id, asignacion.aula)
+            }
+        }
+
+        return estudiantes.map((est: any) => ({
+            ...est,
+            escuela: {
+                escuela_id: est.escuela_id,
+                nombre: est.escuela?.nombre ?? null,
+            },
+            aula_asignada: aulaActivaPorEstudiante.get(est.id) ?? null,
+            evaluaciones_resumen: resumenPorEstudiante.get(est.id) ?? { inicial: null, cierre: null },
+        }))
     }
 }

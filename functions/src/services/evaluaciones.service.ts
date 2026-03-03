@@ -18,8 +18,8 @@ export class EvaluacionService {
       select: { id: true, nombre: true, apellido: true, rol: true },
     });
     if (!user) throw new Error("Usuario no encontrado.");
-    if (user.rol !== "director" && user.rol !== "docente" && user.rol !== "encargado_zona") {
-      throw new Error("Solo docentes, directores y encargados de zona pueden realizar evaluaciones.");
+    if (user.rol !== "director" && user.rol !== "docente" && user.rol !== "encargado_zona" && user.rol !== "equipo_padi") {
+      throw new Error("Solo docentes, directores, encargados de zona y equipo PADI pueden realizar evaluaciones.");
     }
 
     let persona = await prismaAny.personas.findFirst({ where: { usuario_id: userId } });
