@@ -280,7 +280,7 @@ class AulasService {
     }
     async asignarEstudiante(aulaId, estudianteId, user) {
         const userPerms = await this.getUserWithPermissions(user);
-        if (userPerms.userType !== "director" && userPerms.userType !== "encargado") {
+        if (userPerms.userType !== "director" && userPerms.userType !== "encargado" && userPerms.userType !== "padi") {
             throw new Error("No tienes permisos para gestionar estudiantes en aulas.");
         }
         const { prismaAny } = userPerms;
@@ -309,7 +309,7 @@ class AulasService {
     }
     async desasignarEstudiante(aulaId, estudianteId, user) {
         const userPerms = await this.getUserWithPermissions(user);
-        if (userPerms.userType !== "director" && userPerms.userType !== "encargado") {
+        if (userPerms.userType !== "director" && userPerms.userType !== "encargado" && userPerms.userType !== "padi") {
             throw new Error("No tienes permisos para gestionar estudiantes en aulas.");
         }
         const { prismaAny } = userPerms;

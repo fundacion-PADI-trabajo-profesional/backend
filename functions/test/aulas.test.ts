@@ -270,6 +270,88 @@ describe("aulas endpoints", () => {
     });
     expect(fakePrisma.estudiantesAulas.findMany).toHaveBeenCalled();
   });
+
+  it("POST /aulas/:id/asignar-estudiante allows equipo_padi", async () => {
+    const aulaId = "a1";
+    const estudianteId = "s1";
+    const fakePrisma = {
+      aulas: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: aulaId,
+          escuela_id: "esc1",
+        }),
+      },
+      estudiantes: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: estudianteId,
+          escuela_id: "esc1",
+        }),
+      },
+      estudiantesAulas: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({
+          id: "ea1",
+          estudiante_id: estudianteId,
+          aula_id: aulaId,
+        }),
+      },
+    };
+
+    vi.spyOn(prismaClient, "getPrisma").mockReturnValue(fakePrisma as any);
+
+    const res = await request(app)
+      .post(`/aulas/${aulaId}/asignar-estudiante`)
+      .send({
+        estudiante_id: estudianteId,
+        usuario_id: "padi-1",
+        rol: "equipo_padi",
+      })
+      .set("Content-Type", "application/json");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ success: true });
+    expect(fakePrisma.estudiantesAulas.create).toHaveBeenCalled();
+  });
+
+  it("POST /aulas/:id/desasignar-estudiante allows equipo_padi", async () => {
+    const aulaId = "a1";
+    const estudianteId = "s1";
+    const fakePrisma = {
+      aulas: {
+        findUnique: vi.fn().mockResolvedValue({
+          id: aulaId,
+          escuela_id: "esc1",
+        }),
+      },
+      estudiantesAulas: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "ea1",
+          estudiante_id: estudianteId,
+          aula_id: aulaId,
+          fecha_fin: null,
+        }),
+        update: vi.fn().mockResolvedValue({
+          id: "ea1",
+          fecha_fin: new Date(),
+        }),
+      },
+    };
+
+    vi.spyOn(prismaClient, "getPrisma").mockReturnValue(fakePrisma as any);
+
+    const res = await request(app)
+      .post(`/aulas/${aulaId}/desasignar-estudiante`)
+      .send({
+        estudiante_id: estudianteId,
+        usuario_id: "padi-1",
+        rol: "equipo_padi",
+      })
+      .set("Content-Type", "application/json");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ success: true });
+    expect(fakePrisma.estudiantesAulas.update).toHaveBeenCalled();
+  });
 });
 
 

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/server";
 import * as prismaClient from "../src/config/prismaClient";
+import { EvaluacionRepository } from "../src/repositories/evaluacion.repository";
 const app = createApp();
 
 describe("health endpoint", () => {
@@ -62,7 +63,12 @@ describe("directivos assign escuela endpoint", () => {
 });
 
 describe("evaluaciones endpoint", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("returns empty list", async () => {
+    vi.spyOn(EvaluacionRepository, "listWithFilters").mockResolvedValue([]);
     const res = await request(app).get("/evaluaciones");
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ success: true, message: "ok" });
@@ -70,6 +76,7 @@ describe("evaluaciones endpoint", () => {
   });
 
   it("returns 404 when not found", async () => {
+    vi.spyOn(EvaluacionRepository, "findById").mockResolvedValue(null);
     const res = await request(app).get("/evaluaciones/does-not-exist");
     expect(res.status).toBe(404);
     expect(res.body).toMatchObject({ success: false, message: "Evaluación no encontrada" });

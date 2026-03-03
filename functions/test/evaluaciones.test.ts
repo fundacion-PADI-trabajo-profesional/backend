@@ -15,18 +15,25 @@ describe("evaluaciones catálogo", () => {
       { id: "ev1", titulo: "Eval 1" },
       { id: "ev2", titulo: "Eval 2" },
     ];
-    const spy = vi.spyOn(evaluacionRepo.EvaluacionRepository, "list").mockResolvedValue(mockList as any);
+    const spy = vi.spyOn(evaluacionRepo.EvaluacionRepository, "listWithFilters").mockResolvedValue(mockList as any);
     const res = await request(app).get("/evaluaciones");
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ success: true });
     expect(Array.isArray(res.body.data)).toBe(true);
     expect(res.body.data.length).toBe(2);
-    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith({
+      estudianteId: undefined,
+      profesorId: undefined,
+      salaId: undefined,
+      tipoId: undefined,
+      estadoId: undefined,
+      escuelaId: undefined,
+    });
   });
 
   it("GET /evaluaciones/:id returns 200 when found", async () => {
     const mockItem = { id: "ev1", titulo: "Eval 1" };
-    const spy = vi.spyOn(evaluacionRepo.EvaluacionRepository, "getById").mockResolvedValue(mockItem as any);
+    const spy = vi.spyOn(evaluacionRepo.EvaluacionRepository, "findById").mockResolvedValue(mockItem as any);
     const res = await request(app).get("/evaluaciones/ev1");
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ success: true });
@@ -35,7 +42,7 @@ describe("evaluaciones catálogo", () => {
   });
 
   it("GET /evaluaciones/:id returns 404 when not found", async () => {
-    vi.spyOn(evaluacionRepo.EvaluacionRepository, "getById").mockResolvedValue(null);
+    vi.spyOn(evaluacionRepo.EvaluacionRepository, "findById").mockResolvedValue(null);
     const res = await request(app).get("/evaluaciones/does-not-exist");
     expect(res.status).toBe(404);
     expect(res.body).toMatchObject({ success: false });

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/server";
 import { EvaluacionRepository } from "../src/repositories/evaluacion.repository";
+import { EvaluacionService } from "../src/services/evaluaciones.service";
 
 const app = createApp();
 
@@ -105,6 +106,7 @@ describe("evaluaciones instancias (API /evaluaciones)", () => {
   });
 
   it("POST /evaluaciones guarda aula_id cuando viene en payload", async () => {
+    vi.spyOn(EvaluacionService.prototype as any, "ensureProfesorRecord").mockResolvedValue(undefined);
     vi.spyOn(EvaluacionRepository, "findEstudianteByDni").mockResolvedValue({
       id: "s1",
       sala_id: 1,
@@ -127,7 +129,7 @@ describe("evaluaciones instancias (API /evaluaciones)", () => {
       .post("/evaluaciones")
       .send({
         dni: "44111222",
-        profesor_id: "p1",
+        profesor_id: "00000000-0000-0000-0000-000000000001",
         tipo_id: "inicial",
         fecha_creacion: "2026-02",
         aula_id: "a1",
@@ -145,6 +147,7 @@ describe("evaluaciones instancias (API /evaluaciones)", () => {
   });
 
   it("POST /evaluaciones devuelve 400 si estudiante no está activo en el aula indicada", async () => {
+    vi.spyOn(EvaluacionService.prototype as any, "ensureProfesorRecord").mockResolvedValue(undefined);
     vi.spyOn(EvaluacionRepository, "findEstudianteByDni").mockResolvedValue({
       id: "s1",
       sala_id: 1,
@@ -155,7 +158,7 @@ describe("evaluaciones instancias (API /evaluaciones)", () => {
       .post("/evaluaciones")
       .send({
         dni: "44111222",
-        profesor_id: "p1",
+        profesor_id: "00000000-0000-0000-0000-000000000001",
         tipo_id: "inicial",
         fecha_creacion: "2026-02",
         aula_id: "aula-invalida",
@@ -165,5 +168,22 @@ describe("evaluaciones instancias (API /evaluaciones)", () => {
     expect(res.status).toBe(400);
     expect(res.body).toMatchObject({ success: false });
     expect(String(res.body.message || "")).toContain("no está asignado activamente al aula");
+  });
+
+  it("DELETE /evaluaciones/:id permite eliminar para equipo_padi", async () => {
+    const deleteSpy = vi.spyOn(EvaluacionRepository, "delete").mockResolvedValue({ id: "e1" } as any);
+
+    const res = await request(app).delete("/evaluaciones/e1?usuario_id=padi-1&rol=equipo_padi");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ success: true });
+    expect(deleteSpy).toHaveBeenCalledWith("e1");
+  });
+
+  it("DELETE /evaluaciones/:id devuelve 400 si faltan usuario_id y rol", async () => {
+    const res = await request(app).delete("/evaluaciones/e1");
+
+    expect(res.status).toBe(400);
+    expect(res.body).toMatchObject({ success: false });
   });
 }); 
