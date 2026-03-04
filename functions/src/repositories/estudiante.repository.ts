@@ -2,6 +2,7 @@
 
 import { Prisma, PrismaClient } from "@prisma/client"
 import { getPrisma } from "../config/prismaClient"
+const { v4: uuidv4 } = require('uuid'); // Asegúrate de tener uuid o usa crypto
 
 type EvaluacionResumen = {
     inicial: string | null
@@ -96,18 +97,40 @@ export const EstudianteRepository = {
                 })
 
                 if (aula_id) {
+                    console.log("Insertando relación aula para aula_id:", aula_id);
                     await txAny.estudiantesAulas.create({
                         data: {
+                            id: uuidv4(),
                             estudiante_id: nuevoEstudiante.id,
-                            aula_id,
-                        },
-                    })
+                            aula_id: aula_id,
+                            fecha_inicio: new Date()
+                        }
+                    });
                 }
 
-                return {
-                    ...nuevoEstudiante,
-                    persona: nuevaPersona,
-                }
+                return await txAny.estudiantes.findUnique({
+                    where: {
+                        id: nuevoEstudiante.id
+                    },
+                    include: {
+                        personas: true,
+                        salas: true, // Prisma dice que 'salas' existe
+                        escuela: true, // Prisma dice que 'escuela' existe
+                        // CAMBIO AQUÍ: Según el log de error, el campo se llama 'aulas'
+                        aulas: { 
+                            where: {
+                                fecha_fin: null
+                            },
+                            include: {
+                                aula: {
+                                    include: {
+                                        sala: true // O 'salas' según tu modelo de Aulas
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
             })
             return result
         } catch (error) {
@@ -187,7 +210,6 @@ export const EstudianteRepository = {
                 escuela_id: est.escuela_id,
                 nombre: est.escuela?.nombre ?? null,
             },
-            aula_asignada: aulaActivaPorEstudiante.get(est.id) ?? null,
             evaluaciones_resumen: resumenPorEstudiante.get(est.id) ?? { inicial: null, cierre: null },
         }))
     },
@@ -298,5 +320,50 @@ export const EstudianteRepository = {
             aula_asignada: aulaActivaPorEstudiante.get(est.id) ?? null,
             evaluaciones_resumen: resumenPorEstudiante.get(est.id) ?? { inicial: null, cierre: null },
         }))
+    },
+
+    async createBulk(estudiantesData: any[], commonData: { escuela_id: string, aula_id?: string }) {
+        const prisma = getPrisma();
+        if (!prisma) throw new Error("DB not available");
+
+        return await (prisma as any).$transaction(async (tx: any) => {
+            const creados = [];
+
+            for (const est of estudiantesData) {
+                // 1. Crear Persona
+                const persona = await tx.personas.create({
+                    data: {
+                        dni: String(est.dni),
+                        nombre: est.nombre,
+                        primer_apellido: est.apellido,
+                        fecha_nacimiento: new Date(est.fecha_nacimiento),
+                    }
+                });
+
+                // 2. Crear Estudiante
+                const nuevoEstudiante = await tx.estudiantes.create({
+                    data: {
+                        persona_id: persona.id,
+                        genero_id: est.genero_id, // "M", "F", "X"
+                        sala_id: Number(est.sala_id),
+                        escuela_id: commonData.escuela_id,
+                    }
+                });
+
+                // 3. Vincular a Aula si se proporcionó
+                if (commonData.aula_id) {
+                    await tx.estudiantesAulas.create({
+                        data: {
+                            id: crypto.randomUUID(),
+                            estudiante_id: nuevoEstudiante.id,
+                            aula_id: commonData.aula_id,
+                            fecha_inicio: new Date()
+                        }
+                    });
+                }
+                creados.push(nuevoEstudiante);
+            }
+            return creados;
+        });
     }
 }

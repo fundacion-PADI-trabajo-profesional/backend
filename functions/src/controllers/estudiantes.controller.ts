@@ -1,6 +1,7 @@
 import type { Request, Response } from "express"
 import { EstudiantesService } from "../services/estudiantes.service"
 import { commonResponse } from "../interfaces/common-response.interface"
+import { EstudianteRepository } from "../repositories/estudiante.repository"
 
 
 const service = new EstudiantesService()
@@ -150,5 +151,20 @@ export async function desasignarEstudianteAula(req: Request, res: Response) {
         const message = error.message || "Error al desasignar estudiante del aula";
         console.error("[desasignarEstudianteAula] Error:", error);
         res.status(400).json(commonResponse(false, message, null, { code: "UNASSIGNMENT_ERROR", description: message }));
+    }
+}
+
+export async function bulkCreateEstudiantes(req: Request, res: Response) {
+    try {
+        const { estudiantes, escuela_id, aula_id } = req.body;
+
+        if (!Array.isArray(estudiantes) || estudiantes.length === 0) {
+            throw new Error("No se proporcionaron datos de estudiantes");
+        }
+
+        const data = await service.createBulk(estudiantes, { escuela_id, aula_id });
+        res.status(201).json(commonResponse(true, `${data.length} estudiantes creados`, data));
+    } catch (error: any) {
+        res.status(400).json(commonResponse(false, error.message, null));
     }
 }

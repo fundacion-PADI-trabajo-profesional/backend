@@ -6,6 +6,7 @@ import {
     getSalas,
     asignarEstudianteAula,
     desasignarEstudianteAula,
+    bulkCreateEstudiantes,
 } from "../controllers/estudiantes.controller"
 
 export function createEstudiantesRouter() {
@@ -23,6 +24,8 @@ export function createEstudiantesRouter() {
     // Rutas para asignar/desasignar estudiantes a aulas
     router.post("/estudiantes/asignar-aula", asignarEstudianteAula)
     router.post("/estudiantes/desasignar-aula", desasignarEstudianteAula)
+
+    router.post("/estudiantes/bulk", bulkCreateEstudiantes);
 
     return router
 }

@@ -80,6 +80,9 @@ export class EstudiantesService {
         return await this.repo.listByEscuela(escuelaId);
     }
 
+    async createBulk(estudiantes: any[], commonData: { escuela_id: string, aula_id?: string }, actor?: any) {      
+        return await this.repo.createBulk(estudiantes, commonData);
+    }
     async asignarEstudianteAula(estudianteId: string, aulaId: string, actor: { id: string; rol: string }) {
         // Validar permisos para asignar estudiantes a aulas
         if (actor.rol !== "director" && actor.rol !== "encargado_zona" && actor.rol !== "equipo_padi") {
