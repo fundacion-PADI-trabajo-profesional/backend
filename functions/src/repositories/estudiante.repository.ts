@@ -322,21 +322,27 @@ export const EstudianteRepository = {
         }))
     },
 
-    async createBulk(estudiantesData: any[], commonData: { escuela_id: string, aula_id?: string }) {
-        const prisma = getPrisma();
-        if (!prisma) throw new Error("DB not available");
+   async createBulk(estudiantesData: any[], commonData: { escuela_id: string, aula_id?: string }) {
+    const prisma = getPrisma();
+    if (!prisma) throw new Error("DB not available");
 
-        return await (prisma as any).$transaction(async (tx: any) => {
-            const creados = [];
+    return await (prisma as any).$transaction(async (tx: any) => {
+        const creados = [];
 
-            for (const est of estudiantesData) {
+        for (const est of estudiantesData) {
+            try {
+                const fechaNac = new Date(est.fecha_nacimiento);
+                if (isNaN(fechaNac.getTime())) {
+                    throw new Error(`Fecha inválida para ${est.nombre} ${est.apellido}`);
+                }
+
                 // 1. Crear Persona
                 const persona = await tx.personas.create({
                     data: {
                         dni: String(est.dni),
                         nombre: est.nombre,
                         primer_apellido: est.apellido,
-                        fecha_nacimiento: new Date(est.fecha_nacimiento),
+                        fecha_nacimiento: fechaNac,
                     }
                 });
 
@@ -344,13 +350,13 @@ export const EstudianteRepository = {
                 const nuevoEstudiante = await tx.estudiantes.create({
                     data: {
                         persona_id: persona.id,
-                        genero_id: est.genero_id, // "M", "F", "X"
+                        genero_id: est.genero_id,
                         sala_id: Number(est.sala_id),
                         escuela_id: commonData.escuela_id,
                     }
                 });
 
-                // 3. Vincular a Aula si se proporcionó
+                // 3. Vincular a Aula
                 if (commonData.aula_id) {
                     await tx.estudiantesAulas.create({
                         data: {
@@ -362,8 +368,19 @@ export const EstudianteRepository = {
                     });
                 }
                 creados.push(nuevoEstudiante);
+
+            } catch (error: any) {
+                // Capturamos errores de clave foránea (P2003) o duplicados (P2002)
+                if (error.code === 'P2003') {
+                    throw new Error(`Error en el alumno ${est.nombre}: El género '${est.genero_id}' o la sala '${est.sala_id}' no existen.`);
+                }
+                if (error.code === 'P2002') {
+                    throw new Error(`El DNI '${est.dni}' ya está registrado en el sistema.`);
+                }
+                throw error; // Re-lanzar si es otro error
             }
-            return creados;
-        });
-    }
+        }
+        return creados;
+    });
+}
 }
