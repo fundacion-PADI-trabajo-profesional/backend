@@ -1,6 +1,33 @@
 import { getSupabase } from "../config/supabaseClient";
 import { getPrisma } from "../config/prismaClient";
 
+const UNIQUE_VIOLATION = "23505";
+const PRISMA_ERROR = "P2002";
+const traducirErrorAuth = (error: any): string => {
+  // Verificamos si el error trae un código de Supabase Auth
+  if (error?.code) {
+    switch (error.code) {
+      case 'user_already_exists':
+        return 'Este correo electrónico ya se encuentra registrado.';
+      case 'weak_password':
+        return 'La contraseña es muy débil. Debe tener al menos 6 caracteres.';
+      case 'invalid_credentials':
+        return 'El correo electrónico o la contraseña son incorrectos.';
+      case 'email_not_confirmed':
+        return 'Debes confirmar tu correo electrónico antes de ingresar.';
+      case 'over_email_send_rate_limit':
+        return 'Demasiados intentos. Por favor, esperá un momento y volvé a intentar.';
+      case 'validation_failed':
+        return 'Los datos ingresados no son válidos. Revisá el formato del correo.';
+      default:
+        return `Ocurrió un error de autenticación (Código: ${error.code}).`;
+    }
+  }
+
+  // Fallback genérico por si el error no viene de Auth o no tiene código
+  return "Ocurrió un error inesperado al procesar la solicitud.";
+};
+
 export class AuthService {
   /**
    * Autentica a un usuario contra Supabase Auth.
@@ -14,6 +41,7 @@ export class AuthService {
       password,
     });
 
+    if (error) throw new Error(traducirErrorAuth(error));
     if (error || !data?.user) throw new Error("Credenciales inválidas");
 
     // Obtener perfil desde public.usuarios (debe existir para considerar el login válido)
@@ -43,7 +71,7 @@ export class AuthService {
     nombre: string;
     apellido: string;
     rol: string;
-    zona?: string; // <--- 1. Agregamos el parámetro opcional ZONA
+    zona?: string;
   }) {
     const supabase = getSupabase();
     const prisma = getPrisma();
@@ -58,7 +86,7 @@ export class AuthService {
       password: userData.password,
     });
 
-    if (authError) throw new Error(authError.message);
+    if (authError) throw new Error(traducirErrorAuth(authError));
     if (!authData.user) throw new Error("Error crítico al crear usuario en Auth.");
 
     const userId = authData.user.id;
@@ -75,7 +103,10 @@ export class AuthService {
         rol: userData.rol,
       });
 
-      if (profileError) throw new Error(`Error en perfil: ${profileError.message}`);
+      if (profileError) {
+        if (profileError.code === UNIQUE_VIOLATION) throw new Error("Ya existe un perfil con este correo.");
+        throw new Error(`No se pudo guardar el perfil (Código DB: ${profileError.code}).`);
+      }
 
       // ---------------------------------------------------------
       // PASO 3: LÓGICA SEGÚN ROL
@@ -86,7 +117,7 @@ export class AuthService {
         await (prisma as any).encargados.create({
           data: {
             usuario_id: userId, // Vinculamos con la cuenta creada
-            zona: userData.zona || "A definir" // Guardamos la zona que vino del front
+            zona_id: userData.zona || "A definir" // Guardamos la zona que vino del front
           }
         });
       }
@@ -128,7 +159,19 @@ export class AuthService {
       // 2. Intentar borrar el perfil de usuario si se creó
       try { await (supabase as any).from("usuarios").delete().eq("id", userId); } catch { }
 
-      throw new Error(`No se pudo completar el registro: ${error.message}`);
+      let message = error.message;
+
+      // Si el error es de Prisma (empieza con P) o es un error de código crudo
+      if (error.code?.startsWith('P') || error.message.includes('invocation in')) {
+        if (error.code === PRISMA_ERROR) {
+          message = "Ya existe un registro con estos datos.";
+        } else {
+          // Ocultamos el error real al cliente, pero ya quedó en el console.error del backend
+          message = "Ocurrió un error interno al guardar los datos. Por favor, intentá de nuevo.";
+        }
+      }
+
+      throw new Error(message);
     }
 
     return authData;
