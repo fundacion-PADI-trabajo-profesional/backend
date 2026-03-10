@@ -28,11 +28,7 @@ export function createApp() {
   app.use(createAulasRouter());
   app.use(createZonasRouter());
   app.use(cors({
-  origin: [
-    'https://fundacionpadi-41cb2.web.app',
-    'https://fundacionpadi-41cb2.firebaseapp.com',
-    'http://localhost:5173' // Para que sigas pudiendo probar en local
-  ],
+  origin: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
