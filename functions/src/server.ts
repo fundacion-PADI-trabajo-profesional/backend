@@ -28,6 +28,7 @@ export function createApp() {
   app.use(createAulasRouter());
   app.use(createZonasRouter());
   app.use("/auth", authRouter);
+  app.use(cors({ origin: ["https://fundacionpadi-41cb2.web.app", "https://fundacionpadi-41cb2.firebaseapp.com"] }));
 
   return app;
 }
