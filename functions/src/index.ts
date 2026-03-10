@@ -1,8 +1,10 @@
-import * as dotenv from "dotenv";
-dotenv.config(); // Carga las variables del archivo .env
-import * as functions from "firebase-functions";
+import { onRequest } from "firebase-functions/v2/https"; // Importa v2
 import { createApp } from "./server";
 
 const app = createApp();
-export const api = functions.https.onRequest(app);
 
+// Aquí le decimos explícitamente que use el secreto 'DATABASE_URL'
+export const api = onRequest({ 
+    secrets: ["DATABASE_URL"],
+    memory: "256MiB" // Opcional: ajusta según necesites
+}, app);

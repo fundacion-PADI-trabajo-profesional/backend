@@ -1,15 +1,18 @@
 import { PrismaClient } from "@prisma/client";
 
-let prisma: PrismaClient | null | undefined;
+let prisma: PrismaClient | null = null;
 
 export function getPrisma(): PrismaClient | null {
-  if (prisma !== undefined) return prisma;
+  if (prisma) return prisma;
+
   if (!process.env.DATABASE_URL) {
-    prisma = null;
-    return prisma;
+    console.error("DATABASE_URL no está definida");
+    return null;
   }
-  prisma = new PrismaClient();
+
+  prisma = new PrismaClient({
+    log: ['error', 'warn'],
+  });
+  
   return prisma;
 }
-
-
