@@ -4,7 +4,8 @@
   "scripts": {
     "dev": "concurrently -k -n tsc,emul \"npm --prefix functions run build:watch\" \"npm --prefix functions run dev:emul\"",
     "build": "npm --prefix functions run build",
-    "test": "npm --prefix functions run test"
+    "test": "npm --prefix functions run test",
+    "deploy": "bash deploy.sh"
   },
   "devDependencies": {
     "concurrently": "^9.0.1",
