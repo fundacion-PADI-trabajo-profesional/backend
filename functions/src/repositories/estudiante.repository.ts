@@ -210,6 +210,7 @@ export const EstudianteRepository = {
                 escuela_id: est.escuela_id,
                 nombre: est.escuela?.nombre ?? null,
             },
+            aula_asignada: aulaActivaPorEstudiante.get(est.id) ?? null,
             evaluaciones_resumen: resumenPorEstudiante.get(est.id) ?? { inicial: null, cierre: null },
         }))
     },
