@@ -331,6 +331,8 @@ export const EstudianteRepository = {
         const creados = [];
 
         for (const est of estudiantesData) {
+            console.log("=== EST ESCUELA ===", est.escuela_id, "| COMMON:", commonData.escuela_id);
+
             try {
                 const fechaNac = new Date(est.fecha_nacimiento);
                 if (isNaN(fechaNac.getTime())) {
@@ -353,7 +355,7 @@ export const EstudianteRepository = {
                         persona_id: persona.id,
                         genero_id: est.genero_id,
                         sala_id: Number(est.sala_id),
-                        escuela_id: commonData.escuela_id,
+                        escuela_id: est.escuela_id || commonData.escuela_id, // Usar escuela_id común si no viene en el CSV
                     }
                 });
 

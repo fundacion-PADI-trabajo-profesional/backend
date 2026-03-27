@@ -158,6 +158,9 @@ export async function bulkCreateEstudiantes(req: Request, res: Response) {
     try {
         const { estudiantes, escuela_id, aula_id } = req.body;
 
+        console.log("=== BULK BODY ===", JSON.stringify(req.body, null, 2));
+        console.log("=== PRIMER ESTUDIANTE ===", JSON.stringify(estudiantes?.[0], null, 2));
+
         if (!Array.isArray(estudiantes) || estudiantes.length === 0) {
             throw new Error("No se proporcionaron datos de estudiantes");
         }
