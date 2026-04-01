@@ -206,4 +206,49 @@ export class AuthService {
       throw new Error("No se pudo actualizar el perfil.");
     }
   }
+
+  /**
+   * Envía un correo con el link seguro para cambiar la contraseña.
+   */
+  static async sendPasswordResetEmail(email: string) {
+    const supabase = getSupabase();
+    if (!supabase) throw new Error("Supabase client no está disponible.");
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      // URL del frontend a la que Supabase va a mandar al usuario - TO DO MODIFICARLA CUANDO MANDE A PROD
+      redirectTo: 'http://localhost:5173/actualizar-password',
+    });
+
+    if (error) throw new Error(traducirErrorAuth(error));
+    
+    return { message: "Correo de recuperación enviado exitosamente." };
+  }
+
+  /**
+   * Actualiza la contraseña usando los tokens provistos por el link del correo.
+   */
+  static async updatePassword(accessToken: string, refreshToken: string, newPassword: string) {
+    const supabase = getSupabase();
+    if (!supabase) throw new Error("Supabase client no está disponible.");
+
+    // 1. Establecemos la sesión con los tokens que vinieron en el link
+    const { error: sessionError } = await supabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+
+    if (sessionError) throw new Error("El link de recuperación es inválido o ya expiró.");
+
+    // 2. Actualizamos la contraseña del usuario
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    // 3. Cerramos esta sesión temporal del backend para limpiar el estado
+    await supabase.auth.signOut();
+
+    if (updateError) throw new Error(traducirErrorAuth(updateError));
+
+    return { message: "Contraseña actualizada exitosamente." };
+  }
 }

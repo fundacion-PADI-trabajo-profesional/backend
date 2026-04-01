@@ -38,4 +38,36 @@ export class AuthController {
       res.status(400).json({ message });
     }
   }
+
+  static async requestPasswordReset(req: Request, res: Response) {
+    try {
+      const { email } = req.body;
+
+      if (!email) {
+        throw new Error("El correo electrónico es obligatorio.");
+      }
+
+      const response = await AuthService.sendPasswordResetEmail(email);
+      res.status(200).json(response);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(400).json({ message });
+    }
+  }
+
+  static async updatePassword(req: Request, res: Response) {
+    try {
+      const { accessToken, refreshToken, newPassword } = req.body;
+
+      if (!accessToken || !refreshToken || !newPassword) {
+        throw new Error("Faltan datos de seguridad para actualizar la contraseña.");
+      }
+
+      const response = await AuthService.updatePassword(accessToken, refreshToken, newPassword);
+      res.status(200).json(response);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(400).json({ message });
+    }
+  }
 }
