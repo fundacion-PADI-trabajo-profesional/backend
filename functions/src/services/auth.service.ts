@@ -176,4 +176,34 @@ export class AuthService {
 
     return authData;
   }
+
+  /**
+   * Actualiza el nombre y apellido del perfil.
+   */
+  static async updateProfile(userId: string, nombre: string, apellido: string) {
+    const prisma = getPrisma();
+    if (!prisma) throw new Error("Cliente de DB no disponible.");
+
+    try {
+      const updatedUser = await (prisma as any).usuarioPerfil.update({
+        where: { id: userId },
+        data: { nombre, apellido }
+      });
+
+      try {
+        await (prisma as any).personas.update({
+          where: { usuario_id: userId },
+          data: {
+            nombre: nombre,
+            primer_apellido: apellido
+          }
+        });
+      } catch (e) {}
+
+      return updatedUser;
+    } catch (error) {
+      console.error("Error al actualizar perfil:", error);
+      throw new Error("No se pudo actualizar el perfil.");
+    }
+  }
 }
