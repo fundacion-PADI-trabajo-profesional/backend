@@ -154,6 +154,34 @@ export async function desasignarEstudianteAula(req: Request, res: Response) {
     }
 }
 
+export async function updateEstudiante(req: Request, res: Response) {
+    try {
+        const { id } = req.params;
+        const { dni, nombre, apellido, fecha_nacimiento, genero_id, sala_id, escuela_id, aula_id } = req.body;
+
+        if (!id) {
+            return res.status(400).json(commonResponse(false, "Falta el ID del estudiante", null, { code: "VALIDATION_ERROR" }));
+        }
+
+        const data = await service.update(id, {
+            dni,
+            nombre,
+            apellido,
+            fecha_nacimiento,
+            genero_id,
+            sala_id: sala_id ? Number(sala_id) : undefined,
+            escuela_id,
+            aula_id,
+        });
+
+        res.status(200).json(commonResponse(true, "Estudiante actualizado con éxito", data));
+    } catch (error: any) {
+        const message = error.message || "Error interno al actualizar estudiante";
+        console.error("[updateEstudiante] Error:", error);
+        res.status(400).json(commonResponse(false, message, null, { code: "INTERNAL_ERROR", description: message }));
+    }
+}
+
 export async function bulkCreateEstudiantes(req: Request, res: Response) {
     try {
         const { estudiantes, escuela_id, aula_id } = req.body;

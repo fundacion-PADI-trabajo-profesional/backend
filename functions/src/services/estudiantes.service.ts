@@ -231,4 +231,8 @@ export class EstudiantesService {
             data: { fecha_fin: new Date() }
         });
     }
+
+    async update(id: string, data: Partial<CreateEstudianteData>) {
+        return await this.repo.update(id, data);
+    }
 }
