@@ -8,13 +8,13 @@
   },
   "scripts": {
     "postinstall": "DATABASE_URL=\"postgres://localhost:5432/postgres\" prisma generate --schema=prisma/schema.prisma",
-    "build": "rimraf lib && DATABASE_URL=\"postgres://localhost:5432/postgres\" prisma generate --schema=prisma/schema.prisma && tsc",
+    "build": "rimraf lib && cross-env DATABASE_URL=\"postgres://localhost:5432/postgres\" prisma generate --schema=prisma/schema.prisma && tsc",
     "deploy": "firebase deploy --only functions",
     "gcp-build": "prisma generate",
     "build:watch": "tsc -w -p tsconfig.json",
     "test": "NODE_OPTIONS=--dns-result-order=ipv4first vitest run",
     "test:contracts": "NODE_OPTIONS=--dns-result-order=ipv4first vitest run test/contracts/frontend-backend-alignment.test.ts",
-    "dev:emul": "NODE_OPTIONS=--dns-result-order=ipv4first dotenv -e .env.local -- dotenv -e prisma/.env -- firebase emulators:start --only functions",
+    "dev:emul": "cross-env NODE_OPTIONS=--dns-result-order=ipv4first dotenv -e .env.local -- dotenv -e prisma/.env -- firebase emulators:start --only functions",
     "prisma:gen": "NODE_OPTIONS=--dns-result-order=ipv4first dotenv -e prisma/.env -- prisma generate --schema=prisma/schema.prisma",
     "prisma:push": "NODE_OPTIONS=--dns-result-order=ipv4first dotenv -e prisma/.env -- prisma db push --schema=prisma/schema.prisma",
     "prisma:setup": "npm run prisma:gen && npm run prisma:push"
@@ -26,15 +26,16 @@
     "express": "^4.19.2",
     "firebase-admin": "^12.6.0",
     "firebase-functions": "^5.1.1",
+    "prisma": "^6.18.0",
     "tpp-padi-backend": "file:..",
-    "xlsx": "^0.18.5",    
-    "prisma": "^6.18.0"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/node": "^22.18.11",
     "@types/supertest": "^2.0.16",
+    "cross-env": "^10.1.0",
     "dotenv-cli": "^7.4.4",
     "rimraf": "^6.0.1",
     "supertest": "^7.0.0",
