@@ -12,11 +12,11 @@
     "deploy": "firebase deploy --only functions",
     "gcp-build": "prisma generate",
     "build:watch": "tsc -w -p tsconfig.json",
-    "test": "NODE_OPTIONS=--dns-result-order=ipv4first vitest run",
-    "test:contracts": "NODE_OPTIONS=--dns-result-order=ipv4first vitest run test/contracts/frontend-backend-alignment.test.ts",
+    "test": "cross-env NODE_OPTIONS=--dns-result-order=ipv4first vitest run",
+    "test:contracts": "cross-env NODE_OPTIONS=--dns-result-order=ipv4first vitest run test/contracts/frontend-backend-alignment.test.ts",
     "dev:emul": "cross-env NODE_OPTIONS=--dns-result-order=ipv4first dotenv -e .env.local -- dotenv -e prisma/.env -- firebase emulators:start --only functions",
-    "prisma:gen": "NODE_OPTIONS=--dns-result-order=ipv4first dotenv -e prisma/.env -- prisma generate --schema=prisma/schema.prisma",
-    "prisma:push": "NODE_OPTIONS=--dns-result-order=ipv4first dotenv -e prisma/.env -- prisma db push --schema=prisma/schema.prisma",
+    "prisma:gen": "cross-env NODE_OPTIONS=--dns-result-order=ipv4first dotenv -e prisma/.env -- prisma generate --schema=prisma/schema.prisma",
+    "prisma:push": "cross-env NODE_OPTIONS=--dns-result-order=ipv4first dotenv -e prisma/.env -- prisma db push --schema=prisma/schema.prisma",
     "prisma:setup": "npm run prisma:gen && npm run prisma:push"
   },
   "dependencies": {
