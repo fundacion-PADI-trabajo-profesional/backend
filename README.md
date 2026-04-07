@@ -40,12 +40,10 @@ npm --prefix functions install
 ```
 
 2) Configurar base de datos (Prisma)
-- Te voy a enviar el archivo `.env` por WhatsApp.
-- Ubícalo exactamente en: `/home/nishy/TPP-PADI/backend/functions/prisma/.env` (mismo nombre, sin comillas en el valor y en una sola línea).
-- No lo comitees.
+- generacion de archivo .env con los datos necesarios
 - Generar cliente y sincronizar schema:
 ```bash
-cd /home/nishy/TPP-PADI/backend/functions
+cd backend/functions
 export NODE_OPTIONS=--dns-result-order=ipv4first
 set -a; source prisma/.env; set +a
 npx prisma generate --schema=prisma/schema.prisma
@@ -55,7 +53,7 @@ npx prisma db push --schema=prisma/schema.prisma
 
 3) Tests
 ```bash
-npm --prefix TPP-PADI/backend/functions run test
+npm --prefix backend/functions run test
 ```
 4) Crear un cliente de Prisma al correr el proyecto por primera vez
 ```bash
@@ -89,36 +87,6 @@ npm run dev
 ```
 Frente a cambios en el backend no es necesario volver a levantar el sistema con npm run dev. Si el sistema esta corriendo, se recompila automaticamente.
 
-Endpoints actuales
-- GET `/health` → devuelve un estatus de la base de datos. Puede correrse con el comando: curl http://127.0.0.1:5001/fundacionpadi-41cb2/us-central1/api/health | jq
-- GET `/evaluaciones` → lista (Prisma si hay DB, caso contrario fallback → array vacío)
-- GET `/evaluaciones/:id` → 200 con objeto o 404 con `{ success: false, error: { code: "NOT_FOUND" } }`
-
-Estructura
-```
-backend/
-  .firebaserc
-  firebase.json              # runtime nodejs22, emuladores, functions
-  package.json               # orquesta dev/build/test
-  functions/
-    package.json             # proyecto Cloud Functions
-    tsconfig.json
-    prisma/
-      schema.prisma
-      .env                   # DATABASE_URL (no commitear)
-    src/
-      index.ts               # entrypoint Firebase
-      server.ts              # Express app (middlewares + routers)
-      routes/
-      controllers/
-      services/
-      repositories/
-      interfaces/
-      config/
-        prismaClient.ts      # Prisma singleton
-        supabaseClient.ts    # Supabase (opcional)
-    test/*.test.ts           # Vitest
-```
 
 Troubleshooting
 - Prisma P1001 (no conecta):
@@ -128,4 +96,7 @@ Troubleshooting
 - Módulo faltante `@supabase/supabase-js`
   - Instalar en Functions: `npm --prefix /home/nishy/TPP-PADI/backend/functions i @supabase/supabase-js`
 
+# DECICIONES DE DISEÑO
+## Creación de un Middleware
 
+Se agregó este componente que verifica el token de Supabase en cada request y extrae el rol directamente de la base de datos. Esto resuelve el problema de que hoy cualquiera puede pasarse por otro usuario cambiando los query params. Se aplica como middleware global en server.ts para todas las rutas excepto login y reset-password
