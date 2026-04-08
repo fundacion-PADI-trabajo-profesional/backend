@@ -100,3 +100,12 @@ Troubleshooting
 ## Creación de un Middleware
 
 Se agregó este componente que verifica el token de Supabase en cada request y extrae el rol directamente de la base de datos. Esto resuelve el problema de que hoy cualquiera puede pasarse por otro usuario cambiando los query params. Se aplica como middleware global en server.ts para todas las rutas excepto login y reset-password
+
+
+# Para evitar caches de las librerias:
+```bash
+cd backend/functions
+npm install
+npm run prisma:gen
+npm run build
+```bash

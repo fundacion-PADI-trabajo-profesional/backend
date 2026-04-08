@@ -7,7 +7,7 @@
     "node": "22"
   },
   "scripts": {
-    "postinstall": "DATABASE_URL=\"postgres://localhost:5432/postgres\" prisma generate --schema=prisma/schema.prisma",
+    "postinstall": "cross-env DATABASE_URL=\"postgres://localhost:5432/postgres\" prisma generate --schema=prisma/schema.prisma",
     "build": "rimraf lib && cross-env DATABASE_URL=\"postgres://localhost:5432/postgres\" prisma generate --schema=prisma/schema.prisma && tsc",
     "deploy": "firebase deploy --only functions",
     "gcp-build": "prisma generate",
