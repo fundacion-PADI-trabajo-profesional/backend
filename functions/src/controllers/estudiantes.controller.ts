@@ -1,25 +1,30 @@
 import type { Request, Response } from "express"
 import { EstudiantesService } from "../services/estudiantes.service"
 import { commonResponse } from "../interfaces/common-response.interface"
-import { EstudianteRepository } from "../repositories/estudiante.repository"
+import { AuthenticatedRequest } from "../middlewares/auth.middleware"
 
 
 const service = new EstudiantesService()
-export async function createEstudiante(req: Request, res: Response) {
+export async function createEstudiante(req: AuthenticatedRequest, res: Response) {
     try {
-        const { dni, nombre, apellido, fecha_nacimiento, genero_id, sala_id, escuela_id, aula_id, usuario_id, rol } = req.body
+        const { dni, nombre, apellido, fecha_nacimiento, genero_id, sala_id, escuela_id, aula_id } = req.body;
+        const user = { id: req.user!.id, rol: req.user!.rol };
 
-        // Validación básica de campos obligatorios
-        if (!dni || !nombre || !apellido || !fecha_nacimiento || !genero_id || !sala_id || !escuela_id) {
-            return res
-                .status(400)
-                .json(commonResponse(false, "Faltan datos obligatorios", null, { code: "VALIDATION_ERROR" }))
+        if (!dni || !nombre || !apellido || !fecha_nacimiento || !genero_id) {
+            return res.status(400).json(commonResponse(false, "Faltan datos personales obligatorios", null, { code: "VALIDATION_ERROR" }));
         }
 
-        if (rol === "docente" && (!usuario_id || !aula_id)) {
-            return res
-                .status(400)
-                .json(commonResponse(false, "Para docentes, usuario_id y aula_id son obligatorios", null, { code: "VALIDATION_ERROR" }))
+        // Lógica para Docentes: Solo necesitan aula_id
+        if (user.rol === "docente") {
+            if (!aula_id) {
+                return res.status(400).json(commonResponse(false, "El aula_id es obligatorio para docentes", null, { code: "VALIDATION_ERROR" }));
+            }
+        }
+        // Lógica para otros roles: Necesitan escuela y sala manualmente
+        else {
+            if (!sala_id || !escuela_id) {
+                return res.status(400).json(commonResponse(false, "Faltan datos de ubicación (escuela/sala)", null, { code: "VALIDATION_ERROR" }));
+            }
         }
 
         const data = await service.create({
@@ -28,44 +33,46 @@ export async function createEstudiante(req: Request, res: Response) {
             apellido,
             fecha_nacimiento,
             genero_id,
-            sala_id: Number(sala_id), // Aseguramos que sala_id sea número
+            sala_id: sala_id ? Number(sala_id) : 0,
             escuela_id,
             aula_id: typeof aula_id === "string" ? aula_id : undefined,
-        }, (usuario_id && rol) ? { id: String(usuario_id), rol: String(rol) } : undefined)
+        }, user);
 
-        res.status(201).json(commonResponse(true, "Estudiante creado con éxito", data))
+        res.status(201).json(commonResponse(true, "Estudiante creado con éxito", data));
 
     } catch (error: any) {
         const message = error.message || "Error interno al crear estudiante"
         // Distinguir error de DNI duplicado
         const code = error.message.includes("DNI") ? "DNI_DUPLICADO" : "INTERNAL_ERROR"
-
-        console.error("[createEstudiante] Error:", error)
         res.status(400).json(commonResponse(false, message, null, { code, description: message }))
     }
 }
 
-/**
+/*
  * Lista todos los estudiantes.
  * Responde a GET /estudiantes
- */
-export async function listEstudiantes(req: Request, res: Response) {
+*/
+export async function listEstudiantes(req: AuthenticatedRequest, res: Response) {
     try {
-        // Extraemos el rol y escuela_id que enviará el frontend en la query [cite: 5]
-        const { escuela_id, rol } = req.query;
+        // Extraemos el rol y escuela_id que enviará el frontend en la query
+        const { escuela_id } = req.query;
 
+        const user = {
+            id: req.user!.id,
+            rol: req.user!.rol,
+        }
         let data;
-        
-        // Si es docente o director, filtramos obligatoriamente por su escuela asignada [cite: 1, 15]
-        if ((rol === "docente" || rol === "director") && escuela_id) {
-            // Debes crear este método 'listByEscuela' en tu servicio/repositorio [cite: 17, 18]
-            data = await service.listByEscuela(String(escuela_id));
-        } else if ((rol === "docente" || rol === "director") && !escuela_id) {
+
+        // Si es docente o director, filtramos obligatoriamente por su escuela asignada
+        if ((user.rol === "docente" || user.rol === "director") && escuela_id) {
+
+            data = await service.listByEscuela(String(escuela_id), user);
+        } else if ((user.rol === "docente" || user.rol === "director") && !escuela_id) {
             // Si no se proporciona escuela_id, se puede manejar el caso como se desee
             return res.status(400).json(commonResponse(false, "Usted no tiene una escuela asignada.", null, { code: "VALIDATION_ERROR" }));
         } else {
-            // Usuarios admin (PADI/Encargados) siguen viendo todo el listado [cite: 1, 4]
-            data = await service.list();
+            // Usuarios admin (PADI/Encargados) siguen viendo todo el listado
+            data = await service.list(user);
         }
 
         res.status(200).json(commonResponse(true, "ok", data));
@@ -76,13 +83,17 @@ export async function listEstudiantes(req: Request, res: Response) {
     }
 }
 
-/**
+/*
  * Obtiene la lista de géneros.
  * Responde a GET /generos
- */
-export async function getGeneros(req: Request, res: Response) {
+*/
+export async function getGeneros(req: AuthenticatedRequest, res: Response) {
     try {
-        const data = await service.getGeneros()
+        const user = {
+            id: req.user!.id,
+            rol: req.user!.rol,
+        }
+        const data = await service.getGeneros(user)
         res.status(200).json(commonResponse(true, "ok", data))
     } catch (error: any) {
         const message = error.message || "Error interno al obtener géneros"
@@ -91,13 +102,17 @@ export async function getGeneros(req: Request, res: Response) {
     }
 }
 
-/**
+/*
  * Obtiene la lista de salas.
  * Responde a GET /salas
- */
-export async function getSalas(req: Request, res: Response) {
+*/
+export async function getSalas(req: AuthenticatedRequest, res: Response) {
     try {
-        const data = await service.getSalas()
+        const user = {
+            id: req.user!.id,
+            rol: req.user!.rol,
+        }
+        const data = await service.getSalas(user)
         res.status(200).json(commonResponse(true, "ok", data))
     } catch (error: any) {
         const message = error.message || "Error interno al obtener salas"
@@ -106,12 +121,16 @@ export async function getSalas(req: Request, res: Response) {
     }
 }
 
-export async function asignarEstudianteAula(req: Request, res: Response) {
+export async function asignarEstudianteAula(req: AuthenticatedRequest, res: Response) {
     try {
         const { estudianteId, aulaId } = req.body;
-        const { usuario_id, rol } = req.query;
 
-        if (!usuario_id || !rol) {
+        const user = {
+            id: req.user!.id,
+            rol: req.user!.rol,
+        }
+
+        if (!user.id || !user.rol) {
             return res.status(400).json(commonResponse(false, "Se requiere usuario_id y rol", null));
         }
 
@@ -119,9 +138,9 @@ export async function asignarEstudianteAula(req: Request, res: Response) {
             return res.status(400).json(commonResponse(false, "Se requiere estudianteId y aulaId", null));
         }
 
-        const actor = { id: String(usuario_id), rol: String(rol) };
+        const actor = { id: String(user.id), rol: String(user.rol) };
         const data = await service.asignarEstudianteAula(estudianteId, aulaId, actor);
-        
+
         res.status(200).json(commonResponse(true, "Estudiante asignado al aula con éxito", data));
     } catch (error: any) {
         const message = error.message || "Error al asignar estudiante al aula";
@@ -130,12 +149,15 @@ export async function asignarEstudianteAula(req: Request, res: Response) {
     }
 }
 
-export async function desasignarEstudianteAula(req: Request, res: Response) {
+export async function desasignarEstudianteAula(req: AuthenticatedRequest, res: Response) {
     try {
         const { estudianteId, aulaId } = req.body;
-        const { usuario_id, rol } = req.query;
+        const user = {
+            id: req.user!.id,
+            rol: req.user!.rol,
+        }
 
-        if (!usuario_id || !rol) {
+        if (!user.id || !user.rol) {
             return res.status(400).json(commonResponse(false, "Se requiere usuario_id y rol", null));
         }
 
@@ -143,9 +165,8 @@ export async function desasignarEstudianteAula(req: Request, res: Response) {
             return res.status(400).json(commonResponse(false, "Se requiere estudianteId y aulaId", null));
         }
 
-        const actor = { id: String(usuario_id), rol: String(rol) };
-        const data = await service.desasignarEstudianteAula(estudianteId, aulaId, actor);
-        
+        const data = await service.desasignarEstudianteAula(estudianteId, aulaId, user);
+
         res.status(200).json(commonResponse(true, "Estudiante desasignado del aula con éxito", data));
     } catch (error: any) {
         const message = error.message || "Error al desasignar estudiante del aula";
@@ -154,7 +175,7 @@ export async function desasignarEstudianteAula(req: Request, res: Response) {
     }
 }
 
-export async function updateEstudiante(req: Request, res: Response) {
+export async function updateEstudiante(req: AuthenticatedRequest, res: Response) {
     try {
         const { id } = req.params;
         const { dni, nombre, apellido, fecha_nacimiento, genero_id, sala_id, escuela_id, aula_id } = req.body;
@@ -182,9 +203,14 @@ export async function updateEstudiante(req: Request, res: Response) {
     }
 }
 
-export async function bulkCreateEstudiantes(req: Request, res: Response) {
+export async function bulkCreateEstudiantes(req: AuthenticatedRequest, res: Response) {
     try {
         const { estudiantes, escuela_id, aula_id } = req.body;
+        const user = {
+            id: req.user!.id,
+            rol: req.user!.rol,
+        };
+
 
         console.log("=== BULK BODY ===", JSON.stringify(req.body, null, 2));
         console.log("=== PRIMER ESTUDIANTE ===", JSON.stringify(estudiantes?.[0], null, 2));
@@ -193,7 +219,7 @@ export async function bulkCreateEstudiantes(req: Request, res: Response) {
             throw new Error("No se proporcionaron datos de estudiantes");
         }
 
-        const data = await service.createBulk(estudiantes, { escuela_id, aula_id });
+        const data = await service.createBulk(estudiantes, { escuela_id, aula_id }, user);
         res.status(201).json(commonResponse(true, `${data.length} estudiantes creados`, data));
     } catch (error: any) {
         res.status(400).json(commonResponse(false, error.message, null));

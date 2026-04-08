@@ -4,8 +4,11 @@ import { AuthService } from "./auth.service";
 
 export class EncargadosService {
 
-    async list() {
-        return await EncargadoRepository.list();
+    async list(user: { id: string; rol: string }) {
+        if (user.rol === "equipo_padi") {
+            return await EncargadoRepository.list();
+        }
+        throw new Error("No tienes permisos para ver Encargados de Zona.");
     }
 
     async create(data: {
@@ -13,7 +16,7 @@ export class EncargadosService {
         nombre: string;
         apellido: string;
         zona: string;
-    }) {
+    }, user: { id: string; rol: string }) {
 
         // 1. Generar contraseña aleatoria de 8 caracteres
         const generatedPassword = Math.random().toString(36).slice(-8) + "Aa1!";

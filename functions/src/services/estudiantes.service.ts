@@ -8,16 +8,16 @@ export class EstudiantesService {
 
     async create(
         data: CreateEstudianteData,
-        actor?: { id: string; rol: string },
+        user: { id: string; rol: string },
     ) {
         // Validar permisos generales
-        if (actor) {
-            if (actor.rol !== "docente" && actor.rol !== "director" && actor.rol !== "encargado_zona" && actor.rol !== "equipo_padi") {
+        if (user) {
+            if (user.rol !== "docente" && user.rol !== "director" && user.rol !== "encargado_zona" && user.rol !== "equipo_padi") {
                 throw new Error("No tienes permisos para crear estudiantes.");
             }
         }
 
-        if (actor?.rol === "docente") {
+        if (user?.rol === "docente") {
             if (!data.aula_id) {
                 throw new Error("Debes seleccionar un aula para registrar al estudiante.");
             }
@@ -28,7 +28,7 @@ export class EstudiantesService {
 
             const asignacion = await prismaAny.profesoresAulas.findFirst({
                 where: {
-                    profesor_id: actor.id,
+                    profesor_id: user.id,
                     aula_id: data.aula_id,
                     fecha_fin: null,
                 },
@@ -50,7 +50,7 @@ export class EstudiantesService {
             // Forzamos consistencia con el aula asignada al docente.
             data.sala_id = asignacion.aula.sala_id;
             data.escuela_id = asignacion.aula.escuela_id;
-        } else if (actor?.rol === "equipo_padi" || actor?.rol === "encargado_zona" || actor?.rol === "director") {
+        } else if (user?.rol === "equipo_padi" || user?.rol === "encargado_zona" || user?.rol === "director") {
             // PADI, encargados y directores pueden crear estudiantes con más flexibilidad
             // pero deben especificar escuela_id y sala_id si no están ya establecidos
             if (!data.escuela_id) {
@@ -64,28 +64,45 @@ export class EstudiantesService {
         return await this.repo.create(data)
     }
 
-    async list() {
-        return await this.repo.list()
+    async list(user: { id: string; rol: string }) {
+        if (user.rol === "docente" || user.rol === "director" || user.rol === "encargado_zona" || user.rol === "equipo_padi") {
+            return await this.repo.list()
+        }
+
+        throw new Error("No tienes permisos para ver el listado completo de estudiantes. Filtra por escuela.");
     }
 
-    async getGeneros() {
-        return await this.repo.getGeneros()
+    async getGeneros(user: { id: string; rol: string }) {
+        if (user.rol === "docente" || user.rol === "director" || user.rol === "encargado_zona" || user.rol === "equipo_padi") {
+            return await this.repo.getGeneros()
+        }
+        throw new Error("No tienes permisos para ver el listado completo de estudiantes. Filtra por escuela.");
     }
 
-    async getSalas() {
-        return await this.repo.getSalas()
+    async getSalas(user: { id: string; rol: string }) {
+        if (user.rol === "docente" || user.rol === "director" || user.rol === "encargado_zona" || user.rol === "equipo_padi") {
+            return await this.repo.getSalas()
+        }
+        throw new Error("No tienes permisos para ver el listado completo de estudiantes. Filtra por escuela.");
     }
-    async listByEscuela(escuelaId: string) {
+    async listByEscuela(escuelaId: string, user: { id: string; rol: string }) {
         // Llama al método que definiremos en el repositorio
-        return await this.repo.listByEscuela(escuelaId);
+        if (user.rol === "docente" || user.rol === "director") {
+            return await this.repo.listByEscuela(escuelaId);
+        }
+        throw new Error("No tienes permisos para acceder a los estudiantes de esta escuela.");
     }
 
-    async createBulk(estudiantes: any[], commonData: { escuela_id: string, aula_id?: string }, actor?: any) {      
+    async createBulk(estudiantes: any[], commonData: { escuela_id: string, aula_id?: string }, user: { id: string; rol: string }) {
+        // Validar permisos para crear estudiantes en masa
+        if (user.rol !== "director" && user.rol !== "encargado_zona" && user.rol !== "equipo_padi") {
+            throw new Error("No tienes permisos para crear estudiantes en masa.");
+        }
         return await this.repo.createBulk(estudiantes, commonData);
     }
-    async asignarEstudianteAula(estudianteId: string, aulaId: string, actor: { id: string; rol: string }) {
+    async asignarEstudianteAula(estudianteId: string, aulaId: string, user: { id: string; rol: string }) {
         // Validar permisos para asignar estudiantes a aulas
-        if (actor.rol !== "director" && actor.rol !== "encargado_zona" && actor.rol !== "equipo_padi") {
+        if (user.rol !== "director" && user.rol !== "encargado_zona" && user.rol !== "equipo_padi") {
             throw new Error("No tienes permisos para asignar estudiantes a aulas.");
         }
 
@@ -119,18 +136,18 @@ export class EstudiantesService {
         }
 
         // Para roles que no sean PADI, verificar permisos sobre la escuela
-        if (actor.rol === "director") {
+        if (user.rol === "director") {
             const director = await prismaAny.usuarioPerfil.findUnique({
-                where: { id: actor.id },
+                where: { id: user.id },
                 select: { escuela_id: true }
             });
 
             if (director?.escuela_id !== aula.escuela_id) {
                 throw new Error("No tienes permisos para gestionar esta escuela.");
             }
-        } else if (actor.rol === "encargado_zona") {
+        } else if (user.rol === "encargado_zona") {
             const encargado = await prismaAny.encargados.findUnique({
-                where: { usuario_id: actor.id },
+                where: { usuario_id: user.id },
                 include: {
                     zona: {
                         include: {

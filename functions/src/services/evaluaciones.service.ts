@@ -38,12 +38,16 @@ export class EvaluacionService {
     });
   }
 
-  async createEvaluacion(data: CreateEvaluacionDTO, user?: { id: string; rol: string }) {
+  async createEvaluacion(data: CreateEvaluacionDTO, user: { id: string; rol: string }) {
     // Validar permisos para crear evaluación
-    if (user) {
-      if (user.rol !== "director" && user.rol !== "docente" && user.rol !== "encargado_zona" && user.rol !== "equipo_padi") {
-        throw new Error("No tienes permisos para crear evaluaciones.");
-      }
+    const allowedRoles = ["director", "docente", "encargado_zona", "equipo_padi"];
+    if (!allowedRoles.includes(user.rol)) {
+      throw new Error("No tienes permisos para crear evaluaciones.");
+    }
+
+    let profesorIdFinal = data.profesor_id;
+    if (user.rol === "docente" || user.rol === "director") {
+      profesorIdFinal = user.id;
     }
 
     await this.ensureProfesorRecord(data.profesor_id);
@@ -103,14 +107,15 @@ export class EvaluacionService {
   }
 
   async remove(id: string, user: { id: string; rol: string }) {
-    // Validar permisos para eliminar evaluación
-    if (user.rol !== "equipo_padi" && user.rol !== "encargado_zona" && user.rol !== "docente" && user.rol !== "director") {
-      throw new Error("No tienes permisos para eliminar evaluaciones.");
+    const evaluacion = await this.repo.findById(id);
+    if (!evaluacion) throw new Error("Evaluación no encontrada");
+
+    if (user.rol === "docente" && evaluacion.profesor_id !== user.id) {
+      throw new Error("No tenés permiso para eliminar una evaluación que no creaste.");
     }
 
     return await this.repo.delete(id);
   }
-
   async getPreguntasArea(evaluacionId: string, areaId: string) {
     return await this.repo.getPreguntasArea(evaluacionId, areaId);
   }

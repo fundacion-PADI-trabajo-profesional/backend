@@ -23,6 +23,22 @@ export class AuthController {
     }
   }
 
+  static async refreshToken(req: Request, res: Response) {
+    try {
+      const { refreshToken } = req.body;
+
+      if (!refreshToken) {
+        throw new Error("Refresh token es requerido.");
+      }
+
+      const tokens = await AuthService.refreshSession(refreshToken);
+      res.status(200).json(tokens);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(401).json({ message });
+    }
+  }
+
   static async updateProfile(req: Request, res: Response) {
     try {
       const { userId, nombre, apellido } = req.body;

@@ -59,8 +59,13 @@ export class EscuelasService {
         direccion?: string;
         telefono?: string;
         zona_id: string
-    }) {
-        return await this.repo.update(id, data);
+    }, user: { id: string, rol: string }) {
+        if (user.rol === "equipo_padi" || user.rol === "encargado_zona") {
+            // PADI puede actualizar todo, Encargado solo su zona (validado en repo)
+            return await this.repo.update(id, data);
+        }
+
+        throw new Error("No tienes permisos para ver modificar data de escuelas.");
     }
 
     async delete(id: string, user: { rol: string }) {
@@ -75,12 +80,18 @@ export class EscuelasService {
         return await this.repo.delete(id);
     }
 
-    async addDirectivo(escuelaId: string, usuarioId: string) {
-        return await this.repo.addDirectivoRelation(escuelaId, usuarioId);
+    async addDirectivo(escuelaId: string, usuarioId: string, user: { id: string, rol: string }) {
+        if (user.rol === "equipo_padi" || user.rol === "encargado_zona") {
+            return await this.repo.addDirectivoRelation(escuelaId, usuarioId);
+        }
+        throw new Error("No tenés permisos para asignar directivos a escuelas.");
     }
 
-    async removeDirectivo(usuarioId: string) {
-        return await this.repo.removeDirectivoRelation(usuarioId);
+    async removeDirectivo(usuarioId: string, user: { id: string, rol: string }) {
+        if (user.rol === "equipo_padi" || user.rol === "encargado_zona") {
+            return await this.repo.removeDirectivoRelation(usuarioId);
+        }
+        throw new Error("No tenés permisos para remover directivos de escuelas.");
     }
 
 }

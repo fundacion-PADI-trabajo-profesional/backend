@@ -178,6 +178,28 @@ export class AuthService {
   }
 
   /**
+   * Renueva la sesión usando un refresh_token.
+   * Retorna los nuevos access_token y refresh_token.
+   */
+  static async refreshSession(refreshToken: string) {
+    const supabase = getSupabase();
+    if (!supabase) throw new Error("Supabase client no está disponible.");
+
+    const { data, error } = await supabase.auth.refreshSession({
+      refresh_token: refreshToken,
+    });
+
+    if (error || !data.session) {
+      throw new Error("No se pudo renovar la sesión. Por favor, iniciá sesión nuevamente.");
+    }
+
+    return {
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+    };
+  }
+
+  /**
    * Actualiza el nombre y apellido del perfil.
    */
   static async updateProfile(userId: string, nombre: string, apellido: string) {
@@ -198,7 +220,7 @@ export class AuthService {
             primer_apellido: apellido
           }
         });
-      } catch (e) {}
+      } catch (e) { }
 
       return updatedUser;
     } catch (error) {
@@ -220,7 +242,7 @@ export class AuthService {
     });
 
     if (error) throw new Error(traducirErrorAuth(error));
-    
+
     return { message: "Correo de recuperación enviado exitosamente." };
   }
 

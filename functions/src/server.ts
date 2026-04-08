@@ -10,6 +10,7 @@ import { createEscuelasRouter } from "./routes/escuelas.router";
 import { createAulasRouter } from "./routes/aulas.router";
 import { createZonasRouter } from "./routes/zonas.router";
 import { createAuthRouter } from "./routes/auth.router";
+import { requireAuth } from "./middlewares/auth.middleware";
 
 export function createApp() {
   const app = express();
@@ -25,10 +26,14 @@ export function createApp() {
   app.use(cors(corsOptions));
   app.use(express.json());
 
-  //app.use("/evaluaciones", evaluacionesRouter);
+  // Rutas PUBLICAS (sin autenticacion)
   app.use(createHealthRouter());
   app.use(createAuthRouter());
 
+
+  app.use(requireAuth as any);
+
+  // RUTAS PROTEGIDAS: TODAS las rutas requieren JWT válido
   app.use(createEvaluacionesRouter());
   app.use(createEstudiantesRouter());
   app.use(createDocentesRouter());

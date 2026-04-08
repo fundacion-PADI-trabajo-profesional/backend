@@ -1,14 +1,13 @@
 import { Request, Response } from "express";
 import { EvaluacionService } from "../services/evaluaciones.service";
 import { commonResponse } from "../interfaces/common-response.interface";
-
+import { AuthenticatedRequest } from "../middlewares/auth.middleware";
 
 const service = new EvaluacionService();
 
-export async function createEvaluacion(req: Request, res: Response) {
+export async function createEvaluacion(req: AuthenticatedRequest, res: Response) {
   try {
-    const { usuario_id, rol } = req.query;
-    const user = usuario_id && rol ? { id: String(usuario_id), rol: String(rol) } : undefined;
+    const user = { id: req.user!.id, rol: req.user!.rol };
 
     const data = await service.createEvaluacion(req.body, user);
     res.status(201).json(commonResponse(true, "Evaluación creada con éxito", data));
@@ -18,9 +17,10 @@ export async function createEvaluacion(req: Request, res: Response) {
   }
 }
 
-export async function getEvaluaciones(req: Request, res: Response) {
+export async function getEvaluaciones(req: AuthenticatedRequest, res: Response) {
   try {
-    const { escuela_id, rol, estudianteId, profesorId, salaId, tipoId, estadoId } = req.query;
+    const { estudianteId, profesorId, salaId, tipoId, estadoId, escuela_id } = req.query;
+    const { rol, id: userId, escuela_id: userEscuelaId } = req.user!;
 
     const filters = {
       estudianteId: typeof estudianteId === "string" ? estudianteId : undefined,
@@ -53,7 +53,7 @@ export async function getEvaluaciones(req: Request, res: Response) {
   }
 }
 
-export async function getEvaluacionById(req: Request, res: Response) {
+export async function getEvaluacionById(req: AuthenticatedRequest, res: Response) {
   try {
     const data = await service.getDetalle(req.params.id);
     res.status(200).json(commonResponse(true, "ok", data));
@@ -62,15 +62,10 @@ export async function getEvaluacionById(req: Request, res: Response) {
   }
 }
 
-export async function deleteEvaluacion(req: Request, res: Response) {
+export async function deleteEvaluacion(req: AuthenticatedRequest, res: Response) {
   try {
-    const { usuario_id, rol } = req.query;
+    const user = { id: req.user!.id, rol: req.user!.rol };
 
-    if (!usuario_id || !rol) {
-      return res.status(400).json(commonResponse(false, "Se requiere usuario_id y rol para eliminar evaluaciones", null));
-    }
-
-    const user = { id: String(usuario_id), rol: String(rol) };
     await service.remove(req.params.id, user);
     res.status(200).json(commonResponse(true, "Evaluación eliminada", null));
   } catch (error: any) {
@@ -80,7 +75,7 @@ export async function deleteEvaluacion(req: Request, res: Response) {
   }
 }
 
-export async function getPreguntasDeArea(req: Request, res: Response) {
+export async function getPreguntasDeArea(req: AuthenticatedRequest, res: Response) {
   try {
     const { id, areaId } = req.params;
     const data = await service.getPreguntasArea(id, areaId);
@@ -91,7 +86,7 @@ export async function getPreguntasDeArea(req: Request, res: Response) {
 }
 
 
-export async function guardarRespuestasArea(req: Request, res: Response) {
+export async function guardarRespuestasArea(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params; //evaluacionId
     const { areaId, questions } = req.body;

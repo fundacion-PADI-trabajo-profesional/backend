@@ -1,12 +1,17 @@
 import type { Request, Response } from "express";
 import { EncargadosService } from "../services/encargado-zona.service";
 import { commonResponse } from "../interfaces/common-response.interface";
+import { AuthenticatedRequest } from "../middlewares/auth.middleware";
+
 
 const service = new EncargadosService();
 
-export async function listEncargados(_req: Request, res: Response) {
+export async function listEncargados(req: AuthenticatedRequest, res: Response) {
     try {
-        const data = await service.list();
+        const data = await service.list({
+            id: req.user!.id,
+            rol: req.user!.rol,
+        });
         res.status(200).json(commonResponse(true, "ok", data));
     } catch (error: any) {
         const message = error?.message || "Error interno al listar encargados";
@@ -16,20 +21,19 @@ export async function listEncargados(_req: Request, res: Response) {
     }
 }
 
-export async function createEncargado(req: Request, res: Response) {
+export async function createEncargado(req: AuthenticatedRequest, res: Response) {
     try {
-        // Ya no extraemos password del body
         const { email, nombre, apellido, zona } = req.body;
+        const user = { id: req.user!.id, rol: req.user!.rol };
 
-        // Validación: No pedimos password
         if (!email || !nombre || !apellido || !zona) {
-            res.status(400).json(commonResponse(false, "Faltan datos obligatorios (email, nombre, apellido, zona)", null));
-            return;
+            return res.status(400).json(commonResponse(false, "Faltan datos obligatorios", null));
         }
 
-        const result = await service.create({ email, nombre, apellido, zona });
+        // Pasamos el 'user' al servicio por si necesitas validar permisos de zona
+        const result = await service.create({ email, nombre, apellido, zona }, user);
 
-        res.status(201).json(commonResponse(true, "Encargado invitado con éxito", result));
+        return res.status(201).json(commonResponse(true, "Encargado invitado con éxito", result));
     } catch (error: any) {
         const message = error?.message || "Error al crear encargado";
         res
@@ -54,15 +58,15 @@ export async function updateEncargado(req: Request, res: Response) {
     }
 }
 
-export async function getCurrentEncargado(req: Request, res: Response) {
+export async function getCurrentEncargado(req: AuthenticatedRequest, res: Response) {
     try {
-        const { usuario_id } = req.query;
+        const userId = req.user!.id;
 
-        if (!usuario_id) {
+        if (!userId) {
             return res.status(400).json(commonResponse(false, "ID de usuario requerido", null));
         }
 
-        const data = await service.getCurrentEncargado(String(usuario_id));
+        const data = await service.getCurrentEncargado(String(userId));
         res.status(200).json(commonResponse(true, "ok", data));
     } catch (error: any) {
         const message = error?.message || "Error al obtener información del encargado";

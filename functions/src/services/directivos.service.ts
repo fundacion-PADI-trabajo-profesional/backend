@@ -1,15 +1,27 @@
 import { DirectivoRepository } from "../repositories/directivo.repository";
 import { getPrisma } from "../config/prismaClient";
+import { DirectivoItem } from "../interfaces/directivo.interface";
 
 export class DirectivosService {
     private repo = DirectivoRepository;
 
-    async list() {
-        return this.repo.list();
+    async list(user: { id: string; rol: string }) {
+
+        if (user.rol === "equipo_padi" || user.rol === "encargado_zona") {
+            return this.repo.list();
+        } else {
+            throw new Error("No tienes permisos para ver Directores de otras escuelas.");
+        }
+
     }
 
-    async listAvailable() {
-        return this.repo.listAvailable();
+
+    async listAvailable(user: { id: string; rol: string }) {
+        if (user.rol === "equipo_padi" || user.rol === "encargado_zona") {
+            return this.repo.list();
+        } else {
+            throw new Error("No tienes permisos para ver Directores de otras escuelas.");
+        }
     }
 
     async assignEscuela(directorId: string, escuelaId: string, user: { id: string; rol: string }) {

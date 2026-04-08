@@ -17,18 +17,15 @@ const service = new aulas_service_1.AulasService();
 // POST /aulas
 async function createAula(req, res) {
     try {
-        const { sala_id, comision, turno, usuario_id, rol, escuela_id } = req.body;
-        if (!sala_id || !comision || !turno || !usuario_id || !rol) {
+        const { sala_id, comision, turno, escuela_id } = req.body;
+        if (!sala_id || !comision || !turno) {
             return res
                 .status(400)
                 .json((0, common_response_interface_1.commonResponse)(false, "Faltan datos obligatorios", null, {
                 code: "VALIDATION_ERROR",
             }));
         }
-        const user = {
-            id: String(usuario_id),
-            rol: String(rol),
-        };
+        const user = { id: req.user.id, rol: req.user.rol };
         const data = await service.create({
             sala_id: Number(sala_id),
             comision,
@@ -53,18 +50,7 @@ async function createAula(req, res) {
 // GET /aulas
 async function listAulas(req, res) {
     try {
-        const { usuario_id, rol } = req.query;
-        if (!usuario_id || !rol) {
-            return res
-                .status(400)
-                .json((0, common_response_interface_1.commonResponse)(false, "Faltan datos de usuario", null, {
-                code: "VALIDATION_ERROR",
-            }));
-        }
-        const user = {
-            id: String(usuario_id),
-            rol: String(rol),
-        };
+        const user = { id: req.user.id, rol: req.user.rol };
         const data = await service.list(user);
         return res.status(200).json((0, common_response_interface_1.commonResponse)(true, "ok", data));
     }
@@ -83,18 +69,15 @@ async function listAulas(req, res) {
 async function updateAula(req, res) {
     try {
         const { id } = req.params;
-        const { sala_id, comision, turno, usuario_id, rol } = req.body;
-        if (!id || !usuario_id || !rol) {
+        const { sala_id, comision, turno } = req.body;
+        if (!id) {
             return res
                 .status(400)
                 .json((0, common_response_interface_1.commonResponse)(false, "Faltan datos obligatorios", null, {
                 code: "VALIDATION_ERROR",
             }));
         }
-        const user = {
-            id: String(usuario_id),
-            rol: String(rol),
-        };
+        const user = { id: req.user.id, rol: req.user.rol };
         const data = await service.update(id, {
             sala_id: sala_id !== undefined ? Number(sala_id) : undefined,
             comision,
@@ -119,18 +102,14 @@ async function updateAula(req, res) {
 async function deleteAula(req, res) {
     try {
         const { id } = req.params;
-        const { usuario_id, rol } = req.query;
-        if (!id || !usuario_id || !rol) {
+        if (!id) {
             return res
                 .status(400)
                 .json((0, common_response_interface_1.commonResponse)(false, "Faltan datos obligatorios", null, {
                 code: "VALIDATION_ERROR",
             }));
         }
-        const user = {
-            id: String(usuario_id),
-            rol: String(rol),
-        };
+        const user = { id: req.user.id, rol: req.user.rol };
         await service.delete(id, user);
         return res
             .status(200)
@@ -151,18 +130,14 @@ async function deleteAula(req, res) {
 async function listAulaDocentes(req, res) {
     try {
         const { id } = req.params;
-        const { usuario_id, rol } = req.query;
-        if (!id || !usuario_id || !rol) {
+        if (!id) {
             return res
                 .status(400)
                 .json((0, common_response_interface_1.commonResponse)(false, "Faltan datos obligatorios", null, {
                 code: "VALIDATION_ERROR",
             }));
         }
-        const user = {
-            id: String(usuario_id),
-            rol: String(rol),
-        };
+        const user = { id: req.user.id, rol: req.user.rol };
         const data = await service.listDocentes(id, user);
         return res.status(200).json((0, common_response_interface_1.commonResponse)(true, "ok", data));
     }
@@ -181,18 +156,15 @@ async function listAulaDocentes(req, res) {
 async function asignarDocenteAula(req, res) {
     try {
         const { id } = req.params;
-        const { profesor_id, usuario_id, rol } = req.body;
-        if (!id || !profesor_id || !usuario_id || !rol) {
+        const { profesor_id } = req.body;
+        if (!id || !profesor_id) {
             return res
                 .status(400)
                 .json((0, common_response_interface_1.commonResponse)(false, "Faltan datos obligatorios", null, {
                 code: "VALIDATION_ERROR",
             }));
         }
-        const user = {
-            id: String(usuario_id),
-            rol: String(rol),
-        };
+        const user = { id: req.user.id, rol: req.user.rol };
         const data = await service.asignarDocente(id, String(profesor_id), user);
         return res
             .status(200)
@@ -213,18 +185,15 @@ async function asignarDocenteAula(req, res) {
 async function desasignarDocenteAula(req, res) {
     try {
         const { id } = req.params;
-        const { profesor_id, usuario_id, rol } = req.body;
-        if (!id || !profesor_id || !usuario_id || !rol) {
+        const { profesor_id } = req.body;
+        if (!id || !profesor_id) {
             return res
                 .status(400)
                 .json((0, common_response_interface_1.commonResponse)(false, "Faltan datos obligatorios", null, {
                 code: "VALIDATION_ERROR",
             }));
         }
-        const user = {
-            id: String(usuario_id),
-            rol: String(rol),
-        };
+        const user = { id: req.user.id, rol: req.user.rol };
         await service.desasignarDocente(id, String(profesor_id), user);
         return res
             .status(200)
@@ -244,18 +213,7 @@ async function desasignarDocenteAula(req, res) {
 // GET /docentes/aulas
 async function listDocenteAulas(req, res) {
     try {
-        const { usuario_id, rol } = req.query;
-        if (!usuario_id || !rol) {
-            return res
-                .status(400)
-                .json((0, common_response_interface_1.commonResponse)(false, "Faltan datos de usuario", null, {
-                code: "VALIDATION_ERROR",
-            }));
-        }
-        const user = {
-            id: String(usuario_id),
-            rol: String(rol),
-        };
+        const user = { id: req.user.id, rol: req.user.rol };
         const data = await service.listDocenteAulas(user);
         return res.status(200).json((0, common_response_interface_1.commonResponse)(true, "ok", data));
     }
@@ -274,15 +232,15 @@ async function listDocenteAulas(req, res) {
 async function asignarEstudianteAula(req, res) {
     try {
         const { id } = req.params;
-        const { estudiante_id, usuario_id, rol } = req.body;
-        if (!id || !estudiante_id || !usuario_id || !rol) {
+        const { estudiante_id } = req.body;
+        if (!id || !estudiante_id) {
             return res
                 .status(400)
                 .json((0, common_response_interface_1.commonResponse)(false, "Faltan datos obligatorios", null, {
                 code: "VALIDATION_ERROR",
             }));
         }
-        const user = { id: String(usuario_id), rol: String(rol) };
+        const user = { id: req.user.id, rol: req.user.rol };
         const data = await service.asignarEstudiante(id, String(estudiante_id), user);
         return res
             .status(200)
@@ -300,15 +258,15 @@ async function asignarEstudianteAula(req, res) {
 async function desasignarEstudianteAula(req, res) {
     try {
         const { id } = req.params;
-        const { estudiante_id, usuario_id, rol } = req.body;
-        if (!id || !estudiante_id || !usuario_id || !rol) {
+        const { estudiante_id } = req.body;
+        if (!id || !estudiante_id) {
             return res
                 .status(400)
                 .json((0, common_response_interface_1.commonResponse)(false, "Faltan datos obligatorios", null, {
                 code: "VALIDATION_ERROR",
             }));
         }
-        const user = { id: String(usuario_id), rol: String(rol) };
+        const user = { id: req.user.id, rol: req.user.rol };
         await service.desasignarEstudiante(id, String(estudiante_id), user);
         return res
             .status(200)
@@ -326,18 +284,14 @@ async function desasignarEstudianteAula(req, res) {
 async function listAulaEstudiantes(req, res) {
     try {
         const { id } = req.params;
-        const { usuario_id, rol } = req.query;
-        if (!id || !usuario_id || !rol) {
+        if (!id) {
             return res
                 .status(400)
                 .json((0, common_response_interface_1.commonResponse)(false, "Faltan datos obligatorios", null, {
                 code: "VALIDATION_ERROR",
             }));
         }
-        const user = {
-            id: String(usuario_id),
-            rol: String(rol),
-        };
+        const user = { id: req.user.id, rol: req.user.rol };
         const data = await service.listEstudiantesAula(id, user);
         return res.status(200).json((0, common_response_interface_1.commonResponse)(true, "ok", data));
     }

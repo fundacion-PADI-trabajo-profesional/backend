@@ -1,24 +1,18 @@
 import type { Request, Response } from "express";
 import { DocentesService } from "../services/docentes.service";
 import { commonResponse } from "../interfaces/common-response.interface";
+import { AuthenticatedRequest } from "../middlewares/auth.middleware";
 
 const service = new DocentesService();
 
-export async function listDocentes(req: Request, res: Response) {
+export async function listDocentes(req: AuthenticatedRequest, res: Response) {
   try {
-    const { usuario_id, rol } = req.query;
-    if (!usuario_id || !rol) {
-      return res
-        .status(400)
-        .json(
-          commonResponse(false, "Faltan datos de usuario", null, {
-            code: "VALIDATION_ERROR",
-            description: "usuario_id y rol son obligatorios",
-          }),
-        );
-    }
-
-    const data = await service.list({ id: String(usuario_id), rol: String(rol) });
+    // ANTES: const { usuario_id, rol } = req.query;
+    // AHORA: datos verificados del middleware
+    const data = await service.list({
+      id: req.user!.id,
+      rol: req.user!.rol,
+    });
     res.status(200).json(commonResponse(true, "ok", data));
   } catch (error: any) {
     const message = error?.message || "Error interno al listar docentes";
@@ -27,11 +21,17 @@ export async function listDocentes(req: Request, res: Response) {
   }
 }
 
-export async function assignDocenteEscuela(req: Request, res: Response) {
+export async function assignDocenteEscuela(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
-    const { escuela_id, usuario_id, rol } = req.body;
-    if (!id || !escuela_id || !usuario_id || !rol) {
+    const { escuela_id } = req.body;
+
+    const data = await service.assignEscuela(String(id), String(escuela_id), {
+      id: req.user!.id,
+      rol: req.user!.rol,
+    });
+
+    if (!id || !escuela_id) {
       return res
         .status(400)
         .json(
@@ -41,11 +41,6 @@ export async function assignDocenteEscuela(req: Request, res: Response) {
           }),
         );
     }
-
-    const data = await service.assignEscuela(String(id), String(escuela_id), {
-      id: String(usuario_id),
-      rol: String(rol),
-    });
 
     res.status(200).json(commonResponse(true, "Docente asignado al colegio", data));
   } catch (error: any) {
@@ -54,11 +49,17 @@ export async function assignDocenteEscuela(req: Request, res: Response) {
   }
 }
 
-export async function unassignDocenteEscuela(req: Request, res: Response) {
+export async function unassignDocenteEscuela(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
-    const { escuela_id, usuario_id, rol } = req.body;
-    if (!id || !escuela_id || !usuario_id || !rol) {
+    const { escuela_id, } = req.body;
+
+    const data = await service.unassignEscuela(String(id), String(escuela_id), {
+      id: req.user!.id,
+      rol: req.user!.rol,
+    });
+
+    if (!id || !escuela_id) {
       return res
         .status(400)
         .json(
@@ -69,10 +70,6 @@ export async function unassignDocenteEscuela(req: Request, res: Response) {
         );
     }
 
-    await service.unassignEscuela(String(id), String(escuela_id), {
-      id: String(usuario_id),
-      rol: String(rol),
-    });
 
     res.status(200).json(commonResponse(true, "Docente desasignado del colegio", null));
   } catch (error: any) {

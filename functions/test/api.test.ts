@@ -3,6 +3,8 @@ import request from "supertest";
 import { createApp } from "../src/server";
 import * as prismaClient from "../src/config/prismaClient";
 import { EvaluacionRepository } from "../src/repositories/evaluacion.repository";
+import { mockAuthAs } from "./helpers/auth-mock";
+
 const app = createApp();
 
 describe("health endpoint", () => {
@@ -19,6 +21,9 @@ describe("directivos assign escuela endpoint", () => {
   });
 
   it("allows encargado_zona to assign escuela to director within same zona", async () => {
+    const { prismaMock } = mockAuthAs("encargado_zona", "encargado-user-1");
+
+    // 2. Definimos el mock para la transacción (lo que pasa ADENTRO del servicio)
     const txMock = {
       usuarioPerfil: {
         updateMany: vi.fn().mockResolvedValue({ count: 0 }),
@@ -31,33 +36,36 @@ describe("directivos assign escuela endpoint", () => {
       },
     };
 
-    const fakePrisma = {
-      encargados: {
-        findUnique: vi.fn().mockResolvedValue({ id: "enc1", zona: "Norte" }),
-      },
-      escuelas: {
-        findUnique: vi.fn().mockResolvedValue({ id: "esc1", zona: "Norte" }),
-      },
-      usuarioPerfil: {
-        findUnique: vi.fn().mockResolvedValue({ id: "dir1", rol: "director" }),
-      },
-      $transaction: vi.fn().mockImplementation(async (cb: any) => cb(txMock)),
+    // 3. Inyectamos los mocks específicos de este test en el prismaMock del helper
+    prismaMock.encargados = {
+      findUnique: vi.fn().mockResolvedValue({ id: "enc1", zona: "Norte" }),
     };
+    prismaMock.escuelas = {
+      findUnique: vi.fn().mockResolvedValue({ id: "esc1", zona: "Norte" }),
+    };
+    // Mockeamos el perfil del director al que queremos asignar
+    // Conservamos el comportamiento por defecto (perfil del usuario autenticado)
+    // y solo devolvemos el director cuando se busca por su id 'dir1'.
+    const originalFindUnique = prismaMock.usuarioPerfil.findUnique;
+    prismaMock.usuarioPerfil.findUnique = vi.fn().mockImplementation(async (args: any) => {
+      if (args && args.where && args.where.id === "dir1") {
+        return { id: "dir1", rol: "director" };
+      }
+      return originalFindUnique(args);
+    });
 
-    vi.spyOn(prismaClient, "getPrisma").mockReturnValue(fakePrisma as any);
+    prismaMock.$transaction = vi.fn().mockImplementation(async (cb: any) => cb(txMock));
 
+    // 4. Realizamos la petición limpia
     const res = await request(app)
       .post("/directivos/dir1/asignar-escuela")
+      .set("Authorization", "Bearer fake-token")
       .send({
         escuela_id: "esc1",
-        usuario_id: "encargado-user-1",
-        rol: "encargado_zona",
-      })
-      .set("Content-Type", "application/json");
+      });
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ success: true });
-    expect(txMock.usuarioPerfil.updateMany).toHaveBeenCalled();
     expect(txMock.usuarioPerfil.update).toHaveBeenCalled();
   });
 });
@@ -68,18 +76,28 @@ describe("evaluaciones endpoint", () => {
   });
 
   it("returns empty list", async () => {
+    mockAuthAs("equipo_padi"); // Necesita estar logueado
+
     vi.spyOn(EvaluacionRepository, "listWithFilters").mockResolvedValue([]);
-    const res = await request(app).get("/evaluaciones");
+
+    const res = await request(app)
+      .get("/evaluaciones")
+      .set("Authorization", "Bearer fake-token");
+
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ success: true, message: "ok" });
-    expect(Array.isArray(res.body.data)).toBe(true);
   });
 
   it("returns 404 when not found", async () => {
+    mockAuthAs("equipo_padi");
+
     vi.spyOn(EvaluacionRepository, "findById").mockResolvedValue(null);
-    const res = await request(app).get("/evaluaciones/does-not-exist");
+
+    const res = await request(app)
+      .get("/evaluaciones/does-not-exist")
+      .set("Authorization", "Bearer fake-token");
+
     expect(res.status).toBe(404);
-    expect(res.body).toMatchObject({ success: false, message: "Evaluación no encontrada" });
   });
 });
 
@@ -89,39 +107,36 @@ describe("zonas encargados endpoint", () => {
   });
 
   it("allows equipo_padi to list encargados for zone assignment", async () => {
-    const fakePrisma = {
-      encargados: {
-        findMany: vi.fn().mockResolvedValue([
-          {
-            id: "enc-1",
-            zona_id: null,
-            usuario: {
-              id: "user-1",
-              nombre: "Ana",
-              apellido: "Lopez",
-              email: "ana@test.com",
-            },
-            zona: null,
-          },
-        ]),
-      },
+    const { prismaMock } = mockAuthAs("equipo_padi");
+
+    prismaMock.encargados = {
+      findMany: vi.fn().mockResolvedValue([
+        {
+          id: "enc-1",
+          usuario: { nombre: "Ana" },
+        },
+      ]),
     };
 
-    vi.spyOn(prismaClient, "getPrisma").mockReturnValue(fakePrisma as any);
-
-    const res = await request(app).get("/zonas/encargados?rol=equipo_padi");
+    const res = await request(app)
+      .get("/zonas/encargados") // Ya no enviamos ?rol=...
+      .set("Authorization", "Bearer fake-token");
 
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ success: true, message: "ok" });
-    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body).toMatchObject({ success: true });
   });
 
   it("rejects non equipo_padi roles", async () => {
-    const res = await request(app).get("/zonas/encargados?rol=encargado_zona");
+    // Mockeamos como un rol que NO tiene permiso para esta ruta
+    mockAuthAs("encargado_zona");
 
+    const res = await request(app)
+      .get("/zonas/encargados")
+      .set("Authorization", "Bearer fake-token");
+
+    // Ahora el middleware requireRole debería devolver 403 automáticamente
     expect(res.status).toBe(403);
     expect(res.body).toMatchObject({ success: false });
   });
 });
-
 

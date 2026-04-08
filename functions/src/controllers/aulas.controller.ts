@@ -1,15 +1,16 @@
 import type { Request, Response } from "express";
 import { AulasService } from "../services/aulas.service";
 import { commonResponse } from "../interfaces/common-response.interface";
+import { AuthenticatedRequest } from "../middlewares/auth.middleware";
 
 const service = new AulasService();
 
 // POST /aulas
-export async function createAula(req: Request, res: Response) {
+export async function createAula(req: AuthenticatedRequest, res: Response) {
   try {
-    const { sala_id, comision, turno, usuario_id, rol, escuela_id } = req.body;
+    const { sala_id, comision, turno, escuela_id } = req.body;
 
-    if (!sala_id || !comision || !turno || !usuario_id || !rol) {
+    if (!sala_id || !comision || !turno) {
       return res
         .status(400)
         .json(
@@ -19,10 +20,7 @@ export async function createAula(req: Request, res: Response) {
         );
     }
 
-    const user = {
-      id: String(usuario_id),
-      rol: String(rol),
-    };
+    const user = { id: req.user!.id, rol: req.user!.rol };
 
     const data = await service.create(
       {
@@ -53,28 +51,13 @@ export async function createAula(req: Request, res: Response) {
 }
 
 // GET /aulas
-export async function listAulas(req: Request, res: Response) {
+export async function listAulas(req: AuthenticatedRequest, res: Response) {
   try {
-    const { usuario_id, rol } = req.query;
-
-    if (!usuario_id || !rol) {
-      return res
-        .status(400)
-        .json(
-          commonResponse(false, "Faltan datos de usuario", null, {
-            code: "VALIDATION_ERROR",
-          }),
-        );
-    }
-
-    const user = {
-      id: String(usuario_id),
-      rol: String(rol),
-    };
+    const user = { id: req.user!.id, rol: req.user!.rol };
 
     const data = await service.list(user);
-
     return res.status(200).json(commonResponse(true, "ok", data));
+
   } catch (error: any) {
     const message = error.message || "Error interno al listar aulas";
     console.error("[listAulas] Error:", error);
@@ -91,12 +74,12 @@ export async function listAulas(req: Request, res: Response) {
 }
 
 // PUT /aulas/:id
-export async function updateAula(req: Request, res: Response) {
+export async function updateAula(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
-    const { sala_id, comision, turno, usuario_id, rol } = req.body;
+    const { sala_id, comision, turno } = req.body;
 
-    if (!id || !usuario_id || !rol) {
+    if (!id) {
       return res
         .status(400)
         .json(
@@ -106,10 +89,7 @@ export async function updateAula(req: Request, res: Response) {
         );
     }
 
-    const user = {
-      id: String(usuario_id),
-      rol: String(rol),
-    };
+    const user = { id: req.user!.id, rol: req.user!.rol };
 
     const data = await service.update(
       id,
@@ -140,12 +120,11 @@ export async function updateAula(req: Request, res: Response) {
 }
 
 // DELETE /aulas/:id
-export async function deleteAula(req: Request, res: Response) {
+export async function deleteAula(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
-    const { usuario_id, rol } = req.query;
 
-    if (!id || !usuario_id || !rol) {
+    if (!id) {
       return res
         .status(400)
         .json(
@@ -155,10 +134,7 @@ export async function deleteAula(req: Request, res: Response) {
         );
     }
 
-    const user = {
-      id: String(usuario_id),
-      rol: String(rol),
-    };
+    const user = { id: req.user!.id, rol: req.user!.rol };
 
     await service.delete(id, user);
 
@@ -181,12 +157,11 @@ export async function deleteAula(req: Request, res: Response) {
 }
 
 // GET /aulas/:id/docentes
-export async function listAulaDocentes(req: Request, res: Response) {
+export async function listAulaDocentes(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
-    const { usuario_id, rol } = req.query;
 
-    if (!id || !usuario_id || !rol) {
+    if (!id) {
       return res
         .status(400)
         .json(
@@ -196,10 +171,7 @@ export async function listAulaDocentes(req: Request, res: Response) {
         );
     }
 
-    const user = {
-      id: String(usuario_id),
-      rol: String(rol),
-    };
+    const user = { id: req.user!.id, rol: req.user!.rol };
 
     const data = await service.listDocentes(id, user);
 
@@ -220,12 +192,12 @@ export async function listAulaDocentes(req: Request, res: Response) {
 }
 
 // POST /aulas/:id/asignar-docente
-export async function asignarDocenteAula(req: Request, res: Response) {
+export async function asignarDocenteAula(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
-    const { profesor_id, usuario_id, rol } = req.body;
+    const { profesor_id } = req.body;
 
-    if (!id || !profesor_id || !usuario_id || !rol) {
+    if (!id || !profesor_id) {
       return res
         .status(400)
         .json(
@@ -235,10 +207,7 @@ export async function asignarDocenteAula(req: Request, res: Response) {
         );
     }
 
-    const user = {
-      id: String(usuario_id),
-      rol: String(rol),
-    };
+    const user = { id: req.user!.id, rol: req.user!.rol };
 
     const data = await service.asignarDocente(id, String(profesor_id), user);
 
@@ -261,12 +230,12 @@ export async function asignarDocenteAula(req: Request, res: Response) {
 }
 
 // POST /aulas/:id/desasignar-docente
-export async function desasignarDocenteAula(req: Request, res: Response) {
+export async function desasignarDocenteAula(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
-    const { profesor_id, usuario_id, rol } = req.body;
+    const { profesor_id } = req.body;
 
-    if (!id || !profesor_id || !usuario_id || !rol) {
+    if (!id || !profesor_id) {
       return res
         .status(400)
         .json(
@@ -276,10 +245,7 @@ export async function desasignarDocenteAula(req: Request, res: Response) {
         );
     }
 
-    const user = {
-      id: String(usuario_id),
-      rol: String(rol),
-    };
+    const user = { id: req.user!.id, rol: req.user!.rol };
 
     await service.desasignarDocente(id, String(profesor_id), user);
 
@@ -302,24 +268,9 @@ export async function desasignarDocenteAula(req: Request, res: Response) {
 }
 
 // GET /docentes/aulas
-export async function listDocenteAulas(req: Request, res: Response) {
+export async function listDocenteAulas(req: AuthenticatedRequest, res: Response) {
   try {
-    const { usuario_id, rol } = req.query;
-
-    if (!usuario_id || !rol) {
-      return res
-        .status(400)
-        .json(
-          commonResponse(false, "Faltan datos de usuario", null, {
-            code: "VALIDATION_ERROR",
-          }),
-        );
-    }
-
-    const user = {
-      id: String(usuario_id),
-      rol: String(rol),
-    };
+    const user = { id: req.user!.id, rol: req.user!.rol };
 
     const data = await service.listDocenteAulas(user);
     return res.status(200).json(commonResponse(true, "ok", data));
@@ -339,12 +290,12 @@ export async function listDocenteAulas(req: Request, res: Response) {
 }
 
 // POST /aulas/:id/asignar-estudiante
-export async function asignarEstudianteAula(req: Request, res: Response) {
+export async function asignarEstudianteAula(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
-    const { estudiante_id, usuario_id, rol } = req.body;
+    const { estudiante_id } = req.body;
 
-    if (!id || !estudiante_id || !usuario_id || !rol) {
+    if (!id || !estudiante_id) {
       return res
         .status(400)
         .json(
@@ -354,7 +305,7 @@ export async function asignarEstudianteAula(req: Request, res: Response) {
         );
     }
 
-    const user = { id: String(usuario_id), rol: String(rol) };
+    const user = { id: req.user!.id, rol: req.user!.rol };
     const data = await service.asignarEstudiante(id, String(estudiante_id), user);
 
     return res
@@ -370,12 +321,12 @@ export async function asignarEstudianteAula(req: Request, res: Response) {
 }
 
 // POST /aulas/:id/desasignar-estudiante
-export async function desasignarEstudianteAula(req: Request, res: Response) {
+export async function desasignarEstudianteAula(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
-    const { estudiante_id, usuario_id, rol } = req.body;
+    const { estudiante_id } = req.body;
 
-    if (!id || !estudiante_id || !usuario_id || !rol) {
+    if (!id || !estudiante_id) {
       return res
         .status(400)
         .json(
@@ -385,7 +336,7 @@ export async function desasignarEstudianteAula(req: Request, res: Response) {
         );
     }
 
-    const user = { id: String(usuario_id), rol: String(rol) };
+    const user = { id: req.user!.id, rol: req.user!.rol };
     await service.desasignarEstudiante(id, String(estudiante_id), user);
 
     return res
@@ -401,12 +352,12 @@ export async function desasignarEstudianteAula(req: Request, res: Response) {
 }
 
 // GET /aulas/:id/estudiantes
-export async function listAulaEstudiantes(req: Request, res: Response) {
+export async function listAulaEstudiantes(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
-    const { usuario_id, rol } = req.query;
 
-    if (!id || !usuario_id || !rol) {
+
+    if (!id) {
       return res
         .status(400)
         .json(
@@ -416,10 +367,7 @@ export async function listAulaEstudiantes(req: Request, res: Response) {
         );
     }
 
-    const user = {
-      id: String(usuario_id),
-      rol: String(rol),
-    };
+    const user = { id: req.user!.id, rol: req.user!.rol };
 
     const data = await service.listEstudiantesAula(id, user);
     return res.status(200).json(commonResponse(true, "ok", data));
