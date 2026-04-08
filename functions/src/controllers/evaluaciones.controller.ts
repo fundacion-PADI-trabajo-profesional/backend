@@ -32,11 +32,15 @@ export async function getEvaluaciones(req: AuthenticatedRequest, res: Response) 
     };
 
     let data;
-    // Director debe tener escuela asignada para listar.
-    if (rol === "director" && !filters.escuelaId) {
-      return res
-        .status(400)
-        .json(commonResponse(false, "Usted no tiene una escuela asignada.", null, { code: "VALIDATION_ERROR" }));
+    // Director: forzar su escuela desde el token, nunca del query param
+    if (rol === "director") {
+      const escuelaDirector = req.user!.escuela_id;
+      if (!escuelaDirector) {
+        return res
+          .status(400)
+          .json(commonResponse(false, "Usted no tiene una escuela asignada.", null, { code: "VALIDATION_ERROR" }));
+      }
+      filters.escuelaId = escuelaDirector;
     }
 
     // Docente puede listar por profesorId (mis evaluaciones) o por escuela.
@@ -55,7 +59,20 @@ export async function getEvaluaciones(req: AuthenticatedRequest, res: Response) 
 
 export async function getEvaluacionById(req: AuthenticatedRequest, res: Response) {
   try {
+    const { rol, id: userId, escuela_id: userEscuelaId } = req.user!;
     const data = await service.getDetalle(req.params.id);
+
+    // Scope check: docente solo ve sus propias evaluaciones; director solo las de su escuela
+    if (rol === "docente" && data.profesor_id !== userId) {
+      return res.status(403).json(commonResponse(false, "No tienes permisos para ver esta evaluación.", null));
+    }
+    if (rol === "director" && userEscuelaId) {
+      const escuelaEvaluacion = (data as any).estudiantes?.escuela_id ?? (data as any).escuela_id;
+      if (escuelaEvaluacion && escuelaEvaluacion !== userEscuelaId) {
+        return res.status(403).json(commonResponse(false, "No tienes permisos para ver esta evaluación.", null));
+      }
+    }
+
     res.status(200).json(commonResponse(true, "ok", data));
   } catch (error: any) {
     res.status(404).json(commonResponse(false, "Evaluación no encontrada", null));

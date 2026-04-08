@@ -51,8 +51,6 @@ export class EstudiantesService {
             data.sala_id = asignacion.aula.sala_id;
             data.escuela_id = asignacion.aula.escuela_id;
         } else if (user?.rol === "equipo_padi" || user?.rol === "encargado_zona" || user?.rol === "director") {
-            // PADI, encargados y directores pueden crear estudiantes con más flexibilidad
-            // pero deben especificar escuela_id y sala_id si no están ya establecidos
             if (!data.escuela_id) {
                 throw new Error("Debe especificar la escuela del estudiante.");
             }
@@ -85,8 +83,8 @@ export class EstudiantesService {
         }
         throw new Error("No tienes permisos para ver el listado completo de estudiantes. Filtra por escuela.");
     }
+
     async listByEscuela(escuelaId: string, user: { id: string; rol: string }) {
-        // Llama al método que definiremos en el repositorio
         if (user.rol === "docente" || user.rol === "director") {
             return await this.repo.listByEscuela(escuelaId);
         }
@@ -94,14 +92,50 @@ export class EstudiantesService {
     }
 
     async createBulk(estudiantes: any[], commonData: { escuela_id: string, aula_id?: string }, user: { id: string; rol: string }) {
-        // Validar permisos para crear estudiantes en masa
         if (user.rol !== "director" && user.rol !== "encargado_zona" && user.rol !== "equipo_padi") {
             throw new Error("No tienes permisos para crear estudiantes en masa.");
         }
         return await this.repo.createBulk(estudiantes, commonData);
     }
+
+    /**
+     * Actualizar datos de un estudiante.
+     * Solo roles con acceso de gestión pueden modificar.
+     * Directores solo pueden modificar estudiantes de su propia escuela.
+     */
+    async update(
+        id: string,
+        data: Partial<CreateEstudianteData>,
+        user: { id: string; rol: string; escuela_id?: string }
+    ) {
+        const rolesPermitidos = ["director", "encargado_zona", "equipo_padi"];
+        if (!rolesPermitidos.includes(user.rol)) {
+            throw new Error("No tienes permisos para modificar datos de estudiantes.");
+        }
+
+        // Para directores, verificar que el estudiante pertenece a su escuela
+        if (user.rol === "director") {
+            const prisma = getPrisma();
+            if (!prisma) throw new Error("DB not available");
+            const prismaAny = prisma as any;
+
+            const estudiante = await prismaAny.estudiantes.findUnique({
+                where: { id },
+                select: { escuela_id: true }
+            });
+
+            if (!estudiante) throw new Error("Estudiante no encontrado.");
+
+            const escuelaDirector = user.escuela_id;
+            if (!escuelaDirector || estudiante.escuela_id !== escuelaDirector) {
+                throw new Error("No tienes permisos para modificar estudiantes de esta escuela.");
+            }
+        }
+
+        return await this.repo.update(id, data);
+    }
+
     async asignarEstudianteAula(estudianteId: string, aulaId: string, user: { id: string; rol: string }) {
-        // Validar permisos para asignar estudiantes a aulas
         if (user.rol !== "director" && user.rol !== "encargado_zona" && user.rol !== "equipo_padi") {
             throw new Error("No tienes permisos para asignar estudiantes a aulas.");
         }
@@ -110,7 +144,6 @@ export class EstudiantesService {
         if (!prisma) throw new Error("DB not available");
         const prismaAny = prisma as any;
 
-        // Verificar que el estudiante existe
         const estudiante = await prismaAny.estudiantes.findUnique({
             where: { id: estudianteId },
             select: { id: true, escuela_id: true }
@@ -120,7 +153,6 @@ export class EstudiantesService {
             throw new Error("Estudiante no encontrado.");
         }
 
-        // Verificar que el aula existe
         const aula = await prismaAny.aulas.findUnique({
             where: { id: aulaId },
             select: { id: true, escuela_id: true }
@@ -130,12 +162,10 @@ export class EstudiantesService {
             throw new Error("Aula no encontrada.");
         }
 
-        // Verificar que el estudiante y el aula pertenecen a la misma escuela
         if (estudiante.escuela_id !== aula.escuela_id) {
             throw new Error("El estudiante y el aula deben pertenecer a la misma escuela.");
         }
 
-        // Para roles que no sean PADI, verificar permisos sobre la escuela
         if (user.rol === "director") {
             const director = await prismaAny.usuarioPerfil.findUnique({
                 where: { id: user.id },
@@ -164,7 +194,6 @@ export class EstudiantesService {
         }
         // PADI puede asignar en cualquier escuela
 
-        // Verificar si ya existe una asignación activa
         const asignacionExistente = await prismaAny.estudiantesAulas.findFirst({
             where: {
                 estudiante_id: estudianteId,
@@ -177,7 +206,6 @@ export class EstudiantesService {
             throw new Error("El estudiante ya está asignado a esta aula.");
         }
 
-        // Crear la asignación
         return await prismaAny.estudiantesAulas.create({
             data: {
                 estudiante_id: estudianteId,
@@ -188,7 +216,6 @@ export class EstudiantesService {
     }
 
     async desasignarEstudianteAula(estudianteId: string, aulaId: string, actor: { id: string; rol: string }) {
-        // Validar permisos para desasignar estudiantes de aulas
         if (actor.rol !== "director" && actor.rol !== "encargado_zona" && actor.rol !== "equipo_padi") {
             throw new Error("No tienes permisos para desasignar estudiantes de aulas.");
         }
@@ -197,7 +224,6 @@ export class EstudiantesService {
         if (!prisma) throw new Error("DB not available");
         const prismaAny = prisma as any;
 
-        // Buscar la asignación activa
         const asignacion = await prismaAny.estudiantesAulas.findFirst({
             where: {
                 estudiante_id: estudianteId,
@@ -213,7 +239,6 @@ export class EstudiantesService {
             throw new Error("No se encontró una asignación activa para este estudiante en esta aula.");
         }
 
-        // Verificar permisos sobre la escuela
         if (actor.rol === "director") {
             const director = await prismaAny.usuarioPerfil.findUnique({
                 where: { id: actor.id },
@@ -240,16 +265,14 @@ export class EstudiantesService {
                 throw new Error("No tienes permisos para gestionar esta escuela.");
             }
         }
-        // PADI puede desasignar en cualquier escuela
 
-        // Marcar la asignación como terminada
-        return await prismaAny.estudiantesAulas.update({
-            where: { id: asignacion.id },
+        return await prismaAny.estudiantesAulas.updateMany({
+            where: {
+                estudiante_id: estudianteId,
+                aula_id: aulaId,
+                fecha_fin: null
+            },
             data: { fecha_fin: new Date() }
         });
-    }
-
-    async update(id: string, data: Partial<CreateEstudianteData>) {
-        return await this.repo.update(id, data);
     }
 }

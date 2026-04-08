@@ -1,4 +1,4 @@
-import type { Request, Response } from "express";
+import type { Response } from "express";
 import { EncargadosService } from "../services/encargado-zona.service";
 import { commonResponse } from "../interfaces/common-response.interface";
 import { AuthenticatedRequest } from "../middlewares/auth.middleware";
@@ -42,19 +42,21 @@ export async function createEncargado(req: AuthenticatedRequest, res: Response) 
     }
 }
 
-export async function updateEncargado(req: Request, res: Response) {
+export async function updateEncargado(req: AuthenticatedRequest, res: Response) {
     try {
         const { id } = req.params;
         const { nombre, apellido, email, zona_id } = req.body;
+        const user = { id: req.user!.id, rol: req.user!.rol };
 
         if (!id || !nombre || !apellido || !zona_id) {
             return res.status(400).json(commonResponse(false, "Faltan datos obligatorios para actualizar", null));
         }
 
-        const result = await service.update(id, { nombre, apellido, email, zona_id });
+        const result = await service.update(id, { nombre, apellido, email, zona_id }, user);
         res.status(200).json(commonResponse(true, "Encargado actualizado con éxito", result));
     } catch (error: any) {
-        res.status(400).json(commonResponse(false, error.message, null));
+        const statusCode = error.message.includes("permisos") ? 403 : 400;
+        res.status(statusCode).json(commonResponse(false, error.message, null));
     }
 }
 
@@ -76,18 +78,19 @@ export async function getCurrentEncargado(req: AuthenticatedRequest, res: Respon
     }
 }
 
-export async function deleteEncargado(req: Request, res: Response) {
+export async function deleteEncargado(req: AuthenticatedRequest, res: Response) {
     try {
         const { id } = req.params;
+        const user = { id: req.user!.id, rol: req.user!.rol };
 
         if (!id) {
             return res.status(400).json(commonResponse(false, "ID de encargado no proporcionado", null));
         }
 
-        await service.delete(id);
+        await service.delete(id, user);
         res.status(200).json(commonResponse(true, "Encargado eliminado con éxito", null));
     } catch (error: any) {
-        const message = error?.message || "Error al eliminar encargado";
-        res.status(400).json(commonResponse(false, message, null, { code: "DELETE_ERROR", description: message }));
+        const statusCode = error.message.includes("permisos") ? 403 : 400;
+        res.status(statusCode).json(commonResponse(false, error.message, null));
     }
 }

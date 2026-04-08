@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { AuthService } from "../services/auth.service";
+import { AuthenticatedRequest } from "../middlewares/auth.middleware";
 
 export class AuthController {
   static async login(req: Request, res: Response) {
@@ -39,12 +40,14 @@ export class AuthController {
     }
   }
 
-  static async updateProfile(req: Request, res: Response) {
+  static async updateProfile(req: AuthenticatedRequest, res: Response) {
     try {
-      const { userId, nombre, apellido } = req.body;
+      // Siempre usamos el ID del token — nunca del body (evita modificar perfiles ajenos)
+      const userId = req.user!.id;
+      const { nombre, apellido } = req.body;
 
-      if (!userId || !nombre || !apellido) {
-        throw new Error("Faltan datos obligatorios para actualizar el perfil.");
+      if (!nombre || !apellido) {
+        throw new Error("Nombre y apellido son obligatorios.");
       }
 
       const updatedProfile = await AuthService.updateProfile(userId, nombre, apellido);

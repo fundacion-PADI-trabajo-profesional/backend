@@ -63,12 +63,16 @@ export async function listEstudiantes(req: AuthenticatedRequest, res: Response) 
         }
         let data;
 
-        // Si es docente o director, filtramos obligatoriamente por su escuela asignada
-        if ((user.rol === "docente" || user.rol === "director") && escuela_id) {
-
+        // Para directores: siempre se fuerza la escuela del token — nunca del query param
+        if (user.rol === "director") {
+            const escuelaIdFromToken = req.user!.escuela_id;
+            if (!escuelaIdFromToken) {
+                return res.status(400).json(commonResponse(false, "Usted no tiene una escuela asignada.", null, { code: "VALIDATION_ERROR" }));
+            }
+            data = await service.listByEscuela(escuelaIdFromToken, user);
+        } else if (user.rol === "docente" && escuela_id) {
             data = await service.listByEscuela(String(escuela_id), user);
-        } else if ((user.rol === "docente" || user.rol === "director") && !escuela_id) {
-            // Si no se proporciona escuela_id, se puede manejar el caso como se desee
+        } else if (user.rol === "docente" && !escuela_id) {
             return res.status(400).json(commonResponse(false, "Usted no tiene una escuela asignada.", null, { code: "VALIDATION_ERROR" }));
         } else {
             // Usuarios admin (PADI/Encargados) siguen viendo todo el listado
@@ -179,6 +183,7 @@ export async function updateEstudiante(req: AuthenticatedRequest, res: Response)
     try {
         const { id } = req.params;
         const { dni, nombre, apellido, fecha_nacimiento, genero_id, sala_id, escuela_id, aula_id } = req.body;
+        const user = { id: req.user!.id, rol: req.user!.rol, escuela_id: req.user!.escuela_id };
 
         if (!id) {
             return res.status(400).json(commonResponse(false, "Falta el ID del estudiante", null, { code: "VALIDATION_ERROR" }));
@@ -193,13 +198,14 @@ export async function updateEstudiante(req: AuthenticatedRequest, res: Response)
             sala_id: sala_id ? Number(sala_id) : undefined,
             escuela_id,
             aula_id,
-        });
+        }, user);
 
         res.status(200).json(commonResponse(true, "Estudiante actualizado con éxito", data));
     } catch (error: any) {
         const message = error.message || "Error interno al actualizar estudiante";
         console.error("[updateEstudiante] Error:", error);
-        res.status(400).json(commonResponse(false, message, null, { code: "INTERNAL_ERROR", description: message }));
+        const statusCode = message.includes("permisos") ? 403 : 400;
+        res.status(statusCode).json(commonResponse(false, message, null, { code: "INTERNAL_ERROR", description: message }));
     }
 }
 
@@ -213,15 +219,16 @@ export async function bulkCreateEstudiantes(req: AuthenticatedRequest, res: Resp
 
 
         console.log("=== BULK BODY ===", JSON.stringify(req.body, null, 2));
-        console.log("=== PRIMER ESTUDIANTE ===", JSON.stringify(estudiantes?.[0], null, 2));
 
-        if (!Array.isArray(estudiantes) || estudiantes.length === 0) {
-            throw new Error("No se proporcionaron datos de estudiantes");
+        if (!estudiantes || !Array.isArray(estudiantes) || estudiantes.length === 0) {
+            return res.status(400).json(commonResponse(false, "Se requiere un array de estudiantes", null));
         }
 
         const data = await service.createBulk(estudiantes, { escuela_id, aula_id }, user);
-        res.status(201).json(commonResponse(true, `${data.length} estudiantes creados`, data));
+        res.status(201).json(commonResponse(true, "Estudiantes creados con éxito", data));
     } catch (error: any) {
-        res.status(400).json(commonResponse(false, error.message, null));
+        const message = error.message || "Error interno al crear estudiantes en masa";
+        console.error("[bulkCreateEstudiantes] Error:", error);
+        res.status(400).json(commonResponse(false, message, null, { code: "BULK_ERROR", description: message }));
     }
 }
