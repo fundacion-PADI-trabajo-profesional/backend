@@ -1,6 +1,6 @@
 import { getSupabase } from "../config/supabaseClient";
 
-const ROLES_VALIDOS = ["equipo_padi", "directivo", "encargado_zona", "docente"] as const;
+const ROLES_VALIDOS = ["equipo_padi", "director", "encargado_zona", "docente"] as const;
 type RolValido = typeof ROLES_VALIDOS[number];
 
 export interface CreateUserData {
