@@ -155,6 +155,7 @@ export const EstudianteRepository = {
                         nombre: true,
                         primer_apellido: true,
                         dni: true,
+                        fecha_nacimiento: true,
                     },
                 },
                 salas: {
@@ -264,7 +265,7 @@ export const EstudianteRepository = {
             where: { escuela_id: escuelaId }, 
             include: {
                 personas: {
-                    select: { nombre: true, primer_apellido: true, dni: true },
+                    select: { nombre: true, primer_apellido: true, dni: true, fecha_nacimiento: true },
                 },
                 salas: {
                     select: { nombre: true, grado: true },
@@ -345,7 +346,9 @@ export const EstudianteRepository = {
                     ...(data.dni && { dni: data.dni }),
                     ...(data.nombre && { nombre: data.nombre }),
                     ...(data.apellido && { primer_apellido: data.apellido }),
-                    ...(data.fecha_nacimiento && { fecha_nacimiento: new Date(data.fecha_nacimiento) }),
+                    ...(data.fecha_nacimiento != null && data.fecha_nacimiento !== ""
+                        ? { fecha_nacimiento: new Date(data.fecha_nacimiento) }
+                        : {}),
                 },
             });
 
@@ -374,6 +377,26 @@ export const EstudianteRepository = {
                     escuela: true,
                 },
             });
+
+            if (data.aula_id) {
+                await tx.estudiantesAulas.updateMany({
+                    where: {
+                        estudiante_id: id,
+                        fecha_fin: null,
+                    },
+                    data: {
+                        fecha_fin: new Date(),
+                    },
+                });
+
+                await tx.estudiantesAulas.create({
+                    data: {
+                        estudiante_id: id,
+                        aula_id: data.aula_id,
+                        fecha_inicio: new Date(),
+                    },
+                });
+            }
 
             return actualizado;
         });
