@@ -127,20 +127,85 @@ export class AdminService {
   }
 
   /**
-   * Lista todos los usuarios del sistema (solo para equipo_padi).
+   * Lista todos los usuarios del sistema con su estado de activación.
+   * Cruza la tabla 'usuarios' con los metadatos de Auth para determinar si cada
+   * usuario ya inició sesión (activo) o solo recibió la invitación (pendiente).
    */
   static async listUsers(): Promise<any[]> {
     const supabase = getSupabase();
     if (!supabase) throw new Error("Supabase client no disponible.");
 
-    const { data, error } = await (supabase as any)
+    // 1. Obtener todos los usuarios de Auth (con last_sign_in_at)
+    const { data: authData, error: authError } = await supabase.auth.admin.listUsers({
+      page: 1,
+      perPage: 1000,
+    });
+
+    if (authError) throw new Error(`Error al listar usuarios de Auth: ${authError.message}`);
+
+    const authMap = new Map(authData.users.map((u) => [u.id, u]));
+
+    // 2. Obtener los perfiles de la tabla 'usuarios'
+    const { data: profiles, error: profileError } = await (supabase as any)
       .from("usuarios")
       .select("id, email, nombre, apellido, rol, createdAt")
       .order("createdAt", { ascending: false });
 
-    if (error) throw new Error(`Error al obtener usuarios: ${error.message}`);
+    if (profileError) throw new Error(`Error al obtener perfiles: ${profileError.message}`);
 
-    return data || [];
+    // 3. Enriquecer cada perfil con el estado de activación
+    return (profiles || []).map((p: any) => {
+      const authUser = authMap.get(p.id);
+      return {
+        ...p,
+        estado: authUser?.last_sign_in_at ? "activo" : "pendiente",
+      };
+    });
+  }
+
+  /**
+   * Reenvía el email de invitación a un usuario que aún no activó su cuenta.
+   */
+  static async resendInvite(userId: string): Promise<void> {
+    const supabase = getSupabase();
+    if (!supabase) throw new Error("Supabase client no disponible.");
+
+    // Obtener el perfil del usuario
+    const { data: profile, error: profileError } = await (supabase as any)
+      .from("usuarios")
+      .select("email, nombre, apellido, rol")
+      .eq("id", userId)
+      .single();
+
+    if (profileError || !profile) {
+      throw new Error("Usuario no encontrado.");
+    }
+
+    // Verificar que el usuario esté realmente en estado pendiente
+    const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(userId);
+    if (authError || !authUser.user) {
+      throw new Error("Usuario de Auth no encontrado.");
+    }
+    if (authUser.user.last_sign_in_at) {
+      throw new Error("El usuario ya activó su cuenta. No es necesario reenviar la invitación.");
+    }
+
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    const redirectTo = `${frontendUrl}/cambiar-contrasena-temporal`;
+
+    // Re-invitar: Supabase reenvía el email si el usuario aún no confirmó
+    const { error: inviteError } = await supabase.auth.admin.inviteUserByEmail(profile.email, {
+      redirectTo,
+      data: {
+        nombre: profile.nombre,
+        apellido: profile.apellido,
+        rol: profile.rol,
+      },
+    });
+
+    if (inviteError) {
+      throw new Error(`Error al reenviar invitación: ${inviteError.message}`);
+    }
   }
 
   /**

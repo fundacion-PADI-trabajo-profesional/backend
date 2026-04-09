@@ -75,6 +75,27 @@ export class AdminController {
   }
 
   /**
+   * Reenvía el email de invitación a un usuario pendiente.
+   * POST /admin/users/:id/resend-invite
+   */
+  static async resendInvite(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { id } = req.params;
+
+      if (!id) {
+        return res.status(400).json({ message: "Se requiere el ID del usuario." });
+      }
+
+      await AdminService.resendInvite(id);
+
+      return res.status(200).json({ message: "Invitación reenviada exitosamente." });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return res.status(400).json({ message });
+    }
+  }
+
+  /**
    * Elimina un usuario.
    * DELETE /admin/users/:id
    */

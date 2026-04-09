@@ -15,6 +15,7 @@ export function createAdminRouter() {
   router.get("/admin/users", AdminController.listUsers as any);
   router.post("/admin/users", AdminController.createUser as any);
   router.post("/admin/users/bulk", AdminController.createUsersBulk as any);
+  router.post("/admin/users/:id/resend-invite", AdminController.resendInvite as any);
   router.delete("/admin/users/:id", AdminController.deleteUser as any);
 
   return router;
