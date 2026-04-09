@@ -3,6 +3,7 @@ import request from "supertest";
 import { createApp } from "../src/server";
 import * as supabaseClient from "../src/config/supabaseClient";
 import * as prismaClient from "../src/config/prismaClient";
+import { HealthService } from "../src/services/health.service";
 
 const app = createApp();
 
@@ -55,6 +56,7 @@ function mockAuthenticatedUser(
 
 describe("integración: rutas públicas NO requieren token", () => {
     it("GET /health responde sin token", async () => {
+        vi.spyOn(HealthService.prototype, "getHealth").mockResolvedValue(undefined as any);
         const res = await request(app).get("/health");
         expect(res.status).toBe(200);
     });

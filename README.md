@@ -108,4 +108,16 @@ cd backend/functions
 npm install
 npm run prisma:gen
 npm run build
+```
+
+# Testing
 ```bash
+cd backend/functions
+npm install
+
+# Para correr la suite de tests completa:
+npm run test
+
+# Para correr la suite de test con un analisis de cobertura:
+npm run test:coverage
+```

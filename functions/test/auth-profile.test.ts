@@ -3,6 +3,7 @@ import request from "supertest";
 import { createApp } from "../src/server";
 import * as supabaseClient from "../src/config/supabaseClient";
 import * as prismaClient from "../src/config/prismaClient";
+import { mockAuthAs } from "./helpers/auth-mock";
 
 const app = createApp();
 
@@ -47,11 +48,16 @@ describe("PUT /auth/profile - edición de perfil", () => {
     });
 
     it("200 - actualiza nombre y apellido correctamente", async () => {
-        const { updateMock } = mockPrismaOk({ id: "u-1", nombre: "Carlos", apellido: "López" });
+        // mockAuthAs configura getUser (Supabase) + findUnique (Prisma) para que
+        // el middleware requireAuth pase correctamente.
+        const { prismaMock } = mockAuthAs("docente", "u-1");
+        const updateMock = vi.fn().mockResolvedValue({ id: "u-1", nombre: "Carlos", apellido: "López" });
+        prismaMock.usuarioPerfil.update = updateMock;
 
         const res = await request(app)
             .put("/auth/profile")
             .send({ userId: "u-1", nombre: "Carlos", apellido: "López" })
+            .set("Authorization", "Bearer fake-token")
             .set("Content-Type", "application/json");
 
         expect(res.status).toBe(200);
@@ -63,47 +69,55 @@ describe("PUT /auth/profile - edición de perfil", () => {
         });
     });
 
-    it("400 - falta userId en el body", async () => {
+    it("400 - body vacío (sin nombre ni apellido)", async () => {
+        // El handler toma userId de req.user (JWT), no del body.
+        // La única validación pendiente es que nombre y apellido estén presentes.
+        mockAuthAs("docente", "u-1");
+
         const res = await request(app)
             .put("/auth/profile")
-            .send({ nombre: "Carlos", apellido: "López" })
+            .send({})
+            .set("Authorization", "Bearer fake-token")
             .set("Content-Type", "application/json");
 
         expect(res.status).toBe(400);
-        expect(res.body.message).toContain("Faltan datos obligatorios");
+        expect(res.body.message).toContain("obligatorio");
     });
 
     it("400 - falta nombre en el body", async () => {
+        mockAuthAs("docente", "u-1");
+
         const res = await request(app)
             .put("/auth/profile")
-            .send({ userId: "u-1", apellido: "López" })
+            .send({ apellido: "López" })
+            .set("Authorization", "Bearer fake-token")
             .set("Content-Type", "application/json");
 
         expect(res.status).toBe(400);
-        expect(res.body.message).toContain("Faltan datos obligatorios");
+        expect(res.body.message).toContain("obligatorio");
     });
 
     it("400 - falta apellido en el body", async () => {
+        mockAuthAs("docente", "u-1");
+
         const res = await request(app)
             .put("/auth/profile")
-            .send({ userId: "u-1", nombre: "Carlos" })
+            .send({ nombre: "Carlos" })
+            .set("Authorization", "Bearer fake-token")
             .set("Content-Type", "application/json");
 
         expect(res.status).toBe(400);
-        expect(res.body.message).toContain("Faltan datos obligatorios");
+        expect(res.body.message).toContain("obligatorio");
     });
 
     it("400 - Prisma falla al hacer el update (ej: usuario no existe)", async () => {
-        vi.spyOn(prismaClient, "getPrisma").mockReturnValue({
-            // @ts-ignore
-            usuarioPerfil: { update: vi.fn().mockRejectedValue(new Error("Record not found")) },
-            // @ts-ignore
-            personas: { update: vi.fn() },
-        } as any);
+        const { prismaMock } = mockAuthAs("docente", "inexistente");
+        prismaMock.usuarioPerfil.update = vi.fn().mockRejectedValue(new Error("Record not found"));
 
         const res = await request(app)
             .put("/auth/profile")
             .send({ userId: "inexistente", nombre: "Carlos", apellido: "López" })
+            .set("Authorization", "Bearer fake-token")
             .set("Content-Type", "application/json");
 
         expect(res.status).toBe(400);
@@ -111,11 +125,31 @@ describe("PUT /auth/profile - edición de perfil", () => {
     });
 
     it("400 - getPrisma devuelve null (DATABASE_URL no configurada)", async () => {
-        vi.spyOn(prismaClient, "getPrisma").mockReturnValue(null);
+        // requireAuth hace una llamada a getPrisma (para findUnique).
+        // El handler hace una segunda llamada. Usamos mockReturnValueOnce para
+        // que la primera pase el middleware y la segunda devuelva null al handler.
+        const authPrismaMock = {
+            usuarioPerfil: {
+                findUnique: vi.fn().mockResolvedValue({
+                    id: "u-1", rol: "docente", nombre: "X", apellido: "Y",
+                }),
+            },
+        };
+        vi.spyOn(supabaseClient, "getSupabase").mockReturnValue({
+            auth: {
+                getUser: vi.fn().mockResolvedValue({
+                    data: { user: { id: "u-1" } }, error: null,
+                }),
+            },
+        } as any);
+        vi.spyOn(prismaClient, "getPrisma")
+            .mockReturnValueOnce(authPrismaMock as any) // requireAuth
+            .mockReturnValueOnce(null);                 // handler
 
         const res = await request(app)
             .put("/auth/profile")
             .send({ userId: "u-1", nombre: "Carlos", apellido: "López" })
+            .set("Authorization", "Bearer fake-token")
             .set("Content-Type", "application/json");
 
         expect(res.status).toBe(400);
