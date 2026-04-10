@@ -22,6 +22,12 @@ function mockSupabaseResetOk() {
     const resetMock = vi.fn().mockResolvedValue({ error: null });
     vi.spyOn(supabaseClient, "getSupabase").mockReturnValue({
         auth: { resetPasswordForEmail: resetMock },
+        // sendPasswordResetEmail ahora verifica si el email existe antes de llamar a Auth
+        from: vi.fn().mockReturnValue({
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: { id: "u-1" }, error: null }),
+        }),
     } as any);
     return { resetMock };
 }
@@ -197,6 +203,12 @@ describe("POST /auth/reset-password-request - solicitud de cambio de contraseña
                     error: { code: "over_email_send_rate_limit" },
                 }),
             },
+            // El servicio verifica primero si el email existe antes de llamar a Auth
+            from: vi.fn().mockReturnValue({
+                select: vi.fn().mockReturnThis(),
+                eq: vi.fn().mockReturnThis(),
+                maybeSingle: vi.fn().mockResolvedValue({ data: { id: "u-1" }, error: null }),
+            }),
         } as any);
 
         const res = await request(app)
