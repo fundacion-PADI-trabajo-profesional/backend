@@ -231,14 +231,26 @@ export class AuthService {
 
   /**
    * Envía un correo con el link seguro para cambiar la contraseña.
+   * Verifica primero que el email esté registrado en el sistema.
    */
   static async sendPasswordResetEmail(email: string) {
     const supabase = getSupabase();
     if (!supabase) throw new Error("Supabase client no está disponible.");
 
+    // Verificar si el email existe en la tabla de usuarios de la aplicación
+    const { data: existingUser } = await (supabase as any)
+      .from("usuarios")
+      .select("id")
+      .eq("email", email)
+      .maybeSingle();
+
+    if (!existingUser) {
+      throw new Error("EMAIL_NOT_REGISTERED");
+    }
+
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      // URL del frontend a la que Supabase va a mandar al usuario - TO DO MODIFICARLA CUANDO MANDE A PROD
-      redirectTo: 'http://localhost:5173/actualizar-password',
+      redirectTo: `${frontendUrl}/actualizar-password`,
     });
 
     if (error) throw new Error(traducirErrorAuth(error));
