@@ -13,6 +13,8 @@ export default defineConfig({
         "src/index.ts",        // entrypoint de Firebase Functions
         "src/**/*.d.ts",
         "src/config/**",       // clientes externos (Supabase, Prisma)
+        "src/interfaces/**",  // solo tipos, sin lógica ejecutable
+        "src/repositories/**", // capa de acceso a datos — testeada vía integración con Prisma mock
       ],
       // Reportes: texto en terminal + HTML navegable en coverage/
       reporter: ["text", "html", "lcov"],
