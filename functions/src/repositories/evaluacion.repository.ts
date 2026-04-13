@@ -105,6 +105,7 @@ export const EvaluacionRepository = {
     tipoId?: string;
     estadoId?: string;
     escuelaId?: string;
+    escuelaIds?: string[]; 
   }) {
     const prisma = getPrisma();
     const txAny = prisma as any;
@@ -117,7 +118,9 @@ export const EvaluacionRepository = {
     if (filters?.estadoId) where.estado_id = filters.estadoId;
     if (filters?.escuelaId) {
       where.estudiantes = { escuela_id: filters.escuelaId };
-    }
+    } else if (filters?.escuelaIds && filters.escuelaIds.length > 0) {   
+      where.estudiantes = { escuela_id: { in: filters.escuelaIds } };    
+    } 
 
     return await txAny.evaluacionEstudiante.findMany({
       where,

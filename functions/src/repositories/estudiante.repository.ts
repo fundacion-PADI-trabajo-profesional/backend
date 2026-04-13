@@ -324,6 +324,74 @@ export const EstudianteRepository = {
         }))
     },
 
+    async listByEscuelas(escuelaId: string) {
+        const prisma = getPrisma();
+        if (!prisma) throw new Error("DB not available");
+
+        const txAny = prisma as any;
+        const estudiantes = await txAny.estudiantes.findMany({
+            where: { escuela_id: { in: escuelaId } }, 
+            include: {
+                personas: {
+                    select: { nombre: true, primer_apellido: true, dni: true, fecha_nacimiento: true },
+                },
+                salas: {
+                    select: { nombre: true, grado: true },
+                },
+                escuela: {
+                    select: { nombre: true }
+                },
+                generos: { select: { descripcion: true } },
+            },
+        });
+
+        const estudianteIds = estudiantes.map((e: any) => e.id)
+        if (estudianteIds.length === 0) return estudiantes
+        const resumenPorEstudiante = await getEvaluacionesResumenPorEstudiantes(txAny, estudianteIds)
+
+        const asignacionesActivas = await txAny.estudiantesAulas.findMany({
+            where: {
+                estudiante_id: { in: estudianteIds },
+                fecha_fin: null,
+            },
+            include: {
+                aula: {
+                    select: {
+                        id: true,
+                        comision: true,
+                        turno: true,
+                        sala_id: true,
+                        sala: {
+                            select: {
+                                id: true,
+                                nombre: true,
+                                grado: true,
+                            },
+                        },
+                    },
+                },
+            },
+            orderBy: { fecha_inicio: "desc" },
+        })
+
+        const aulaActivaPorEstudiante = new Map<string, any>()
+        for (const asignacion of asignacionesActivas) {
+            if (!aulaActivaPorEstudiante.has(asignacion.estudiante_id)) {
+                aulaActivaPorEstudiante.set(asignacion.estudiante_id, asignacion.aula)
+            }
+        }
+
+        return estudiantes.map((est: any) => ({
+            ...est,
+            escuela: {
+                escuela_id: est.escuela_id,
+                nombre: est.escuela?.nombre ?? null,
+            },
+            aula_asignada: aulaActivaPorEstudiante.get(est.id) ?? null,
+            evaluaciones_resumen: resumenPorEstudiante.get(est.id) ?? { inicial: null, cierre: null },
+        }))
+    },
+
     async update(id: string, data: Partial<CreateEstudianteData>) {
         const prisma = getPrisma();
         if (!prisma) throw new Error("DB not available");

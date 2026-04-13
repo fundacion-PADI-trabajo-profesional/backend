@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { EvaluacionService } from "../services/evaluaciones.service";
 import { commonResponse } from "../interfaces/common-response.interface";
 import { AuthenticatedRequest } from "../middlewares/auth.middleware";
+import { getPrisma } from "../config/prismaClient";
 
 const service = new EvaluacionService();
 
@@ -43,6 +44,30 @@ export async function getEvaluaciones(req: AuthenticatedRequest, res: Response) 
       filters.escuelaId = escuelaDirector;
     }
 
+    if (rol === "encargado_zona") {
+      const prisma = getPrisma();                           
+      if (!prisma) throw new Error("DB not available");    
+      const prismaAny = prisma as any;                     
+
+      const encargado = await prismaAny.encargados.findUnique({    
+          where: { usuario_id: userId },                           
+          include: { zona: { include: { escuelas: { select: { id: true } } } } }  
+      });                                                          
+      const escuelasDeZona: string[] = encargado?.zona?.escuelas.map((e: any) => e.id) ?? [];  
+
+      // Si vino un escuela_id del query, validar que pertenezca a su zona
+      if (filters.escuelaId) {                                                        
+          if (!escuelasDeZona.includes(filters.escuelaId)) {                          
+              return res.status(403).json(commonResponse(false,                       
+                  "No tienes permisos para ver evaluaciones de esa escuela.", null)); 
+          }                                                                           
+          // filters.escuelaId ya está seteado, no hace falta cambiar nada            
+      } else {                                                                        
+          // Sin filtro de escuela: restringir a todas las escuelas de la zona        
+          (filters as any).escuelaIds = escuelasDeZona;                               
+      }                                                                               
+  }
+
     // Docente puede listar por profesorId (mis evaluaciones) o por escuela.
     if (rol === "docente" && !filters.escuelaId && !filters.profesorId) {
       return res
@@ -72,6 +97,22 @@ export async function getEvaluacionById(req: AuthenticatedRequest, res: Response
         return res.status(403).json(commonResponse(false, "No tienes permisos para ver esta evaluación.", null));
       }
     }
+    // Encargado de Zona: solo puede ver evaluaciones de escuelas de su zona  
+    if (rol === "encargado_zona") {                                            
+      const escuelaEvaluacion = (data as any).estudiantes?.escuela_id;        
+      if (escuelaEvaluacion) {                                                 
+        const prisma = getPrisma();                                            
+        if (!prisma) throw new Error("DB not available");                     
+        const encargado = await (prisma as any).encargados.findUnique({       
+          where: { usuario_id: userId },                                      
+          include: { zona: { include: { escuelas: { select: { id: true } } } } }  
+        });                                                                    
+        const escuelasDeZona: string[] = encargado?.zona?.escuelas.map((e: any) => e.id) ?? [];  
+        if (!escuelasDeZona.includes(escuelaEvaluacion)) {                    
+          return res.status(403).json(commonResponse(false, "No tienes permisos para ver esta evaluación.", null));  
+        }                                                                      
+      }                                                                        
+    }    
 
     res.status(200).json(commonResponse(true, "ok", data));
   } catch (error: any) {

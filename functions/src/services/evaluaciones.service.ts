@@ -92,6 +92,7 @@ export class EvaluacionService {
     tipoId?: string;
     estadoId?: string;
     escuelaId?: string;
+    escuelaIds?: string[];
   }) {
     return await this.repo.listWithFilters(filters);
   }

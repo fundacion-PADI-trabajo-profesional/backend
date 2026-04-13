@@ -63,10 +63,22 @@ export class EstudiantesService {
     }
 
     async list(user: { id: string; rol: string }) {
-        if (user.rol === "docente" || user.rol === "director" || user.rol === "encargado_zona" || user.rol === "equipo_padi") {
+        if (user.rol === "docente" || user.rol === "director" || user.rol === "equipo_padi") {
             return await this.repo.list()
         }
+        if (user.rol === "encargado_zona") {
+            const prisma = getPrisma();
+            if (!prisma) throw new Error("DB not available");
+            const prismaAny = prisma as any;
 
+            const encargado = await prismaAny.encargados.findUnique({
+                where: { usuario_id: user.id },
+                include: { zona: { include: { escuelas: { select: { id: true } } } } }
+            });
+            const escuelaIds = encargado?.zona?.escuelas.map((e: any) => e.id) ?? [];
+            return await this.repo.listByEscuelas(escuelaIds);
+        }
+        
         throw new Error("No tienes permisos para ver el listado completo de estudiantes. Filtra por escuela.");
     }
 
