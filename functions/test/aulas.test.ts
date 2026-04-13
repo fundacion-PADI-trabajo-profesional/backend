@@ -275,3 +275,131 @@ it("POST /aulas/:id/desasignar-estudiante allows equipo_padi", async () => {
   expect(res.body).toMatchObject({ success: true });
   expect(prismaMock.estudiantesAulas.update).toHaveBeenCalled();
 });
+
+describe("aulas - error and validation branches", () => {
+  it("POST /aulas/:id/asignar-estudiante returns 400 when estudiante_id is missing", async () => {
+    mockAuthAs("equipo_padi");
+    const res = await request(app)
+      .post("/aulas/a-1/asignar-estudiante")
+      .set("Authorization", "Bearer fake-token")
+      .send({}); // missing estudiante_id
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /aulas/:id/desasignar-estudiante returns 400 when estudiante_id is missing", async () => {
+    mockAuthAs("equipo_padi");
+    const res = await request(app)
+      .post("/aulas/a-1/desasignar-estudiante")
+      .set("Authorization", "Bearer fake-token")
+      .send({});
+    expect(res.status).toBe(400);
+  });
+
+  it("GET /docentes/aulas returns 400 when service throws", async () => {
+    const { prismaMock } = mockAuthAs("docente");
+    prismaMock.profesoresAulas = {
+      findMany: vi.fn().mockRejectedValue(new Error("DB error")),
+    };
+    const res = await request(app)
+      .get("/docentes/aulas")
+      .set("Authorization", "Bearer fake-token");
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /aulas/:id/asignar-estudiante returns 400 when service throws", async () => {
+    const { prismaMock } = mockAuthAs("equipo_padi");
+    prismaMock.aulas = { findUnique: vi.fn().mockResolvedValue(null) }; // causes service to throw
+    const res = await request(app)
+      .post("/aulas/a-1/asignar-estudiante")
+      .set("Authorization", "Bearer fake-token")
+      .send({ estudiante_id: "s-1" });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /aulas/:id/desasignar-estudiante returns 400 when service throws", async () => {
+    const { prismaMock } = mockAuthAs("equipo_padi");
+    prismaMock.aulas = { findUnique: vi.fn().mockResolvedValue(null) };
+    const res = await request(app)
+      .post("/aulas/a-1/desasignar-estudiante")
+      .set("Authorization", "Bearer fake-token")
+      .send({ estudiante_id: "s-1" });
+    expect(res.status).toBe(400);
+  });
+
+  it("GET /aulas/:id/estudiantes returns 400 when service throws", async () => {
+    const { prismaMock } = mockAuthAs("director", "dir-1", { escuela_id: "esc-1" });
+    prismaMock.aulas = { findUnique: vi.fn().mockResolvedValue(null) }; // causes service to throw
+    const res = await request(app)
+      .get("/aulas/a-1/estudiantes")
+      .set("Authorization", "Bearer fake-token");
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("aulas - listDocentes and desasignarDocente", () => {
+  it("GET /aulas/:id/docentes returns 200 with docentes list", async () => {
+    const { prismaMock } = mockAuthAs("equipo_padi");
+    prismaMock.aulas = { findUnique: vi.fn().mockResolvedValue({ id: "a-1", escuela_id: "esc-1" }) };
+    prismaMock.profesoresAulas = { findMany: vi.fn().mockResolvedValue([]) };
+    const res = await request(app)
+      .get("/aulas/a-1/docentes")
+      .set("Authorization", "Bearer fake-token");
+    expect(res.status).toBe(200);
+  });
+
+  it("GET /aulas/:id/docentes returns 500 when service throws", async () => {
+    const { prismaMock } = mockAuthAs("equipo_padi");
+    prismaMock.aulas = { findUnique: vi.fn().mockRejectedValue(new Error("DB error")) };
+    const res = await request(app)
+      .get("/aulas/a-1/docentes")
+      .set("Authorization", "Bearer fake-token");
+    expect(res.status).toBe(500);
+  });
+
+  it("POST /aulas/:id/asignar-docente returns 400 when profesor_id is missing", async () => {
+    mockAuthAs("equipo_padi");
+    const res = await request(app)
+      .post("/aulas/a-1/asignar-docente")
+      .set("Authorization", "Bearer fake-token")
+      .send({}); // missing profesor_id
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /aulas/:id/asignar-docente returns 400 when service throws", async () => {
+    const { prismaMock } = mockAuthAs("equipo_padi");
+    prismaMock.aulas = { findUnique: vi.fn().mockResolvedValue(null) };
+    const res = await request(app)
+      .post("/aulas/a-1/asignar-docente")
+      .set("Authorization", "Bearer fake-token")
+      .send({ profesor_id: "prof-1" });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /aulas/:id/desasignar-docente returns 400 when profesor_id is missing", async () => {
+    mockAuthAs("equipo_padi");
+    const res = await request(app)
+      .post("/aulas/a-1/desasignar-docente")
+      .set("Authorization", "Bearer fake-token")
+      .send({});
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /aulas/:id/desasignar-docente returns 400 when service throws", async () => {
+    const { prismaMock } = mockAuthAs("equipo_padi");
+    prismaMock.aulas = { findUnique: vi.fn().mockResolvedValue(null) };
+    const res = await request(app)
+      .post("/aulas/a-1/desasignar-docente")
+      .set("Authorization", "Bearer fake-token")
+      .send({ profesor_id: "prof-1" });
+    expect(res.status).toBe(400);
+  });
+
+  it("DELETE /aulas/:id returns 400 when service throws", async () => {
+    const { prismaMock } = mockAuthAs("equipo_padi");
+    prismaMock.aulas = { findUnique: vi.fn().mockResolvedValue(null) };
+    const res = await request(app)
+      .delete("/aulas/a-1")
+      .set("Authorization", "Bearer fake-token");
+    expect(res.status).toBe(400);
+  });
+});
