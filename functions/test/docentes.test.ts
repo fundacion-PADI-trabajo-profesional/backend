@@ -113,4 +113,34 @@ describe("docentes endpoints", () => {
   });
 });
 
+describe("docentes - error branches", () => {
+  it("GET /docentes returns 403 when service throws", async () => {
+    const { prismaMock } = mockAuthAs("docente");
+    // docente role causes service to throw "No tienes permisos para listar docentes"
+    const res = await request(app)
+      .get("/docentes")
+      .set("Authorization", "Bearer fake-token");
+    expect(res.status).toBe(403);
+  });
 
+  it("POST /docentes/:id/asignar-escuela returns 400 when service throws", async () => {
+    const { prismaMock } = mockAuthAs("equipo_padi");
+    prismaMock.profesores = { findUnique: vi.fn().mockResolvedValue(null) };
+    prismaMock.escuelas = { findUnique: vi.fn().mockResolvedValue(null) };
+    const res = await request(app)
+      .post("/docentes/doc-1/asignar-escuela")
+      .set("Authorization", "Bearer fake-token")
+      .send({ escuela_id: "esc-x" });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /docentes/:id/desasignar-escuela returns 400 when service throws", async () => {
+    const { prismaMock } = mockAuthAs("equipo_padi");
+    prismaMock.$transaction = vi.fn().mockRejectedValue(new Error("Not found"));
+    const res = await request(app)
+      .post("/docentes/doc-1/desasignar-escuela")
+      .set("Authorization", "Bearer fake-token")
+      .send({ escuela_id: "esc-1" });
+    expect(res.status).toBe(400);
+  });
+});
