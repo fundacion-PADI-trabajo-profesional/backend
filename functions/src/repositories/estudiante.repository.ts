@@ -4,14 +4,16 @@ import { Prisma, PrismaClient } from "@prisma/client"
 import { getPrisma } from "../config/prismaClient"
 const { v4: uuidv4 } = require('uuid'); // Asegúrate de tener uuid o usa crypto
 
-type EvaluacionResumen = {
+type EvaluacionAño = {
+    sala_id: number
+    sala_nombre: string | null
     inicial: string | null
     cierre: string | null
 }
 
-async function getEvaluacionesResumenPorEstudiantes(prismaAny: any, estudianteIds: string[]) {
-    const resumen = new Map<string, EvaluacionResumen>()
-    if (estudianteIds.length === 0) return resumen
+async function getEvaluacionesHistorialPorEstudiantes(prismaAny: any, estudianteIds: string[]) {
+    const historial = new Map<string, EvaluacionAño[]>()
+    if (estudianteIds.length === 0) return historial
 
     const rows = await prismaAny.evaluacionEstudiante.findMany({
         where: {
@@ -22,7 +24,8 @@ async function getEvaluacionesResumenPorEstudiantes(prismaAny: any, estudianteId
             estudiante_id: true,
             tipo_id: true,
             estado_id: true,
-            fecha_creacion: true,
+            sala_id: true,
+            salas: { select: { nombre: true } },
         },
         orderBy: [
             { fecha_creacion: "desc" },
@@ -31,13 +34,22 @@ async function getEvaluacionesResumenPorEstudiantes(prismaAny: any, estudianteId
     })
 
     for (const row of rows) {
-        const current = resumen.get(row.estudiante_id) || { inicial: null, cierre: null }
-        if (row.tipo_id === "inicial" && current.inicial === null) current.inicial = row.estado_id
-        if (row.tipo_id === "cierre" && current.cierre === null) current.cierre = row.estado_id
-        resumen.set(row.estudiante_id, current)
+        const entrada = historial.get(row.estudiante_id) ?? []
+        let porSala = entrada.find(e => e.sala_id === row.sala_id)
+        if (!porSala) {
+            porSala = { sala_id: row.sala_id, sala_nombre: row.salas?.nombre ?? null, inicial: null, cierre: null }
+            entrada.push(porSala)
+        }
+        if (row.tipo_id === "inicial" && porSala.inicial === null) porSala.inicial = row.estado_id
+        if (row.tipo_id === "cierre" && porSala.cierre === null) porSala.cierre = row.estado_id
+        historial.set(row.estudiante_id, entrada)
     }
 
-    return resumen
+    for (const [id, años] of historial) {
+        historial.set(id, años.sort((a, b) => a.sala_id - b.sala_id))
+    }
+
+    return historial
 }
 
 export interface CreateEstudianteData {
@@ -161,9 +173,8 @@ export const EstudianteRepository = {
                 salas: {
                     select: { nombre: true, grado: true },
                 },
-                // AGREGAR ESTO:
                 escuela: {
-                    select: { nombre: true }
+                    select: { nombre: true, zona: { select: { nombre: true } } }
                 },
                 generos: { select: { descripcion: true } },
             },
@@ -171,7 +182,7 @@ export const EstudianteRepository = {
 
         const estudianteIds = estudiantes.map((e: any) => e.id)
         if (estudianteIds.length === 0) return estudiantes
-        const resumenPorEstudiante = await getEvaluacionesResumenPorEstudiantes(prismaAny, estudianteIds)
+        const historialPorEstudiante = await getEvaluacionesHistorialPorEstudiantes(prismaAny, estudianteIds)
 
         const asignacionesActivas = await prismaAny.estudiantesAulas.findMany({
             where: {
@@ -210,9 +221,10 @@ export const EstudianteRepository = {
             escuela: {
                 escuela_id: est.escuela_id,
                 nombre: est.escuela?.nombre ?? null,
+                zona_nombre: est.escuela?.zona?.nombre ?? null,
             },
             aula_asignada: aulaActivaPorEstudiante.get(est.id) ?? null,
-            evaluaciones_resumen: resumenPorEstudiante.get(est.id) ?? { inicial: null, cierre: null },
+            evaluaciones_historial: historialPorEstudiante.get(est.id) ?? [],
         }))
     },
 
@@ -271,7 +283,7 @@ export const EstudianteRepository = {
                     select: { nombre: true, grado: true },
                 },
                 escuela: {
-                    select: { nombre: true }
+                    select: { nombre: true, zona: { select: { nombre: true } } }
                 },
                 generos: { select: { descripcion: true } },
             },
@@ -279,7 +291,7 @@ export const EstudianteRepository = {
 
         const estudianteIds = estudiantes.map((e: any) => e.id)
         if (estudianteIds.length === 0) return estudiantes
-        const resumenPorEstudiante = await getEvaluacionesResumenPorEstudiantes(txAny, estudianteIds)
+        const historialPorEstudiante = await getEvaluacionesHistorialPorEstudiantes(txAny, estudianteIds)
 
         const asignacionesActivas = await txAny.estudiantesAulas.findMany({
             where: {
@@ -318,9 +330,10 @@ export const EstudianteRepository = {
             escuela: {
                 escuela_id: est.escuela_id,
                 nombre: est.escuela?.nombre ?? null,
+                zona_nombre: est.escuela?.zona?.nombre ?? null,
             },
             aula_asignada: aulaActivaPorEstudiante.get(est.id) ?? null,
-            evaluaciones_resumen: resumenPorEstudiante.get(est.id) ?? { inicial: null, cierre: null },
+            evaluaciones_historial: historialPorEstudiante.get(est.id) ?? [],
         }))
     },
 
@@ -330,7 +343,7 @@ export const EstudianteRepository = {
 
         const txAny = prisma as any;
         const estudiantes = await txAny.estudiantes.findMany({
-            where: { escuela_id: { in: escuelaId } }, 
+            where: { escuela_id: { in: escuelaId } },
             include: {
                 personas: {
                     select: { nombre: true, primer_apellido: true, dni: true, fecha_nacimiento: true },
@@ -339,7 +352,7 @@ export const EstudianteRepository = {
                     select: { nombre: true, grado: true },
                 },
                 escuela: {
-                    select: { nombre: true }
+                    select: { nombre: true, zona: { select: { nombre: true } } }
                 },
                 generos: { select: { descripcion: true } },
             },
@@ -347,7 +360,7 @@ export const EstudianteRepository = {
 
         const estudianteIds = estudiantes.map((e: any) => e.id)
         if (estudianteIds.length === 0) return estudiantes
-        const resumenPorEstudiante = await getEvaluacionesResumenPorEstudiantes(txAny, estudianteIds)
+        const historialPorEstudiante = await getEvaluacionesHistorialPorEstudiantes(txAny, estudianteIds)
 
         const asignacionesActivas = await txAny.estudiantesAulas.findMany({
             where: {
@@ -386,9 +399,10 @@ export const EstudianteRepository = {
             escuela: {
                 escuela_id: est.escuela_id,
                 nombre: est.escuela?.nombre ?? null,
+                zona_nombre: est.escuela?.zona?.nombre ?? null,
             },
             aula_asignada: aulaActivaPorEstudiante.get(est.id) ?? null,
-            evaluaciones_resumen: resumenPorEstudiante.get(est.id) ?? { inicial: null, cierre: null },
+            evaluaciones_historial: historialPorEstudiante.get(est.id) ?? [],
         }))
     },
 
