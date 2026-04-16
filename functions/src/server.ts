@@ -20,6 +20,8 @@ export function createApp() {
   const allowedOrigins = [
     "http://localhost:5173",
     "http://localhost:4173",
+    "https://fundacionpadi-41cb2.web.app",
+    "https://fundacionpadi-41cb2.firebaseapp.com",
     process.env.FRONTEND_URL,
   ].filter(Boolean) as string[];
 

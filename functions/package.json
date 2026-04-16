@@ -30,6 +30,7 @@
     "firebase-functions": "^5.1.1",
     "prisma": "^6.18.0",
     "tpp-padi-backend": "file:..",
+    "cross-env": "^10.1.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
@@ -38,7 +39,6 @@
     "@types/node": "^22.18.11",
     "@types/supertest": "^2.0.16",
     "@vitest/coverage-v8": "^2.1.9",
-    "cross-env": "^10.1.0",
     "dotenv-cli": "^7.4.4",
     "rimraf": "^6.0.1",
     "supertest": "^7.0.0",
