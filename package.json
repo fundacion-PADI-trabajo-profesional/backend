@@ -12,6 +12,7 @@
     "prisma": "^5.22.0"
   },
   "dependencies": {
-    "@prisma/client": "^5.22.0"
+    "@prisma/client": "^5.22.0",
+    "exceljs": "^4.4.0"
   }
 }

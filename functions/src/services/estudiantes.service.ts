@@ -2,7 +2,6 @@ import { EstudianteRepository } from "../repositories/estudiante.repository"
 import type { CreateEstudianteData } from "../interfaces/estudiante.interface"
 import { getPrisma } from "../config/prismaClient"
 
-
 export class EstudiantesService {
     private repo = EstudianteRepository
 

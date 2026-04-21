@@ -306,5 +306,43 @@ export const EscuelasRepository = {
             where: { id: usuarioId },
             data: { escuela_id: null }
         });
-    }
+    },
+
+    async getEscuelasParaRol(user: {
+        id: string;
+        rol: string;
+        escuela_id: string | null;
+    }): Promise<{ id: string; nombre: string }[]> {
+        const prisma = getPrisma();
+        if (!prisma) throw new Error("DB not available");
+
+        if (user.rol === "director") {
+            if (!user.escuela_id) return [];
+            const escuela = await prisma.escuelas.findUnique({
+                where: { id: user.escuela_id },
+                select: { id: true, nombre: true },
+            });
+            return escuela ? [escuela] : [];
+        }
+
+        if (user.rol === "encargado_zona") {
+            const encargado = await prisma.encargados.findUnique({
+                where: { usuario_id: user.id },
+                select: { zona_id: true },
+            });
+            if (!encargado?.zona_id) return [];
+            return prisma.escuelas.findMany({
+                where: { zona_id: encargado.zona_id },
+                select: { id: true, nombre: true },
+                orderBy: { nombre: "asc" },
+            });
+        }
+
+        // equipo_padi: todas
+        return prisma.escuelas.findMany({
+            select: { id: true, nombre: true },
+            orderBy: { nombre: "asc" },
+        });
+    },
+
 };
