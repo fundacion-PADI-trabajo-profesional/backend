@@ -218,8 +218,6 @@ export async function bulkCreateEstudiantes(req: AuthenticatedRequest, res: Resp
         };
 
 
-        console.log("=== BULK BODY ===", JSON.stringify(req.body, null, 2));
-
         if (!estudiantes || !Array.isArray(estudiantes) || estudiantes.length === 0) {
             return res.status(400).json(commonResponse(false, "Se requiere un array de estudiantes", null));
         }

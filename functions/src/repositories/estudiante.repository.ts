@@ -492,8 +492,6 @@ export const EstudianteRepository = {
             const creados = [];
 
             for (const est of estudiantesData) {
-                console.log("=== EST ESCUELA ===", est.escuela_id, "| COMMON:", commonData.escuela_id);
-
                 try {
                     const fechaNac = new Date(est.fecha_nacimiento);
                     if (isNaN(fechaNac.getTime())) {
@@ -516,17 +514,19 @@ export const EstudianteRepository = {
                             persona_id: persona.id,
                             genero_id: est.genero_id,
                             sala_id: Number(est.sala_id),
-                            escuela_id: est.escuela_id || commonData.escuela_id, // Usar escuela_id común si no viene en el CSV
+                            grado: Number(est.sala_id),
+                            escuela_id: est.escuela_id || commonData.escuela_id,
                         }
                     });
 
-                    // 3. Vincular a Aula
-                    if (commonData.aula_id) {
+                    // 3. Vincular a Aula (por estudiante si viene, si no usa el commonData)
+                    const aulaId = est.aula_id || commonData.aula_id;
+                    if (aulaId) {
                         await tx.estudiantesAulas.create({
                             data: {
                                 id: crypto.randomUUID(),
                                 estudiante_id: nuevoEstudiante.id,
-                                aula_id: commonData.aula_id,
+                                aula_id: aulaId,
                                 fecha_inicio: new Date()
                             }
                         });
