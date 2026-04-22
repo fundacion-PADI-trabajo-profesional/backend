@@ -8,9 +8,10 @@ const service = new AulasService();
 // POST /aulas
 export async function createAula(req: AuthenticatedRequest, res: Response) {
   try {
-    const { sala_id, comision, turno, escuela_id } = req.body;
+    const { sala_id, turno, escuela_id } = req.body;
+    const comision = req.body.comision || "Única";
 
-    if (!sala_id || !comision || !turno) {
+    if (!sala_id || !turno) {
       return res
         .status(400)
         .json(
@@ -21,7 +22,6 @@ export async function createAula(req: AuthenticatedRequest, res: Response) {
     }
 
     const user = { id: req.user!.id, rol: req.user!.rol };
-
     const data = await service.create(
       {
         sala_id: Number(sala_id),

@@ -17,8 +17,9 @@ const service = new aulas_service_1.AulasService();
 // POST /aulas
 async function createAula(req, res) {
     try {
-        const { sala_id, comision, turno, escuela_id } = req.body;
-        if (!sala_id || !comision || !turno) {
+        const { sala_id, turno, escuela_id } = req.body;
+        const comision = req.body.comision || "Única";
+        if (!sala_id || !turno) {
             return res
                 .status(400)
                 .json((0, common_response_interface_1.commonResponse)(false, "Faltan datos obligatorios", null, {

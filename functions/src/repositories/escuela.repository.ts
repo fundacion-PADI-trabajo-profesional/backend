@@ -65,6 +65,10 @@ export const EscuelasRepository = {
                 },
             });
 
+            await tx.aulas.deleteMany({
+                where: { escuela_id: id }
+            });
+
             return await tx.escuelas.delete({
                 where: { id }
             });

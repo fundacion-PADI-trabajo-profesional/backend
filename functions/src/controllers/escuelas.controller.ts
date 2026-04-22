@@ -2,8 +2,10 @@ import { Request, Response } from "express";
 import { EscuelasService } from "../services/escuelas.service";
 import { commonResponse } from "../interfaces/common-response.interface";
 import { AuthenticatedRequest } from "../middlewares/auth.middleware";
+import { AulasService } from "../services/aulas.service";
 
 const service = new EscuelasService();
+const aulasService = new AulasService();
 
 // GET /api/escuelas
 export async function listEscuelas(req: AuthenticatedRequest, res: Response) {
@@ -55,8 +57,21 @@ export async function createEscuela(req: AuthenticatedRequest, res: Response) {
         }
 
         const user = { id: req.user!.id, rol: req.user!.rol };
-
         const data = await service.create({ nombre, direccion, telefono, zona_id }, user);
+
+        try {
+            const salasPorDefecto = [3, 4, 5];
+            for (const salaId of salasPorDefecto) {
+                await aulasService.create({
+                    sala_id: salaId,
+                    comision: "Única",
+                    turno: "Mañana", 
+                    escuela_id: data.id 
+                }, user);
+            }
+        } catch (aulasError) {
+            console.error("[createEscuela] Aviso: La escuela se creó pero fallaron las aulas por defecto", aulasError);
+        }
 
         res.status(201).json(commonResponse(true, "Escuela creada con éxito", data));
     } catch (error: any) {
