@@ -348,6 +348,16 @@ describe("POST /estudiantes/:id/desasignar-aula", () => {
 });
 
 describe("POST /estudiantes/bulk", () => {
+  const validRow = {
+    dni: "44111222",
+    nombre: "Ana",
+    apellido: "Pérez",
+    fecha_nacimiento: "2018-05-10",
+    genero_id: "F",
+    sala_id: 1,
+    escuela_id: "esc-1",
+  };
+
   it("returns 400 when estudiantes array is missing", async () => {
     mockAuthAs("equipo_padi");
     const res = await request(app)
@@ -364,6 +374,110 @@ describe("POST /estudiantes/bulk", () => {
       .set("Authorization", "Bearer fake-token")
       .send({ estudiantes: [] });
     expect(res.status).toBe(400);
+  });
+
+  it("returns 201 with the created students on valid payload", async () => {
+    mockAuthAs("equipo_padi");
+    vi.spyOn(EstudianteRepository, "createBulk").mockResolvedValue([
+      { id: "s-1" }, { id: "s-2" },
+    ] as any);
+
+    const res = await request(app)
+      .post("/estudiantes/bulk")
+      .set("Authorization", "Bearer fake-token")
+      .send({ estudiantes: [validRow, { ...validRow, dni: "99999999" }], escuela_id: "esc-1" });
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toHaveLength(2);
+  });
+
+  it("passes escuela_id and aula_id from body to the repository", async () => {
+    mockAuthAs("equipo_padi");
+    const spy = vi.spyOn(EstudianteRepository, "createBulk").mockResolvedValue([] as any);
+
+    await request(app)
+      .post("/estudiantes/bulk")
+      .set("Authorization", "Bearer fake-token")
+      .send({ estudiantes: [validRow], escuela_id: "esc-global", aula_id: "aula-x" });
+
+    expect(spy).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ escuela_id: "esc-global", aula_id: "aula-x" }),
+    );
+  });
+
+  it("returns 400 with BULK_ERROR when genero or sala FK fails (P2003)", async () => {
+    mockAuthAs("equipo_padi");
+    vi.spyOn(EstudianteRepository, "createBulk").mockRejectedValue(
+      new Error("Error en el alumno Ana: El género 'X' o la sala '99' no existen."),
+    );
+
+    const res = await request(app)
+      .post("/estudiantes/bulk")
+      .set("Authorization", "Bearer fake-token")
+      .send({ estudiantes: [validRow], escuela_id: "esc-1" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("BULK_ERROR");
+    expect(res.body.error.description).toContain("El género");
+  });
+
+  it("returns 400 with BULK_ERROR when DNI is already registered (P2002)", async () => {
+    mockAuthAs("equipo_padi");
+    vi.spyOn(EstudianteRepository, "createBulk").mockRejectedValue(
+      new Error("El DNI '44111222' ya está registrado en el sistema."),
+    );
+
+    const res = await request(app)
+      .post("/estudiantes/bulk")
+      .set("Authorization", "Bearer fake-token")
+      .send({ estudiantes: [validRow], escuela_id: "esc-1" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("BULK_ERROR");
+    expect(res.body.error.description).toContain("ya está registrado");
+  });
+
+  it("returns 400 with BULK_ERROR when fecha_nacimiento is invalid", async () => {
+    mockAuthAs("equipo_padi");
+    vi.spyOn(EstudianteRepository, "createBulk").mockRejectedValue(
+      new Error("Fecha inválida para Ana Pérez"),
+    );
+
+    const res = await request(app)
+      .post("/estudiantes/bulk")
+      .set("Authorization", "Bearer fake-token")
+      .send({ estudiantes: [{ ...validRow, fecha_nacimiento: "no-es-fecha" }], escuela_id: "esc-1" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("BULK_ERROR");
+    expect(res.body.error.description).toContain("Fecha inválida");
+  });
+
+  // BUG: createBulk no setea `grado` — el create() individual sí lo hace vía salas.findUnique.
+  // Este test documenta el comportamiento esperado y FALLA hasta que se corrija el repositorio.
+  it.fails("[BUG] grado debe copiarse de la sala en cada estudiante creado en masa", async () => {
+    const { prismaMock } = mockAuthAs("equipo_padi");
+
+    const txMock: any = {
+      personas: { create: vi.fn().mockResolvedValue({ id: "p-1" }) },
+      salas: { findUnique: vi.fn().mockResolvedValue({ grado: 3 }) },
+      estudiantes: { create: vi.fn().mockResolvedValue({ id: "s-1" }) },
+      estudiantesAulas: { create: vi.fn().mockResolvedValue({}) },
+    };
+    prismaMock.$transaction = vi.fn().mockImplementation(async (cb: any) => cb(txMock));
+
+    await request(app)
+      .post("/estudiantes/bulk")
+      .set("Authorization", "Bearer fake-token")
+      .send({ estudiantes: [validRow], escuela_id: "esc-1" });
+
+    expect(txMock.estudiantes.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ grado: 3 }),
+      }),
+    );
   });
 });
 
