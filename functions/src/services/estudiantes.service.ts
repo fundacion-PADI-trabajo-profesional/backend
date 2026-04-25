@@ -102,11 +102,12 @@ export class EstudiantesService {
         throw new Error("No tienes permisos para acceder a los estudiantes de esta escuela.");
     }
 
-    async createBulk(estudiantes: any[], commonData: { escuela_id: string, aula_id?: string }, user: { id: string; rol: string }) {
+    async createBulk(estudiantes: any[], commonData: { escuela_id: string, aula_id?: string }, user: { id: string; rol: string }, dryRun: boolean = false) {
         if (user.rol !== "director" && user.rol !== "encargado_zona" && user.rol !== "equipo_padi") {
             throw new Error("No tienes permisos para crear estudiantes en masa.");
         }
-        return await this.repo.createBulk(estudiantes, commonData);
+        
+        return await this.repo.createBulk(estudiantes, commonData, user, dryRun);
     }
 
     /**

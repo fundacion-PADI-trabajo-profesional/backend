@@ -484,12 +484,39 @@ export const EstudianteRepository = {
         });
     },
 
-    async createBulk(estudiantesData: any[], commonData: { escuela_id: string, aula_id?: string }) {
+    async createBulk(estudiantesData: any[], commonData: { escuela_id: string, aula_id?: string }, user: any, dryRun: boolean = false) {
         const prisma = getPrisma();
         if (!prisma) throw new Error("DB not available");
 
+        // Si es dryRun, solo clasificamos sin abrir transacción de escritura
+        if (dryRun) {
+            const resultados = { nuevos: [] as any[], promovidos: [] as any[], repitentes: [] as any[], retrocesos: [] as any[] };
+            
+            for (const est of estudiantesData) {
+                const personaExistente = await (prisma as any).personas.findUnique({
+                    where: { dni: String(est.dni) },
+                    include: { estudiantes: true }
+                });
+
+                if (personaExistente && personaExistente.estudiantes.length > 0) {
+                    const estudianteExistente = personaExistente.estudiantes[0];
+                    const oldSala = estudianteExistente.sala_id;
+                    const newSala = Number(est.sala_id);
+
+                    est.old_sala_id = oldSala;
+                    if (newSala < oldSala) resultados.retrocesos.push(est);
+                    else if (newSala > oldSala) resultados.promovidos.push(est);
+                    else resultados.repitentes.push(est);
+                } else {
+                    resultados.nuevos.push(est);
+                }
+            }
+            return resultados;
+        }
+
+        // Si NO es dryRun, guardamos de verdad
         return await (prisma as any).$transaction(async (tx: any) => {
-            const creados = [];
+            const procesados = [];
 
             for (const est of estudiantesData) {
                 try {
@@ -498,53 +525,72 @@ export const EstudianteRepository = {
                         throw new Error(`Fecha inválida para ${est.nombre} ${est.apellido}`);
                     }
 
-                    // 1. Crear Persona
-                    const persona = await tx.personas.create({
-                        data: {
-                            dni: String(est.dni),
-                            nombre: est.nombre,
-                            primer_apellido: est.apellido,
-                            fecha_nacimiento: fechaNac,
-                        }
+                    // 1. Buscamos si la persona ya existe
+                    const personaExistente = await tx.personas.findUnique({
+                        where: { dni: String(est.dni) },
+                        include: { estudiantes: true }
                     });
 
-                    // 2. Crear Estudiante
-                    const nuevoEstudiante = await tx.estudiantes.create({
-                        data: {
-                            persona_id: persona.id,
-                            genero_id: est.genero_id,
-                            sala_id: Number(est.sala_id),
-                            grado: Number(est.sala_id),
-                            escuela_id: est.escuela_id || commonData.escuela_id,
-                        }
-                    });
+                    let estudianteId;
 
-                    // 3. Vincular a Aula (por estudiante si viene, si no usa el commonData)
+                    if (personaExistente) {
+                        // ACTUALIZACIÓN (Pase de año / Repetición)
+                        const estudianteExistente = personaExistente.estudiantes[0];
+                        estudianteId = estudianteExistente.id;
+
+                        await tx.estudiantes.update({
+                            where: { id: estudianteId },
+                            data: {
+                                sala_id: Number(est.sala_id),
+                                grado: Number(est.sala_id),
+                                escuela_id: est.escuela_id || commonData.escuela_id,
+                            }
+                        });
+                    } else {
+                        // CREACIÓN (Alumno nuevo)
+                        const persona = await tx.personas.create({
+                            data: {
+                                dni: String(est.dni),
+                                nombre: est.nombre,
+                                primer_apellido: est.apellido,
+                                fecha_nacimiento: fechaNac,
+                            }
+                        });
+
+                        const nuevoEstudiante = await tx.estudiantes.create({
+                            data: {
+                                persona_id: persona.id,
+                                genero_id: est.genero_id,
+                                sala_id: Number(est.sala_id),
+                                grado: Number(est.sala_id),
+                                escuela_id: est.escuela_id || commonData.escuela_id,
+                            }
+                        });
+                        estudianteId = nuevoEstudiante.id;
+                    }
+
+                    // 3. Vincular a la nueva Aula para mantener el historial
                     const aulaId = est.aula_id || commonData.aula_id;
                     if (aulaId) {
                         await tx.estudiantesAulas.create({
                             data: {
                                 id: crypto.randomUUID(),
-                                estudiante_id: nuevoEstudiante.id,
+                                estudiante_id: estudianteId, // Usamos el ID recuperado (viejo o nuevo)
                                 aula_id: aulaId,
                                 fecha_inicio: new Date()
                             }
                         });
                     }
-                    creados.push(nuevoEstudiante);
+                    procesados.push(est);
 
                 } catch (error: any) {
-                    // Capturamos errores de clave foránea (P2003) o duplicados (P2002)
                     if (error.code === 'P2003') {
-                        throw new Error(`Error en el alumno ${est.nombre}: El género '${est.genero_id}' o la sala '${est.sala_id}' no existen.`);
+                        throw new Error(`Error en el alumno ${est.nombre}: El género o la sala no existen.`);
                     }
-                    if (error.code === 'P2002') {
-                        throw new Error(`El DNI '${est.dni}' ya está registrado en el sistema.`);
-                    }
-                    throw error; // Re-lanzar si es otro error
+                    throw error; 
                 }
             }
-            return creados;
+            return procesados;
         });
     }
 }

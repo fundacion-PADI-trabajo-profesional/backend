@@ -211,19 +211,19 @@ export async function updateEstudiante(req: AuthenticatedRequest, res: Response)
 
 export async function bulkCreateEstudiantes(req: AuthenticatedRequest, res: Response) {
     try {
-        const { estudiantes, escuela_id, aula_id } = req.body;
+        const { estudiantes, escuela_id, aula_id, dryRun} = req.body;
         const user = {
             id: req.user!.id,
             rol: req.user!.rol,
         };
 
-
         if (!estudiantes || !Array.isArray(estudiantes) || estudiantes.length === 0) {
             return res.status(400).json(commonResponse(false, "Se requiere un array de estudiantes", null));
         }
 
-        const data = await service.createBulk(estudiantes, { escuela_id, aula_id }, user);
-        res.status(201).json(commonResponse(true, "Estudiantes creados con éxito", data));
+        const data = await service.createBulk(estudiantes, { escuela_id, aula_id }, user, dryRun);
+        res.status(dryRun ? 200 : 201).json(commonResponse(true, dryRun ? "Análisis completado" : "Estudiantes procesados con éxito", data));
+    
     } catch (error: any) {
         const message = error.message || "Error interno al crear estudiantes en masa";
         console.error("[bulkCreateEstudiantes] Error:", error);
