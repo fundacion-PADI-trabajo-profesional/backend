@@ -55,7 +55,7 @@ export class EvaluacionService {
     const estudiante = await this.repo.findEstudianteByDni(data.dni);
     if (!estudiante) throw new Error("Estudiante no encontrado");
 
-    let salaId = estudiante.sala_id;
+    const salaId = data.sala_id || estudiante.sala_id;    
     let aulaId: string | undefined = undefined;
 
     if (data.aula_id) {
@@ -64,13 +64,12 @@ export class EvaluacionService {
         throw new Error("El estudiante no está asignado activamente al aula indicada.");
       }
       aulaId = data.aula_id;
-      salaId = asignacion.aula.sala_id;
     }
 
     return await this.repo.create({
       estudiante_id: estudiante.id,
       profesor_id: data.profesor_id,
-      sala_id: salaId,
+      sala_id: salaId, 
       aula_id: aulaId,
       tipo_id: data.tipo_id,
       fecha_creacion: new Date(data.fecha_creacion)

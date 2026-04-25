@@ -4,6 +4,7 @@ export interface CreateEvaluacionDTO {
   profesor_id: string;   // UUID del docente
   fecha_creacion: string; // ISO String o YYYY-MM
   aula_id?: string;      // UUID del aula (opcional pero recomendado para trazabilidad)
+  sala_id: number;      // ID numérica de la sala
 }
 
 export interface AreaSummary {
