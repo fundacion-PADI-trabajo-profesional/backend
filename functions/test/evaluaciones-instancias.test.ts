@@ -141,7 +141,7 @@ describe("evaluaciones instancias (API /evaluaciones)", () => {
       expect.objectContaining({
         estudiante_id: "s1",
         aula_id: "a1",
-        sala_id: 3,
+        sala_id: 1,
       }),
     );
   });

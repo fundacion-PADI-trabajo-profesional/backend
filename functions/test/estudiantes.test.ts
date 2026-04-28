@@ -404,6 +404,8 @@ describe("POST /estudiantes/bulk", () => {
     expect(spy).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ escuela_id: "esc-global", aula_id: "aula-x" }),
+      expect.anything(),
+      expect.anything(),
     );
   });
 

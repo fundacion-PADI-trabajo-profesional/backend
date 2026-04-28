@@ -5,6 +5,7 @@ export default defineConfig({
     environment: "node",
     globals: true,
     include: ["test/**/*.test.ts"],
+    onConsoleLog: () => false, // suprimir stdout/stderr del código de producción durante los tests
     coverage: {
       provider: "v8",
       // Archivos a medir (solo código fuente, sin tests ni config)

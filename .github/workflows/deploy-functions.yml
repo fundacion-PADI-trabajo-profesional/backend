@@ -26,6 +26,12 @@ jobs:
         run: npm run build
         working-directory: functions
 
+      - name: Correr tests y verificar cobertura mínima (70%)
+        run: npm run test:coverage
+        working-directory: functions
+        env:
+          DATABASE_URL: postgres://localhost:5432/postgres
+
       - uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_FUNDACIONPADI_41CB2 }}
