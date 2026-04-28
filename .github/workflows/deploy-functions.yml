@@ -12,6 +12,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Checkout frontend (para tests de contrato)
+        uses: actions/checkout@v4
+        with:
+          repository: fundacion-PADI-trabajo-profesional/frontend
+          token: ${{ secrets.ORG_PAT }}
+          path: ../frontend
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
