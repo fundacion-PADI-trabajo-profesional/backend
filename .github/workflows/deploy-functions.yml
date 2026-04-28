@@ -40,6 +40,9 @@ jobs:
           DATABASE_URL: postgres://localhost:5432/postgres
           FRONTEND_ROOT: ${{ github.workspace }}/frontend
 
+      - name: Crear .env de producción
+        run: echo "FRONTEND_URL=${{ vars.FRONTEND_URL }}" > functions/.env
+
       - uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_FUNDACIONPADI_41CB2 }}
