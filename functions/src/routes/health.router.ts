@@ -1,6 +1,5 @@
 import { Router } from "express";
-import { getHealth } from "../controllers/health.controller";
-
+import { getHealth, getLivez, getReadyz } from "../controllers/health.controller";
 
 // functions/src/routes/health.router.ts
 // Define rutas HTTP y las asocia a controladores (sin lógica de negocio).
@@ -8,8 +7,7 @@ import { getHealth } from "../controllers/health.controller";
 export function createHealthRouter() {
   const router = Router();
   router.get("/health", getHealth);
+  router.get("/livez", getLivez);
+  router.get("/readyz", getReadyz);
   return router;
 }
-
-
-
