@@ -17,7 +17,7 @@ jobs:
         with:
           repository: fundacion-PADI-trabajo-profesional/frontend
           token: ${{ secrets.ORG_PAT }}
-          path: ../frontend
+          path: frontend
 
       - uses: actions/setup-node@v4
         with:
@@ -38,6 +38,7 @@ jobs:
         working-directory: functions
         env:
           DATABASE_URL: postgres://localhost:5432/postgres
+          FRONTEND_ROOT: ${{ github.workspace }}/frontend
 
       - uses: google-github-actions/auth@v2
         with:

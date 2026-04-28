@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 function readFrontendApiFile(fileName: string): string {
-  const fullPath = join(process.cwd(), "..", "..", "frontend", "src", "api", fileName);
+  const frontendRoot = process.env.FRONTEND_ROOT ?? join(process.cwd(), "..", "..", "frontend");
+  const fullPath = join(frontendRoot, "src", "api", fileName);
   return readFileSync(fullPath, "utf8");
 }
 
