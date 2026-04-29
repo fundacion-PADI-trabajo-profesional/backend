@@ -13,6 +13,13 @@
       ]
     }
   ],
+  "hosting": [
+    {
+      "target": "docs",
+      "public": "functions/docs",
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**"]
+    }
+  ],
   "emulators": {
     "functions": {
       "port": 5001

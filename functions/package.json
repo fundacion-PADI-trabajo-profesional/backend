@@ -19,18 +19,19 @@
     "dev:emul": "cross-env NODE_OPTIONS=--dns-result-order=ipv4first dotenv -e .env.local -- dotenv -e prisma/.env -- firebase emulators:start --only functions",
     "prisma:gen": "cross-env NODE_OPTIONS=--dns-result-order=ipv4first dotenv -e prisma/.env -- prisma generate --schema=prisma/schema.prisma",
     "prisma:push": "cross-env NODE_OPTIONS=--dns-result-order=ipv4first dotenv -e prisma/.env -- prisma db push --schema=prisma/schema.prisma",
-    "prisma:setup": "npm run prisma:gen && npm run prisma:push"
+    "prisma:setup": "npm run prisma:gen && npm run prisma:push",
+    "docs": "typedoc"
   },
   "dependencies": {
     "@prisma/client": "^6.18.0",
     "@supabase/supabase-js": "^2.45.0",
     "cors": "^2.8.5",
+    "cross-env": "^10.1.0",
     "express": "^4.19.2",
     "firebase-admin": "^12.6.0",
     "firebase-functions": "^5.1.1",
     "prisma": "^6.18.0",
     "tpp-padi-backend": "file:..",
-    "cross-env": "^10.1.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
@@ -42,6 +43,7 @@
     "dotenv-cli": "^7.4.4",
     "rimraf": "^6.0.1",
     "supertest": "^7.0.0",
+    "typedoc": "^0.28.19",
     "typescript": "^5.4.5",
     "vitest": "^2.1.9"
   }
