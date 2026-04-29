@@ -9,6 +9,25 @@ import {
 } from "../controllers/escuelas.controller";
 import { requireRole } from "../middlewares/auth.middleware";
 
+/**
+ * Crea el router de escuelas con control de roles por ruta.
+ *
+ * @remarks
+ * Las restricciones de acceso se aplican individualmente por ruta:
+ * - **`equipo_padi` y `encargado_zona`**: pueden listar, crear y modificar escuelas.
+ *   El servicio aplica el scope de zona para encargados (solo ven/editan las suyas).
+ * - **Solo `equipo_padi`**: asignación/desasignación de directivos y eliminación.
+ *
+ * Rutas expuestas:
+ * - `GET    /escuelas` — lista escuelas según scope del rol.
+ * - `POST   /escuelas` — crea una escuela nueva.
+ * - `PUT    /escuelas/:id` — actualiza datos de una escuela.
+ * - `POST   /escuelas/asignar-directivo` — asigna un directivo a una escuela.
+ * - `POST   /escuelas/desasignar-directivo` — desasigna un directivo de su escuela.
+ * - `DELETE /escuelas/:id` — elimina una escuela del sistema.
+ *
+ * @returns Router de Express configurado con las rutas de escuelas.
+ */
 export function createEscuelasRouter() {
     const router = Router();
 

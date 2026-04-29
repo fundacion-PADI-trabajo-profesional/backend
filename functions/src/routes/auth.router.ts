@@ -1,7 +1,19 @@
 import { Router } from "express";
 import { AuthController } from "../controllers/auth.controller";
 
-// Rutas PUBLICAS de autenticación (sin JWT requerido)
+/**
+ * Crea el router de autenticación con rutas **públicas** (sin JWT requerido).
+ *
+ * @remarks
+ * Rutas expuestas:
+ * - `POST /auth/login` — inicio de sesión con email y contraseña.
+ * - `POST /auth/register` — registro de nuevos usuarios.
+ * - `POST /auth/refresh-token` — renovación del token de acceso.
+ * - `POST /auth/reset-password-request` — solicita el envío del email de recuperación.
+ * - `POST /auth/update-password` — actualiza la contraseña usando el token de recuperación.
+ *
+ * @returns Router de Express con las rutas públicas de autenticación.
+ */
 export function createAuthRouter() {
     const router = Router();
 
@@ -14,7 +26,18 @@ export function createAuthRouter() {
     return router;
 }
 
-// Rutas PROTEGIDAS de autenticación (requieren JWT válido)
+/**
+ * Crea el router de autenticación con rutas **protegidas** (requieren JWT válido).
+ *
+ * @remarks
+ * Rutas expuestas:
+ * - `PUT /auth/profile` — actualiza nombre y apellido del usuario autenticado.
+ *
+ * Este router se registra detrás del middleware `requireAuth` en el entry point
+ * principal de la aplicación.
+ *
+ * @returns Router de Express con las rutas protegidas de autenticación.
+ */
 export function createAuthProtectedRouter() {
     const router = Router();
 
