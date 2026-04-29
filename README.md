@@ -16,6 +16,7 @@ Expone una API REST construida con **Express** y desplegada como **Firebase Clou
 6. [Testing](#testing)
 7. [Deploy](#deploy)
 9. [Decisiones de diseño](#decisiones-de-diseño)
+10. [Documentación](#documentacion)
 
 ---
 
@@ -196,3 +197,8 @@ Este enfoque permite detectar de manera temprana desincronizaciones semánticas 
 Todas las rutas protegidas pasan por `requireAuth`, un middleware que valida el JWT de Supabase y consulta el perfil del usuario en la base de datos, adjuntando `req.user` con `{ id, email, rol, nombre, apellido, escuela_id }`.
 
 Esto elimina la dependencia de que el frontend envíe el rol/usuario_id como parámetros de request, lo cual era un vector de suplantación de identidad. Las rutas públicas (login, register, reset-password) están montadas antes del middleware.
+
+---
+
+## Documentación
+La documentacion del servicio de backend se encuentra publicada en: https://fundacionpadi-docs.web.app

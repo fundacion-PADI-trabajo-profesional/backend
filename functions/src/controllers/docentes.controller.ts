@@ -5,6 +5,19 @@ import { AuthenticatedRequest } from "../middlewares/auth.middleware";
 
 const service = new DocentesService();
 
+/**
+ * Lista los docentes del sistema según el rol del usuario autenticado.
+ *
+ * @remarks
+ * El alcance del listado depende del rol: un admin ve todos los docentes,
+ * un director solo ve los de su escuela. La identidad del solicitante
+ * se obtiene del token JWT verificado por el middleware, nunca de query params.
+ *
+ * `GET /docentes`
+ *
+ * @param req - Request autenticado. Sin parámetros adicionales.
+ * @param res - `200` con el array de docentes, `403` sin permisos, `500` error interno.
+ */
 export async function listDocentes(req: AuthenticatedRequest, res: Response) {
   try {
     // ANTES: const { usuario_id, rol } = req.query;
@@ -21,6 +34,14 @@ export async function listDocentes(req: AuthenticatedRequest, res: Response) {
   }
 }
 
+/**
+ * Asigna un docente a una escuela.
+ *
+ * `POST /docentes/:id/asignar-escuela`
+ *
+ * @param req - Request autenticado. Param: `id` del docente. Body: `{ escuela_id }`.
+ * @param res - `200` con la relación creada, `400` si la asignación falla.
+ */
 export async function assignDocenteEscuela(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
@@ -49,6 +70,14 @@ export async function assignDocenteEscuela(req: AuthenticatedRequest, res: Respo
   }
 }
 
+/**
+ * Desasigna un docente de una escuela.
+ *
+ * `POST /docentes/:id/desasignar-escuela`
+ *
+ * @param req - Request autenticado. Param: `id` del docente. Body: `{ escuela_id }`.
+ * @param res - `200` si fue desasignado, `400` si la operación falla.
+ */
 export async function unassignDocenteEscuela(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;

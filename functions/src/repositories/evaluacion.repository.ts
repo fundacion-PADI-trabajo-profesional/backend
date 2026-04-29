@@ -2,13 +2,36 @@ import { Prisma } from "@prisma/client";
 import { getPrisma } from "../config/prismaClient";
 import { select } from "firebase-functions/params";
 
+/** Estado: no iniciada. */
 const ESTADO_NO_INICIADA = "N";
+/** Estado: en progreso (al menos un área respondida). */
 const ESTADO_EN_PROGRESO = "E";
+/** Estado: aprobada (todas las áreas aprobadas). */
 const ESTADO_APROBADA = "A";
+/** Estado: desaprobada (todas las áreas completadas pero alguna desaprobada). */
 const ESTADO_DESAPROBADA = "D";
 
-
+/**
+ * Repositorio de acceso a datos para evaluaciones de estudiantes.
+ *
+ * @remarks
+ * Gestiona el ciclo de vida completo de una evaluación:
+ * creación (con generación automática de registros por área), listado con filtros,
+ * consulta de detalle (con cálculo de puntajes por grupo de preguntas),
+ * guardado de respuestas (con actualización de estado y propagación al padre),
+ * y eliminación en cascada.
+ *
+ * Los estados posibles son `"N"` (no iniciada), `"E"` (en progreso),
+ * `"A"` (aprobada) y `"D"` (desaprobada).
+ */
 export const EvaluacionRepository = {
+  /**
+   * Busca un estudiante por su DNI y retorna su ID y sala.
+   *
+   * @param dni - DNI del estudiante.
+   * @returns `{ id, sala_id }` o `null` si no existe.
+   * @throws Error si la base de datos no está disponible.
+   */
   async findEstudianteByDni(dni: string) {
     const prisma = getPrisma();
     if (!prisma) throw new Error("DB not available");
@@ -20,6 +43,19 @@ export const EvaluacionRepository = {
     });
   },
 
+  /**
+   * Crea una evaluación y genera automáticamente los registros de área.
+   *
+   * @remarks
+   * En una sola transacción:
+   * 1. Crea el registro en `evaluacionEstudiante` con estado `"N"`.
+   * 2. Obtiene todas las áreas ordenadas por `orden`.
+   * 3. Crea un registro en `evaluacionesEstudianteArea` por cada área con estado `"N"`.
+   *
+   * @param data - Datos de la evaluación a crear.
+   * @returns El registro de evaluación creado (sin las áreas).
+   * @throws Error si la base de datos no está disponible.
+   */
   async create(data: {
     estudiante_id: string;
     profesor_id: string;
@@ -65,6 +101,12 @@ export const EvaluacionRepository = {
     });
   },
 
+  /**
+   * Lista todas las evaluaciones asignadas a un docente.
+   *
+   * @param profesor_id - UUID del docente.
+   * @returns Array de evaluaciones con aula, estudiante, tipo y estado, ordenadas por fecha descendente.
+   */
   async findAllByProfesor(profesor_id: string) {
     const prisma = getPrisma();
     const txAny = prisma as any;
@@ -88,7 +130,11 @@ export const EvaluacionRepository = {
     });
   },
 
-  // Lista global para Administradores
+  /**
+   * Lista todas las evaluaciones del sistema (uso exclusivo del rol `admin`).
+   *
+   * @returns Array completo de evaluaciones con relaciones estándar, ordenadas por fecha descendente.
+   */
   async list() {
     const prisma = getPrisma();
     const txAny = prisma as any;
@@ -98,6 +144,16 @@ export const EvaluacionRepository = {
     });
   },
 
+  /**
+   * Lista evaluaciones aplicando filtros opcionales con restricciones por rol.
+   *
+   * @remarks
+   * Soporta filtrar por estudiante, docente, sala, tipo, estado, escuela única o
+   * múltiples escuelas (`escuelaIds`, para encargados de zona).
+   *
+   * @param filters - Objeto de filtros opcionales.
+   * @returns Array de evaluaciones filtradas con relaciones estándar.
+   */
   async listWithFilters(filters?: {
     estudianteId?: string;
     profesorId?: string;
@@ -129,6 +185,14 @@ export const EvaluacionRepository = {
     });
   },
 
+  /**
+   * Busca la asignación activa de un estudiante a un aula.
+   *
+   * @param estudianteId - UUID del estudiante.
+   * @param aulaId - UUID del aula.
+   * @returns El registro de `estudiantesAulas` con datos del aula, o `null` si no existe.
+   * @throws Error si la base de datos no está disponible.
+   */
   async findActiveEstudianteAula(estudianteId: string, aulaId: string) {
     const prisma = getPrisma();
     if (!prisma) throw new Error("DB not available");
@@ -152,7 +216,12 @@ export const EvaluacionRepository = {
     });
   },
 
-  // Lista filtrada por Escuela para Directores y Docentes
+  /**
+   * Lista evaluaciones filtradas por escuela (para directores y docentes).
+   *
+   * @param escuelaId - UUID de la escuela.
+   * @returns Array de evaluaciones donde el estudiante pertenece a esa escuela.
+   */
   async listByEscuela(escuelaId: string) {
     const prisma = getPrisma();
     const txAny = prisma as any;
@@ -165,6 +234,21 @@ export const EvaluacionRepository = {
     });
   },
 
+  /**
+   * Retorna el detalle completo de una evaluación, incluyendo puntajes calculados por área.
+   *
+   * @remarks
+   * Enriquece cada área con los siguientes campos calculados:
+   * - `aciertos_individuales`: grupos de preguntas aprobados.
+   * - `totalPreguntas`: total de grupos activos.
+   * - `totalPuntosPosibles`: suma de puntos máximos posibles.
+   * - `puntajeFinal`: puntos obtenidos.
+   * - `gruposRespondidos`: grupos donde todas las preguntas fueron respondidas.
+   *
+   * @param id - UUID de la evaluación.
+   * @returns La evaluación con todas sus relaciones y puntajes calculados, o `null` si no existe.
+   * @throws Error si la base de datos no está disponible.
+   */
   async findById(id: string) {
     const prisma = getPrisma();
     if (!prisma) throw new Error("DB not available");
@@ -268,6 +352,20 @@ export const EvaluacionRepository = {
     return evaluacion;
   },
 
+  /**
+   * Elimina una evaluación y sus datos dependientes en una transacción.
+   *
+   * @remarks
+   * Orden de eliminación:
+   * 1. Verifica que la evaluación exista.
+   * 2. Elimina las respuestas (`evaluacionesEstudianteAreaPreguntas`).
+   * 3. Elimina los registros de área (`evaluacionesEstudianteArea`).
+   * 4. Elimina la evaluación principal.
+   *
+   * @param id - UUID de la evaluación a eliminar.
+   * @returns El registro de evaluación eliminado.
+   * @throws Error si la evaluación no existe o si la operación falla.
+   */
   async delete(id: string) {
     const prisma = getPrisma();
     if (!prisma) throw new Error("DB not available");
@@ -321,7 +419,19 @@ export const EvaluacionRepository = {
     }
   },
 
-  //PREGUNTAS AREAS
+  /**
+   * Retorna las preguntas activas de un área para una evaluación y las respuestas previas.
+   *
+   * @remarks
+   * Filtra preguntas por `sala_id` de la evaluación y `area_id`, considerando
+   * activas aquellas con `activa = true` o `activa = null`.
+   * Retorna también las respuestas ya registradas para permitir reanudar el progreso.
+   *
+   * @param evaluacionId - UUID de la evaluación.
+   * @param areaId - UUID del área.
+   * @returns `{ preguntas, respuestas }` donde `respuestas` tiene `{ pregunta_id, respuesta }`.
+   * @throws Error si la evaluación o el área no se encuentran.
+   */
   async getPreguntasArea(evaluacionId: string, areaId: string) {
     const prisma = getPrisma();
     if (!prisma) throw new Error("DB not available");
@@ -371,6 +481,22 @@ export const EvaluacionRepository = {
     return { preguntas, respuestas };
   },
 
+  /**
+   * Guarda (o actualiza) las respuestas de un área y recalcula su estado y puntaje.
+   *
+   * @remarks
+   * En una sola transacción:
+   * 1. Hace upsert de cada respuesta en `evaluacionesEstudianteAreaPreguntas`.
+   * 2. Recalcula el puntaje del área con `calculateAreaScore`.
+   * 3. Actualiza `estado_id` y `puntaje` en `evaluacionesEstudianteArea`.
+   * 4. Propaga el estado resultante a la evaluación padre con `computeEvaluacionEstadoFromAreas`.
+   *
+   * @param evaluacionId - UUID de la evaluación.
+   * @param areaId - UUID del área.
+   * @param questions - Array de `{ id, answer }` con las respuestas.
+   * @returns Objeto con el estado del área, la evaluación y un snapshot de todas las áreas.
+   * @throws Error si la evaluación o el área no se encuentran.
+   */
   async saveRespuestas(
     evaluacionId: string,
     areaId: string,
@@ -477,7 +603,15 @@ export const EvaluacionRepository = {
     });
   },
 
-  // Helper para mantener los joins consistentes
+  /**
+   * Retorna el objeto `include` estándar usado en la mayoría de los listados.
+   *
+   * @remarks
+   * Centraliza los joins de `aulas`, `estudiantes` (con persona, género, sala y escuela),
+   * `profesores`, `tipos_evaluacion`, `estados_evaluacion` y las áreas con su estado.
+   *
+   * @returns Objeto `include` compatible con Prisma.
+   */
   _commonIncludes() {
     return {
       aulas: {
@@ -530,6 +664,22 @@ export const EvaluacionRepository = {
 
 };
 
+/**
+ * Calcula el puntaje final de un área a partir de las respuestas registradas.
+ *
+ * @remarks
+ * Las preguntas se agrupan por `numero` (grupo). Un grupo se aprueba si al menos
+ * la mitad de sus preguntas tienen `respuesta = 1`. El valor del grupo es el puntaje
+ * máximo entre sus preguntas. El estado final del área se determina contra las
+ * `reglasAprobacion` de esa sala/área; si no hay regla, el umbral es el 60% del total.
+ *
+ * @param tx - Transacción de Prisma activa.
+ * @param evaluacionAreaId - ID del registro de área (`evaluacionesEstudianteArea`).
+ * @param salaId - ID de sala (para filtrar preguntas activas).
+ * @param areaId - UUID del área.
+ * @returns Objeto con puntajeFinal, completado, totalPuntosPosibles, estadoFinalArea,
+ *          aciertosIndividuales y totalPreguntasActivas.
+ */
 async function calculateAreaScore(
   tx: any,
   evaluacionAreaId: string,
@@ -659,6 +809,19 @@ async function calculateAreaScore(
   };
 }
 
+/**
+ * Determina el estado global de una evaluación a partir del estado de sus áreas.
+ *
+ * @remarks
+ * Reglas de derivación:
+ * - Todas `"N"` → `"N"` (no iniciada).
+ * - Al menos una `"E"` → `"E"` (en progreso).
+ * - Todas finalizadas (`"A"` o `"D"`) y todas `"A"` → `"A"` (aprobada).
+ * - Todas finalizadas con alguna `"D"` → `"D"` (desaprobada).
+ *
+ * @param areaEstados - Array de estados de todas las áreas de la evaluación.
+ * @returns El estado derivado: `"N"`, `"E"`, `"A"` o `"D"`.
+ */
 function computeEvaluacionEstadoFromAreas(areaEstados: string[]) {
   const allN = areaEstados.every(s => s === ESTADO_NO_INICIADA);
   if (allN) return ESTADO_NO_INICIADA;

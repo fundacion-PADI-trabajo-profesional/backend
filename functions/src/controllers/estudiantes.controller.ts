@@ -5,6 +5,20 @@ import { AuthenticatedRequest } from "../middlewares/auth.middleware"
 
 
 const service = new EstudiantesService()
+
+/**
+ * Crea un nuevo estudiante en el sistema.
+ *
+ * @remarks
+ * La validación de campos obligatorios difiere según el rol del solicitante:
+ * - **Docente**: requiere `aula_id` (la escuela se infiere del aula).
+ * - **Otros roles**: requieren `sala_id` y `escuela_id` explícitos.
+ *
+ * `POST /estudiantes`
+ *
+ * @param req - Request autenticado. Body: `{ dni, nombre, apellido, fecha_nacimiento, genero_id, sala_id?, escuela_id?, aula_id? }`.
+ * @param res - `201` con el estudiante creado, `400` si faltan datos o el DNI ya existe.
+ */
 export async function createEstudiante(req: AuthenticatedRequest, res: Response) {
     try {
         const { dni, nombre, apellido, fecha_nacimiento, genero_id, sala_id, escuela_id, aula_id } = req.body;
@@ -48,10 +62,19 @@ export async function createEstudiante(req: AuthenticatedRequest, res: Response)
     }
 }
 
-/*
- * Lista todos los estudiantes.
- * Responde a GET /estudiantes
-*/
+/**
+ * Lista los estudiantes según el rol del usuario autenticado.
+ *
+ * @remarks
+ * - **Director**: ve solo los estudiantes de su escuela (forzado desde el token, no del query param).
+ * - **Docente**: requiere `escuela_id` como query param.
+ * - **Admin / Encargado de zona**: ve todos los estudiantes.
+ *
+ * `GET /estudiantes`
+ *
+ * @param req - Request autenticado. Query: `escuela_id?` (requerido para docentes).
+ * @param res - `200` con el array de estudiantes, `400` si faltan datos de ubicación, `500` error interno.
+ */
 export async function listEstudiantes(req: AuthenticatedRequest, res: Response) {
     try {
         // Extraemos el rol y escuela_id que enviará el frontend en la query
@@ -87,10 +110,14 @@ export async function listEstudiantes(req: AuthenticatedRequest, res: Response) 
     }
 }
 
-/*
- * Obtiene la lista de géneros.
- * Responde a GET /generos
-*/
+/**
+ * Retorna el catálogo de géneros disponibles para la carga de estudiantes.
+ *
+ * `GET /generos`
+ *
+ * @param req - Request autenticado.
+ * @param res - `200` con el array de géneros, `500` si ocurre un error interno.
+ */
 export async function getGeneros(req: AuthenticatedRequest, res: Response) {
     try {
         const user = {
@@ -106,10 +133,14 @@ export async function getGeneros(req: AuthenticatedRequest, res: Response) {
     }
 }
 
-/*
- * Obtiene la lista de salas.
- * Responde a GET /salas
-*/
+/**
+ * Retorna el catálogo de salas disponibles (sala 3, 4, 5, etc.).
+ *
+ * `GET /salas`
+ *
+ * @param req - Request autenticado.
+ * @param res - `200` con el array de salas, `500` si ocurre un error interno.
+ */
 export async function getSalas(req: AuthenticatedRequest, res: Response) {
     try {
         const user = {
@@ -125,6 +156,14 @@ export async function getSalas(req: AuthenticatedRequest, res: Response) {
     }
 }
 
+/**
+ * Asigna un estudiante a un aula.
+ *
+ * `POST /estudiantes/asignar-aula`
+ *
+ * @param req - Request autenticado. Body: `{ estudianteId, aulaId }`.
+ * @param res - `200` con la relación creada, `400` si faltan datos.
+ */
 export async function asignarEstudianteAula(req: AuthenticatedRequest, res: Response) {
     try {
         const { estudianteId, aulaId } = req.body;
@@ -153,6 +192,14 @@ export async function asignarEstudianteAula(req: AuthenticatedRequest, res: Resp
     }
 }
 
+/**
+ * Desasigna un estudiante de un aula.
+ *
+ * `POST /estudiantes/desasignar-aula`
+ *
+ * @param req - Request autenticado. Body: `{ estudianteId, aulaId }`.
+ * @param res - `200` si fue desasignado, `400` si faltan datos.
+ */
 export async function desasignarEstudianteAula(req: AuthenticatedRequest, res: Response) {
     try {
         const { estudianteId, aulaId } = req.body;
@@ -179,6 +226,14 @@ export async function desasignarEstudianteAula(req: AuthenticatedRequest, res: R
     }
 }
 
+/**
+ * Actualiza los datos de un estudiante existente.
+ *
+ * `PUT /estudiantes/:id`
+ *
+ * @param req - Request autenticado. Param: `id`. Body: `{ dni?, nombre?, apellido?, fecha_nacimiento?, genero_id?, sala_id?, escuela_id?, aula_id? }`.
+ * @param res - `200` con el estudiante actualizado, `403` sin permisos, `400` si falta el ID.
+ */
 export async function updateEstudiante(req: AuthenticatedRequest, res: Response) {
     try {
         const { id } = req.params;
@@ -209,6 +264,19 @@ export async function updateEstudiante(req: AuthenticatedRequest, res: Response)
     }
 }
 
+/**
+ * Crea estudiantes en masa a partir de un array, con soporte de modo de prueba (dry run).
+ *
+ * @remarks
+ * Si `dryRun` es `true`, el sistema valida el array y retorna un análisis de errores
+ * potenciales sin persistir ningún dato. Útil para previsualizar el resultado de una
+ * importación masiva antes de confirmarla.
+ *
+ * `POST /estudiantes/bulk`
+ *
+ * @param req - Request autenticado. Body: `{ estudiantes, escuela_id, aula_id, dryRun? }`.
+ * @param res - `201` si se crearon, `200` si es dry run, `400` si el array está vacío o es inválido.
+ */
 export async function bulkCreateEstudiantes(req: AuthenticatedRequest, res: Response) {
     try {
         const { estudiantes, escuela_id, aula_id, dryRun} = req.body;

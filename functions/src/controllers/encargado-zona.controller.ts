@@ -6,6 +6,14 @@ import { AuthenticatedRequest } from "../middlewares/auth.middleware";
 
 const service = new EncargadosService();
 
+/**
+ * Lista todos los encargados de zona registrados en el sistema.
+ *
+ * `GET /encargados`
+ *
+ * @param req - Request autenticado.
+ * @param res - `200` con el array de encargados, `500` si ocurre un error interno.
+ */
 export async function listEncargados(req: AuthenticatedRequest, res: Response) {
     try {
         const data = await service.list({
@@ -21,6 +29,14 @@ export async function listEncargados(req: AuthenticatedRequest, res: Response) {
     }
 }
 
+/**
+ * Crea un nuevo encargado de zona y le envía un correo de invitación.
+ *
+ * `POST /encargados`
+ *
+ * @param req - Request autenticado. Body: `{ email, nombre, apellido, zona }`.
+ * @param res - `201` con el encargado creado, `400` si faltan datos o el email ya existe.
+ */
 export async function createEncargado(req: AuthenticatedRequest, res: Response) {
     try {
         const { email, nombre, apellido, zona } = req.body;
@@ -42,6 +58,14 @@ export async function createEncargado(req: AuthenticatedRequest, res: Response) 
     }
 }
 
+/**
+ * Actualiza los datos de un encargado de zona existente.
+ *
+ * `PUT /encargados/:id`
+ *
+ * @param req - Request autenticado. Param: `id`. Body: `{ nombre, apellido, email, zona_id }`.
+ * @param res - `200` con el encargado actualizado, `403` sin permisos, `400` si faltan datos.
+ */
 export async function updateEncargado(req: AuthenticatedRequest, res: Response) {
     try {
         const { id } = req.params;
@@ -60,6 +84,18 @@ export async function updateEncargado(req: AuthenticatedRequest, res: Response) 
     }
 }
 
+/**
+ * Retorna los datos del encargado de zona actualmente autenticado.
+ *
+ * @remarks
+ * Usado por el frontend para cargar el perfil del encargado en su dashboard.
+ * El `userId` se obtiene del token JWT, no de parámetros de URL.
+ *
+ * `GET /encargados/me`
+ *
+ * @param req - Request autenticado.
+ * @param res - `200` con los datos del encargado, `500` si ocurre un error.
+ */
 export async function getCurrentEncargado(req: AuthenticatedRequest, res: Response) {
     try {
         const userId = req.user!.id;
@@ -78,6 +114,14 @@ export async function getCurrentEncargado(req: AuthenticatedRequest, res: Respon
     }
 }
 
+/**
+ * Elimina un encargado de zona del sistema.
+ *
+ * `DELETE /encargados/:id`
+ *
+ * @param req - Request autenticado. Param: `id` del encargado.
+ * @param res - `200` si fue eliminado, `403` sin permisos, `400` si falta el ID.
+ */
 export async function deleteEncargado(req: AuthenticatedRequest, res: Response) {
     try {
         const { id } = req.params;

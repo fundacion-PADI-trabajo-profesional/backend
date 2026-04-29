@@ -5,6 +5,14 @@ import { AuthenticatedRequest } from "../middlewares/auth.middleware";
 
 const service = new DirectivosService();
 
+/**
+ * Lista todos los directivos registrados en el sistema.
+ *
+ * `GET /directivos`
+ *
+ * @param req - Request autenticado. El rol del usuario determina el alcance del listado.
+ * @param res - `200` con el array de directivos, `500` si ocurre un error interno.
+ */
 export async function listDirectivos(req: AuthenticatedRequest, res: Response) {
     try {
         const data = await service.list({
@@ -20,6 +28,17 @@ export async function listDirectivos(req: AuthenticatedRequest, res: Response) {
     }
 }
 
+/**
+ * Lista los directivos que aún no tienen escuela asignada.
+ *
+ * @remarks
+ * Usado por el frontend para poblar el selector al asignar un directivo a una escuela.
+ *
+ * `GET /directivos/disponibles`
+ *
+ * @param req - Request autenticado.
+ * @param res - `200` con el array de directivos disponibles, `500` si ocurre un error interno.
+ */
 export async function listDirectivosDisponibles(req: AuthenticatedRequest, res: Response) {
     try {
         const data = await service.listAvailable({
@@ -35,6 +54,14 @@ export async function listDirectivosDisponibles(req: AuthenticatedRequest, res: 
     }
 }
 
+/**
+ * Asigna una escuela a un directivo.
+ *
+ * `POST /directivos/:id/asignar-escuela`
+ *
+ * @param req - Request autenticado. Param: `id` del directivo. Body: `{ escuela_id }`.
+ * @param res - `200` con la relación creada, `400` si faltan datos o la asignación falla.
+ */
 export async function assignEscuelaToDirectivo(req: AuthenticatedRequest, res: Response) {
     try {
         const { id } = req.params;
@@ -55,7 +82,6 @@ export async function assignEscuelaToDirectivo(req: AuthenticatedRequest, res: R
             rol: req.user!.rol,
         };
 
-        // 4. Llamada al servicio pasando el 'user' (quien ejecuta) y los datos del target
         const data = await service.assignEscuela(String(id), String(escuela_id), user);
 
         return res

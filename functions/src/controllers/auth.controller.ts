@@ -2,7 +2,23 @@ import { Request, Response } from "express";
 import { AuthService } from "../services/auth.service";
 import { AuthenticatedRequest } from "../middlewares/auth.middleware";
 
+/**
+ * Controlador HTTP para las operaciones de autenticación.
+ *
+ * @remarks
+ * Los métodos `login`, `register`, `refreshToken`, `requestPasswordReset` y `updatePassword`
+ * son públicos (no requieren token JWT). `updateProfile` requiere token válido y que el usuario se encuentre 
+ * autenticado.
+ */
 export class AuthController {
+  /**
+   * Autentica un usuario con email y contraseña.
+   *
+   * `POST /auth/login`
+   *
+   * @param req - Body: `{ email, password }`.
+   * @param res - `200` con `{ accessToken, refreshToken, user }`, `401` si las credenciales son inválidas.
+   */
   static async login(req: Request, res: Response) {
     try {
       const { email, password } = req.body;
@@ -14,6 +30,15 @@ export class AuthController {
     }
   }
 
+  /**
+   * Registra un nuevo usuario en el sistema.
+   *
+   *
+   * `POST /auth/register`
+   *
+   * @param req - Body: `{ email, password, nombre, apellido, rol }`.
+   * @param res - `201` con los datos del usuario creado, `400` si el email ya existe o los datos son inválidos.
+   */
   static async register(req: Request, res: Response) {
     try {
       const authData = await AuthService.register(req.body);
@@ -24,6 +49,14 @@ export class AuthController {
     }
   }
 
+  /**
+   * Renueva el access token usando un refresh token válido.
+   *
+   * `POST /auth/refresh`
+   *
+   * @param req - Body: `{ refreshToken }`.
+   * @param res - `200` con `{ accessToken, refreshToken }`, `401` si el refresh token es inválido o expiró.
+   */
   static async refreshToken(req: Request, res: Response) {
     try {
       const { refreshToken } = req.body;
@@ -40,6 +73,18 @@ export class AuthController {
     }
   }
 
+  /**
+   * Actualiza el nombre y apellido del perfil del usuario autenticado.
+   *
+   * @remarks
+   * El `userId` siempre se obtiene del token JWT, nunca del body, para evitar
+   * que un usuario modifique el perfil de otro.
+   *
+   * `PUT /auth/profile`
+   *
+   * @param req - Request autenticado. Body: `{ nombre, apellido }`.
+   * @param res - `200` con el perfil actualizado, `400` si faltan campos.
+   */
   static async updateProfile(req: AuthenticatedRequest, res: Response) {
     try {
       // Siempre usamos el ID del token — nunca del body (evita modificar perfiles ajenos)
@@ -58,6 +103,18 @@ export class AuthController {
     }
   }
 
+  /**
+   * Envía un correo de restablecimiento de contraseña al email indicado.
+   *
+   * @remarks
+   * Si el email no existe en el sistema, la respuesta es igualmente exitosa
+   * para evitar enumeración de usuarios.
+   *
+   * `POST /auth/reset-password-request`
+   *
+   * @param req - Body: `{ email }`.
+   * @param res - `200` confirmando el envío, `400` si falta el email.
+   */
   static async requestPasswordReset(req: Request, res: Response) {
     try {
       const { email } = req.body;
@@ -74,6 +131,18 @@ export class AuthController {
     }
   }
 
+  /**
+   * Establece una nueva contraseña usando los tokens del link de restablecimiento.
+   *
+   * @remarks
+   * El link de restablecimiento enviado por email incluye `accessToken` y `refreshToken`
+   * como parámetros de URL. El frontend los extrae y los envía en el body de este endpoint.
+   *
+   * `POST /auth/update-password`
+   *
+   * @param req - Body: `{ accessToken, refreshToken, newPassword }`.
+   * @param res - `200` si la contraseña fue actualizada, `400` si faltan tokens o la nueva contraseña es inválida.
+   */
   static async updatePassword(req: Request, res: Response) {
     try {
       const { accessToken, refreshToken, newPassword } = req.body;

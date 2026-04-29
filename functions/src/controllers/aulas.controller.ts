@@ -5,7 +5,14 @@ import { AuthenticatedRequest } from "../middlewares/auth.middleware";
 
 const service = new AulasService();
 
-// POST /aulas
+/**
+ * Crea un nuevo aula en el sistema.
+ *
+ * `POST /aulas`
+ *
+ * @param req - Request autenticado. Body: `{ sala_id, turno, escuela_id, comision? }`. `comision` por defecto es `"Única"`.
+ * @param res - `201` con el aula creada, `400` si faltan `sala_id` o `turno`.
+ */
 export async function createAula(req: AuthenticatedRequest, res: Response) {
   try {
     const { sala_id, turno, escuela_id } = req.body;
@@ -50,7 +57,18 @@ export async function createAula(req: AuthenticatedRequest, res: Response) {
   }
 }
 
-// GET /aulas
+/**
+ * Lista las aulas accesibles para el usuario autenticado.
+ *
+ * @remarks
+ * El servicio filtra el resultado según el rol: un docente solo ve sus aulas asignadas,
+ * un director solo las de su escuela, un administrador (Equipo Padi) ve todas.
+ *
+ * `GET /aulas`
+ *
+ * @param req - Request autenticado. Sin parámetros adicionales.
+ * @param res - `200` con el array de aulas, `500` si ocurre un error interno.
+ */
 export async function listAulas(req: AuthenticatedRequest, res: Response) {
   try {
     const user = { id: req.user!.id, rol: req.user!.rol };
@@ -73,7 +91,14 @@ export async function listAulas(req: AuthenticatedRequest, res: Response) {
   }
 }
 
-// PUT /aulas/:id
+/**
+ * Actualiza los datos de un aula existente.
+ *
+ * `PUT /aulas/:id`
+ *
+ * @param req - Request autenticado. Param: `id`. Body: `{ sala_id?, comision?, turno? }`.
+ * @param res - `200` con el aula actualizada, `400` si falta el ID o la actualización falla.
+ */
 export async function updateAula(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
@@ -119,7 +144,14 @@ export async function updateAula(req: AuthenticatedRequest, res: Response) {
   }
 }
 
-// DELETE /aulas/:id
+/**
+ * Elimina un aula del sistema.
+ *
+ * `DELETE /aulas/:id`
+ *
+ * @param req - Request autenticado. Param: `id` del aula.
+ * @param res - `200` si fue eliminada, `400` si falta el ID o la eliminación falla.
+ */
 export async function deleteAula(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
@@ -156,7 +188,14 @@ export async function deleteAula(req: AuthenticatedRequest, res: Response) {
   }
 }
 
-// GET /aulas/:id/docentes
+/**
+ * Lista los docentes asignados a un aula específica.
+ *
+ * `GET /aulas/:id/docentes`
+ *
+ * @param req - Request autenticado. Param: `id` del aula.
+ * @param res - `200` con el array de docentes, `400` si falta el ID, `500` error interno.
+ */
 export async function listAulaDocentes(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
@@ -191,7 +230,14 @@ export async function listAulaDocentes(req: AuthenticatedRequest, res: Response)
   }
 }
 
-// POST /aulas/:id/asignar-docente
+/**
+ * Asigna un docente a un aula.
+ *
+ * `POST /aulas/:id/asignar-docente`
+ *
+ * @param req - Request autenticado. Param: `id` del aula. Body: `{ profesor_id }`.
+ * @param res - `200` con la relación creada, `400` si faltan datos o la asignación falla.
+ */
 export async function asignarDocenteAula(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
@@ -229,7 +275,14 @@ export async function asignarDocenteAula(req: AuthenticatedRequest, res: Respons
   }
 }
 
-// POST /aulas/:id/desasignar-docente
+/**
+ * Desasigna un docente de un aula.
+ *
+ * `POST /aulas/:id/desasignar-docente`
+ *
+ * @param req - Request autenticado. Param: `id` del aula. Body: `{ profesor_id }`.
+ * @param res - `200` si fue desasignado, `400` si faltan datos o la operación falla.
+ */
 export async function desasignarDocenteAula(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
@@ -267,7 +320,14 @@ export async function desasignarDocenteAula(req: AuthenticatedRequest, res: Resp
   }
 }
 
-// GET /docentes/aulas
+/**
+ * Lista las aulas asignadas al docente autenticado.
+ *
+ * `GET /docentes/aulas`
+ *
+ * @param req - Request autenticado con rol `docente`.
+ * @param res - `200` con el array de aulas del docente, `400` si la consulta falla.
+ */
 export async function listDocenteAulas(req: AuthenticatedRequest, res: Response) {
   try {
     const user = { id: req.user!.id, rol: req.user!.rol };
@@ -289,7 +349,14 @@ export async function listDocenteAulas(req: AuthenticatedRequest, res: Response)
   }
 }
 
-// POST /aulas/:id/asignar-estudiante
+/**
+ * Asigna un estudiante a un aula.
+ *
+ * `POST /aulas/:id/asignar-estudiante`
+ *
+ * @param req - Request autenticado. Param: `id` del aula. Body: `{ estudiante_id }`.
+ * @param res - `200` con la relación creada, `400` si faltan datos o la asignación falla.
+ */
 export async function asignarEstudianteAula(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
@@ -320,7 +387,14 @@ export async function asignarEstudianteAula(req: AuthenticatedRequest, res: Resp
   }
 }
 
-// POST /aulas/:id/desasignar-estudiante
+/**
+ * Desasigna un estudiante de un aula.
+ *
+ * `POST /aulas/:id/desasignar-estudiante`
+ *
+ * @param req - Request autenticado. Param: `id` del aula. Body: `{ estudiante_id }`.
+ * @param res - `200` si fue desasignado, `400` si faltan datos o la operación falla.
+ */
 export async function desasignarEstudianteAula(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;
@@ -351,7 +425,14 @@ export async function desasignarEstudianteAula(req: AuthenticatedRequest, res: R
   }
 }
 
-// GET /aulas/:id/estudiantes
+/**
+ * Lista los estudiantes asignados a un aula específica.
+ *
+ * `GET /aulas/:id/estudiantes`
+ *
+ * @param req - Request autenticado. Param: `id` del aula.
+ * @param res - `200` con el array de estudiantes, `400` si falta el ID, `400` si falla.
+ */
 export async function listAulaEstudiantes(req: AuthenticatedRequest, res: Response) {
   try {
     const { id } = req.params;

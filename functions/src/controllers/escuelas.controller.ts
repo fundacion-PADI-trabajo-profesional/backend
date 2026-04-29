@@ -7,7 +7,18 @@ import { AulasService } from "../services/aulas.service";
 const service = new EscuelasService();
 const aulasService = new AulasService();
 
-// GET /api/escuelas
+/**
+ * Lista las escuelas accesibles para el usuario autenticado.
+ *
+ * @remarks
+ * El servicio aplica filtros según el rol: un director solo ve su escuela,
+ * un encargado de zona solo las de su zona, un admin ve todas.
+ *
+ * `GET /escuelas`
+ *
+ * @param req - Request autenticado. Sin parámetros adicionales.
+ * @param res - `200` con el array de escuelas, `500` si ocurre un error interno.
+ */
 export async function listEscuelas(req: AuthenticatedRequest, res: Response) {
     try {
 
@@ -25,6 +36,14 @@ export async function listEscuelas(req: AuthenticatedRequest, res: Response) {
     }
 }
 
+/**
+ * Actualiza los datos de una escuela existente.
+ *
+ * `PUT /escuelas/:id`
+ *
+ * @param req - Request autenticado. Param: `id`. Body: `{ nombre, zona_id, direccion?, telefono? }`.
+ * @param res - `200` con la escuela actualizada, `400` si faltan `nombre` o `zona_id`.
+ */
 export async function updateEscuela(req: AuthenticatedRequest, res: Response) {
     try {
         const { id } = req.params;
@@ -46,6 +65,19 @@ export async function updateEscuela(req: AuthenticatedRequest, res: Response) {
     }
 }
 
+/**
+ * Crea una nueva escuela y genera automáticamente aulas por defecto (salas 3, 4 y 5).
+ *
+ * @remarks
+ * Al crear la escuela, el sistema intenta crear aulas para las salas 3, 4 y 5 con
+ * comisión "Única" y turno "Mañana". Si la creación de alguna aula falla, se registra
+ * un aviso pero la escuela queda creada igualmente.
+ *
+ * `POST /escuelas`
+ *
+ * @param req - Request autenticado. Body: `{ nombre, zona_id, direccion?, telefono? }`.
+ * @param res - `201` con la escuela creada, `400` si faltan `nombre` o `zona_id`.
+ */
 export async function createEscuela(req: AuthenticatedRequest, res: Response) {
     try {
         const { nombre, direccion, telefono, zona_id } = req.body;
@@ -81,6 +113,14 @@ export async function createEscuela(req: AuthenticatedRequest, res: Response) {
     }
 }
 
+/**
+ * Asigna un directivo a una escuela.
+ *
+ * `POST /escuelas/asignar-directivo`
+ *
+ * @param req - Request autenticado. Body: `{ escuelaId, usuarioId }`.
+ * @param res - `200` si fue asignado, `500` si la operación falla.
+ */
 export async function addDirectivoToEscuela(req: AuthenticatedRequest, res: Response) {
     try {
         const { escuelaId, usuarioId } = req.body;
@@ -95,6 +135,14 @@ export async function addDirectivoToEscuela(req: AuthenticatedRequest, res: Resp
     }
 }
 
+/**
+ * Desvincula el directivo actual de una escuela.
+ *
+ * `POST /escuelas/desasignar-directivo`
+ *
+ * @param req - Request autenticado. Body: `{ usuarioId }`.
+ * @param res - `200` si fue desvinculado, `500` si la operación falla.
+ */
 export async function removeDirectivoFromEscuela(req: AuthenticatedRequest, res: Response) {
     try {
         const { usuarioId } = req.body;
@@ -109,6 +157,14 @@ export async function removeDirectivoFromEscuela(req: AuthenticatedRequest, res:
     }
 }
 
+/**
+ * Elimina una escuela y libera todos sus vínculos (aulas, docentes, directivos).
+ *
+ * `DELETE /escuelas/:id`
+ *
+ * @param req - Request autenticado. Param: `id` de la escuela.
+ * @param res - `200` si fue eliminada, `400` si la eliminación falla.
+ */
 export async function deleteEscuela(req: AuthenticatedRequest, res: Response) {
     try {
         const { id } = req.params;

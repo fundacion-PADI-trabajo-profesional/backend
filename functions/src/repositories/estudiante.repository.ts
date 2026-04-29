@@ -4,13 +4,37 @@ import { Prisma, PrismaClient } from "@prisma/client"
 import { getPrisma } from "../config/prismaClient"
 const { v4: uuidv4 } = require('uuid'); // Asegúrate de tener uuid o usa crypto
 
+/**
+ * Resumen de evaluaciones de un estudiante agrupadas por sala (año escolar).
+ *
+ * @remarks
+ * Usado internamente por `getEvaluacionesHistorialPorEstudiantes` para
+ * construir el historial de evaluaciones que se adjunta a cada estudiante
+ * en los métodos de listado.
+ */
 type EvaluacionAño = {
+    /** ID numérico de la sala (año escolar). */
     sala_id: number
+    /** Nombre descriptivo de la sala (p. ej. `"Sala de 3 años"`). */
     sala_nombre: string | null
+    /** Estado de la evaluación inicial en esa sala, o `null` si no existe. */
     inicial: string | null
+    /** Estado de la evaluación de cierre en esa sala, o `null` si no existe. */
     cierre: string | null
 }
 
+/**
+ * Construye un mapa de historial de evaluaciones por estudiante.
+ *
+ * @remarks
+ * Para cada estudiante, agrupa los estados de evaluación `"inicial"` y `"cierre"`
+ * por sala (año escolar), ordenados de menor a mayor `sala_id`.
+ * Solo toma el estado más reciente por tipo/sala (ordenado por `fecha_creacion desc`).
+ *
+ * @param prismaAny - Instancia de Prisma sin tipado estricto.
+ * @param estudianteIds - IDs de estudiantes para los que obtener el historial.
+ * @returns Mapa `estudianteId → EvaluacionAño[]`.
+ */
 async function getEvaluacionesHistorialPorEstudiantes(prismaAny: any, estudianteIds: string[]) {
     const historial = new Map<string, EvaluacionAño[]>()
     if (estudianteIds.length === 0) return historial
@@ -64,7 +88,33 @@ export interface CreateEstudianteData {
     // segundo apellido opcional por ahora
 }
 
+/**
+ * Repositorio de acceso a datos para la entidad `Estudiante`.
+ *
+ * @remarks
+ * Los estudiantes se almacenan en tres tablas relacionadas:
+ * - `personas`: datos de identidad (DNI, nombre, apellido, fecha de nacimiento).
+ * - `estudiantes`: datos escolares (sala, escuela, género).
+ * - `estudiantesAulas`: historial de asignaciones a aulas (con `fecha_fin` para el historial).
+ *
+ * Los métodos de listado adjuntan automáticamente `aula_asignada` (asignación activa)
+ * y `evaluaciones_historial` (historial de evaluaciones por sala).
+ */
 export const EstudianteRepository = {
+  /**
+   * Crea un estudiante nuevo en una transacción atómica.
+   *
+   * @remarks
+   * Orden de operaciones dentro de la transacción:
+   * 1. Crea el registro en `personas`.
+   * 2. Resuelve el grado a partir de la sala.
+   * 3. Crea el registro en `estudiantes`.
+   * 4. Si se provee `aula_id`, crea la asignación en `estudiantesAulas`.
+   *
+   * @param data - Datos del estudiante a crear.
+   * @returns El estudiante recién creado con relaciones incluidas.
+   * @throws Error con mensaje `"Ya existe un estudiante con ese DNI."` si el DNI está duplicado.
+   */
     async create(data: CreateEstudianteData) {
         const { dni, nombre, apellido, fecha_nacimiento, genero_id, sala_id, escuela_id, aula_id } = data
 
@@ -156,6 +206,13 @@ export const EstudianteRepository = {
         }
     },
 
+  /**
+   * Lista todos los estudiantes del sistema con escuela, sala, historial de evaluaciones
+   * y aula activa.
+   *
+   * @returns Array de estudiantes enriquecidos con `aula_asignada` y `evaluaciones_historial`.
+   * @throws Error si la base de datos no está disponible.
+   */
     async list() {
         const prisma = getPrisma()
         if (!prisma) throw new Error("DB not available")
@@ -228,6 +285,12 @@ export const EstudianteRepository = {
         }))
     },
 
+  /**
+   * Retorna todos los géneros disponibles en el catálogo.
+   *
+   * @returns Array de registros de la tabla `generos`.
+   * @throws Error si la base de datos no está disponible.
+   */
     async getGeneros() {
         const prisma = getPrisma()
         if (!prisma) throw new Error("DB not available to fetch Géneros")
@@ -245,6 +308,12 @@ export const EstudianteRepository = {
         }
     },
 
+  /**
+   * Retorna todas las salas disponibles (id, nombre, grado).
+   *
+   * @returns Array de `{ id, nombre, grado }` de la tabla `salas`.
+   * @throws Error si la base de datos no está disponible.
+   */
     async getSalas() {
         const prisma = getPrisma()
         if (!prisma) throw new Error("DB not available to fetch Salas")
@@ -267,6 +336,13 @@ export const EstudianteRepository = {
             throw new Error("Error al obtener salas.")
         }
     },
+  /**
+   * Lista los estudiantes de una escuela específica con sus datos enriquecidos.
+   *
+   * @param escuelaId - UUID de la escuela.
+   * @returns Array de estudiantes con `aula_asignada` y `evaluaciones_historial`.
+   * @throws Error si la base de datos no está disponible.
+   */
     async listByEscuela(escuelaId: string) {
         const prisma = getPrisma();
         if (!prisma) throw new Error("DB not available");
@@ -337,6 +413,17 @@ export const EstudianteRepository = {
         }))
     },
 
+  /**
+   * Lista estudiantes de múltiples escuelas (para encargados de zona).
+   *
+   * @remarks
+   * Acepta un valor de tipo `string` pero lo usa con `{ in: escuelaId }`,
+   * lo que en la práctica permite pasar un array de IDs.
+   *
+   * @param escuelaId - UUID o array de UUIDs de escuelas.
+   * @returns Array de estudiantes enriquecidos.
+   * @throws Error si la base de datos no está disponible.
+   */
     async listByEscuelas(escuelaId: string) {
         const prisma = getPrisma();
         if (!prisma) throw new Error("DB not available");
@@ -406,6 +493,19 @@ export const EstudianteRepository = {
         }))
     },
 
+  /**
+   * Actualiza los datos de un estudiante existente en una transacción atómica.
+   *
+   * @remarks
+   * Actualiza `personas` (DNI, nombre, apellido, fecha de nacimiento),
+   * `estudiantes` (género, sala, escuela) y, si se provee `aula_id`,
+   * cierra la asignación de aula activa y crea una nueva.
+   *
+   * @param id - UUID del estudiante a actualizar.
+   * @param data - Campos a modificar (todos opcionales).
+   * @returns El estudiante actualizado con relaciones incluidas.
+   * @throws Error si el estudiante no existe o si la base de datos no está disponible.
+   */
     async update(id: string, data: Partial<CreateEstudianteData>) {
         const prisma = getPrisma();
         if (!prisma) throw new Error("DB not available");
@@ -484,6 +584,25 @@ export const EstudianteRepository = {
         });
     },
 
+  /**
+   * Crea o actualiza estudiantes en lote a partir de una importación masiva.
+   *
+   * @remarks
+   * Si `dryRun` es `true`, clasifica los estudiantes en cuatro categorías
+   * (`nuevos`, `promovidos`, `repitentes`, `retrocesos`) sin escribir en la base de datos.
+   * Si `dryRun` es `false`, ejecuta la carga real dentro de una transacción:
+   * - Estudiantes nuevos: crea `personas` + `estudiantes`.
+   * - Estudiantes existentes: actualiza sala, grado y escuela.
+   * - En ambos casos, vincula al aula indicada en `commonData.aula_id` o `est.aula_id`.
+   *
+   * @param estudiantesData - Array de datos de estudiantes a procesar.
+   * @param commonData - Datos comunes para todos (escuela y aula por defecto).
+   * @param user - Usuario que ejecuta la operación (para auditoría futura).
+   * @param dryRun - Si `true`, retorna la clasificación sin persistir cambios.
+   * @returns En `dryRun`: `{ nuevos, promovidos, repitentes, retrocesos }`.
+   *          En escritura real: array de estudiantes procesados.
+   * @throws Error si algún estudiante tiene género o sala inválidos (código `P2003`).
+   */
     async createBulk(estudiantesData: any[], commonData: { escuela_id: string, aula_id?: string }, user: any, dryRun: boolean = false) {
         const prisma = getPrisma();
         if (!prisma) throw new Error("DB not available");

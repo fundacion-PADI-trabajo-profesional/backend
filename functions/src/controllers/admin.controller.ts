@@ -2,11 +2,25 @@ import { Response } from "express";
 import { AuthenticatedRequest } from "../middlewares/auth.middleware";
 import { AdminService, type CreateUserData } from "../services/admin.service";
 
+/**
+ * Controlador HTTP para las operaciones del panel de administración de usuarios del sistema.
+ *
+ * @remarks
+ * Todos los métodos requieren que el solicitante esté autenticado con rol `admin`.
+ * La autorización es verificada por el middleware antes de llegar a este controlador.
+ */
 export class AdminController {
   /**
-   * Crea un único usuario desde el panel admin.
-   * POST /admin/users
-   * Body: { nombre, apellido, email, rol }
+   * Crea un único usuario desde el panel de administración.
+   *
+   * @remarks
+   * El sistema genera una contraseña temporal y envía un correo de invitación
+   * al email indicado. El usuario deberá cambiar la contraseña en su primer inicio de sesión.
+   *
+   * `POST /admin/users`
+   *
+   * @param req - Request autenticado. Body: `{ nombre, apellido, email, rol }`.
+   * @param res - `201` con el usuario creado, `400` si faltan campos o el email ya existe.
    */
   static async createUser(req: AuthenticatedRequest, res: Response) {
     try {
@@ -31,9 +45,18 @@ export class AdminController {
   }
 
   /**
-   * Crea múltiples usuarios en lote.
-   * POST /admin/users/bulk
-   * Body: { users: [{ nombre, apellido, email, rol }, ...] }
+   * Crea múltiples usuarios en lote desde el panel de administración.
+   *
+   * @remarks
+   * Procesa el array completo e intenta crear cada usuario individualmente.
+   * Los errores parciales no abortan el proceso: se reportan en el campo `errores`
+   * junto con los usuarios creados exitosamente en `creados`.
+   * Si todos fallan responde `400`; si al menos uno se crea, responde `200`.
+   *
+   * `POST /admin/users/bulk`
+   *
+   * @param req - Request autenticado. Body: `{ users: CreateUserData[] }`.
+   * @param res - `200` con resultado parcial o total, `400` si el array está vacío o todos fallaron.
    */
   static async createUsersBulk(req: AuthenticatedRequest, res: Response) {
     try {
@@ -61,8 +84,12 @@ export class AdminController {
   }
 
   /**
-   * Lista todos los usuarios.
-   * GET /admin/users
+   * Lista todos los usuarios del sistema.
+   *
+   * `GET /admin/users`
+   *
+   * @param req - Request autenticado. Sin parámetros adicionales.
+   * @param res - `200` con el array de usuarios, `500` si ocurre un error interno.
    */
   static async listUsers(req: AuthenticatedRequest, res: Response) {
     try {
@@ -75,8 +102,15 @@ export class AdminController {
   }
 
   /**
-   * Reenvía el email de invitación a un usuario pendiente.
-   * POST /admin/users/:id/resend-invite
+   * Reenvía el correo de invitación a un usuario pendiente de activación.
+   *
+   * @remarks
+   * Utilizado cuando el usuario no encontró el correo original o el link expiró.
+   *
+   * `POST /admin/users/:id/resend-invite`
+   *
+   * @param req - Request autenticado. Param: `id` del usuario.
+   * @param res - `200` si el correo fue reenviado, `400` si falta el ID o el usuario no existe.
    */
   static async resendInvite(req: AuthenticatedRequest, res: Response) {
     try {
@@ -96,8 +130,16 @@ export class AdminController {
   }
 
   /**
-   * Elimina un usuario.
-   * DELETE /admin/users/:id
+   * Elimina un usuario del sistema.
+   *
+   * @remarks
+   * Un administrador no puede eliminarse a sí mismo: si el `id` del param coincide
+   * con el `id` del token autenticado, la operación es rechazada con `400`.
+   *
+   * `DELETE /admin/users/:id`
+   *
+   * @param req - Request autenticado. Param: `id` del usuario a eliminar.
+   * @param res - `200` si fue eliminado, `400` si falta el ID o el admin intenta auto-eliminarse.
    */
   static async deleteUser(req: AuthenticatedRequest, res: Response) {
     try {
