@@ -13,10 +13,25 @@ import { createAuthRouter, createAuthProtectedRouter } from "./routes/auth.route
 import { createAdminRouter } from "./routes/admin.router";
 import { requireAuth } from "./middlewares/auth.middleware";
 
+/**
+ * Fábrica de la aplicación Express.
+ * * @remarks
+ * Este módulo centraliza la configuración de middlewares globales y el montaje 
+ * jerárquico de rutas. El orden de los middlewares es crítico:
+ * 1. **CORS:** Gestión de orígenes permitidos (Local, Staging, Producción).
+ * 2. **Body Parser:** Parseo de JSON para habilitar `req.body`.
+ * 3. **Public Routes:** Rutas de salud y autenticación inicial.
+ * 4. **Auth Middleware:** Barrera de seguridad JWT para el resto de la API.
+ * * @returns Instancia de Express configurada y lista para montar en un servidor o función.
+ */
 export function createApp() {
   const app = express();
 
-  // Orígenes permitidos: frontend local en desarrollo + producción en Firebase Hosting
+  /**
+   * Configuración dinámica de CORS.
+   * Permite peticiones desde entornos locales de desarrollo y dominios oficiales de Firebase Hosting.
+   * Filtra valores nulos para evitar errores en el despliegue si `FRONTEND_URL` no está definida.
+   */
   const allowedOrigins = [
     "http://localhost:5173",
     "http://localhost:4173",
@@ -37,18 +52,26 @@ export function createApp() {
     credentials: true,
   };
 
+  // Middlewares Globales
   app.options('*', cors(corsOptions));
   app.use(cors(corsOptions));
   app.use(express.json());
 
-  // Rutas PUBLICAS (sin autenticacion)
+  /**
+   * Rutas de acceso público.
+   * No requieren cabecera 'Authorization'.
+   */
   app.use(createHealthRouter());
   app.use(createAuthRouter());
 
   // A partir de acá, TODAS las rutas requieren JWT válido
   app.use(requireAuth as any);
 
-  // RUTAS PROTEGIDAS
+  /**
+   * Rutas Protegidas.
+   * Solo accesibles para usuarios autenticados. La lógica de autorización 
+   * específica por rol se maneja dentro de cada servicio/controller.
+   */
   app.use(createAuthProtectedRouter());
   app.use(createEvaluacionesRouter());
   app.use(createEstudiantesRouter());

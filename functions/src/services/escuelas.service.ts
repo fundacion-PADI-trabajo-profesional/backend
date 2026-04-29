@@ -1,9 +1,32 @@
 import { EscuelasRepository } from "../repositories/escuela.repository";
 import { CreateEscuelaDto } from "../interfaces/escuela.interface";
 
+/**
+ * Servicio de gestión de escuelas.
+ *
+ * @remarks
+ * Aplica las reglas de negocio de scoping por rol:
+ * - `"equipo_padi"`: acceso total (CRUD sobre cualquier escuela).
+ * - `"encargado_zona"`: solo puede ver y modificar escuelas de su propia zona.
+ *   Al crear, hereda automáticamente su `zona_id` y `encargado_id`.
+ * - Otros roles: acceso denegado para operaciones de escritura y listado global.
+ */
 export class EscuelasService {
     private repo = EscuelasRepository;
 
+    /**
+     * Crea una escuela nueva aplicando las reglas de zona por rol.
+     *
+     * @remarks
+     * - `"equipo_padi"`: debe proveer `zona_id` explícitamente.
+     * - `"encargado_zona"`: la zona se obtiene de su perfil; no puede elegirla.
+     *
+     * @param data - DTO con los datos de la escuela.
+     * @param user - Usuario autenticado.
+     * @returns El registro de escuela creado.
+     * @throws Error si la zona no está definida, el perfil de encargado no es válido,
+     *         o el rol no tiene permisos de creación.
+     */
     async create(data: CreateEscuelaDto, user: { id: string, rol: string }) {
         // Preparamos el objeto a guardar
         const payload: CreateEscuelaDto = {
@@ -37,6 +60,17 @@ export class EscuelasService {
         return await this.repo.create(payload);
     }
 
+    /**
+     * Lista escuelas con scope según el rol del usuario.
+     *
+     * @remarks
+     * - `"equipo_padi"`: todas las escuelas.
+     * - `"encargado_zona"`: solo las escuelas de su zona.
+     *
+     * @param user - Usuario autenticado.
+     * @returns Array de escuelas con zona, directivos y docentes.
+     * @throws Error si el encargado no tiene zona asignada o el rol no tiene permisos.
+     */
     async list(user: { id: string, rol: string }) {
         if (user.rol === "equipo_padi") {
             // PADI ve todo
@@ -54,6 +88,15 @@ export class EscuelasService {
         throw new Error("No tienes permisos para ver el listado de escuelas.");
     }
 
+    /**
+     * Actualiza los datos de una escuela.
+     *
+     * @param id - UUID de la escuela.
+     * @param data - Nuevos valores para nombre, dirección, teléfono y zona.
+     * @param user - Usuario autenticado (debe ser `"equipo_padi"` o `"encargado_zona"`).
+     * @returns El registro de escuela actualizado.
+     * @throws Error si el rol no tiene permisos de modificación.
+     */
     async update(id: string, data: {
         nombre: string;
         direccion?: string;
@@ -68,6 +111,17 @@ export class EscuelasService {
         throw new Error("No tienes permisos para ver modificar data de escuelas.");
     }
 
+    /**
+     * Elimina una escuela del sistema (solo `"equipo_padi"`).
+     *
+     * @remarks
+     * El repositorio desasigna estudiantes, directivos y docentes antes de
+     * eliminar la escuela y sus aulas en una sola transacción.
+     *
+     * @param id - UUID de la escuela a eliminar.
+     * @param user - Usuario autenticado.
+     * @throws Error si el rol no es `"equipo_padi"`.
+     */
     async delete(id: string, user: { rol: string }) {
         // 1. Validación de seguridad: Solo el equipo PADI tiene este permiso
         if (user.rol !== "equipo_padi") {
@@ -80,6 +134,14 @@ export class EscuelasService {
         return await this.repo.delete(id);
     }
 
+    /**
+     * Asigna un directivo a una escuela.
+     *
+     * @param escuelaId - UUID de la escuela.
+     * @param usuarioId - UUID del directivo.
+     * @param user - Usuario autenticado (debe ser `"equipo_padi"` o `"encargado_zona"`).
+     * @throws Error si el usuario no tiene permisos.
+     */
     async addDirectivo(escuelaId: string, usuarioId: string, user: { id: string, rol: string }) {
         if (user.rol === "equipo_padi" || user.rol === "encargado_zona") {
             return await this.repo.addDirectivoRelation(escuelaId, usuarioId);
@@ -87,6 +149,13 @@ export class EscuelasService {
         throw new Error("No tenés permisos para asignar directivos a escuelas.");
     }
 
+    /**
+     * Desasigna un directivo de su escuela poniendo `escuela_id = null`.
+     *
+     * @param usuarioId - UUID del directivo a desasignar.
+     * @param user - Usuario autenticado (debe ser `"equipo_padi"` o `"encargado_zona"`).
+     * @throws Error si el usuario no tiene permisos.
+     */
     async removeDirectivo(usuarioId: string, user: { id: string, rol: string }) {
         if (user.rol === "equipo_padi" || user.rol === "encargado_zona") {
             return await this.repo.removeDirectivoRelation(usuarioId);

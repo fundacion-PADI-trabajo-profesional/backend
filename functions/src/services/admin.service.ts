@@ -1,26 +1,52 @@
 import { getSupabase } from "../config/supabaseClient";
 
 const ROLES_VALIDOS = ["equipo_padi", "director", "encargado_zona", "docente"] as const;
+/** Unión de los roles válidos del sistema. */
 type RolValido = typeof ROLES_VALIDOS[number];
 
+/** Datos requeridos para crear un usuario desde el panel de administración. */
 export interface CreateUserData {
+  /** Nombre de pila del usuario. */
   nombre: string;
+  /** Apellido del usuario. */
   apellido: string;
+  /** Dirección de correo electrónico (debe ser única). */
   email: string;
+  /** Rol a asignar al usuario en el sistema. */
   rol: RolValido;
 }
 
+/** Resultado de una operación de creación masiva de usuarios. */
 export interface BulkCreateResult {
+  /** Usuarios creados exitosamente con sus datos básicos. */
   creados: { email: string; nombre: string; apellido: string }[];
+  /** Usuarios que fallaron con su email y motivo del error. */
   errores: { email: string; error: string }[];
 }
 
+/**
+ * Servicio de administración de usuarios (exclusivo del rol `"equipo_padi"`).
+ *
+ * @remarks
+ * Todos los métodos son estáticos. Utiliza la API de administración de Supabase Auth
+ * (`supabase.auth.admin`) para invitar, eliminar y consultar usuarios. El flujo de
+ * invitación crea primero la cuenta en Auth y luego el perfil en la tabla `usuarios`;
+ * si el segundo paso falla, realiza rollback eliminando el usuario de Auth.
+ */
 export class AdminService {
   /**
-   * Invita a un usuario desde el panel ADMIN (equipo_padi).
-   * - Llama a inviteUserByEmail de Supabase (usa el SMTP configurado en el proyecto)
-   * - Crea el perfil en la tabla 'usuarios' para que esté listo cuando el usuario acepte
-   * - El usuario recibirá un email con un link para establecer su contraseña
+   * Invita a un usuario nuevo al sistema desde el panel de administración.
+   *
+   * @remarks
+   * Flujo:
+   * 1. Valida los datos de entrada (nombre, apellido, email, rol).
+   * 2. Llama a `inviteUserByEmail` de Supabase, que envía el email con el link de activación.
+   * 3. Crea el perfil en la tabla `usuarios` para que esté disponible al aceptar la invitación.
+   * 4. Si el perfil falla, elimina el usuario de Auth (rollback).
+   *
+   * @param data - Datos del usuario a invitar.
+   * @returns `{ id, email }` del usuario creado.
+   * @throws Error si el email ya existe, si los datos son inválidos o si algún paso falla.
    */
   static async createUser(data: CreateUserData): Promise<{ id: string; email: string }> {
     const supabase = getSupabase();
@@ -93,8 +119,16 @@ export class AdminService {
   }
 
   /**
-   * Invita múltiples usuarios en lote.
-   * No detiene el proceso si un usuario falla — reporta éxitos y errores.
+   * Invita múltiples usuarios en lote (máximo 200 por llamada).
+   *
+   * @remarks
+   * El proceso no se detiene si un usuario individual falla: los errores se
+   * acumulan en `result.errores` y se continúa con el siguiente. Esto permite
+   * importaciones parcialmente exitosas.
+   *
+   * @param users - Array de datos de usuarios a invitar.
+   * @returns `{ creados, errores }` con los resultados de cada invitación.
+   * @throws Error si el array está vacío o supera los 200 registros.
    */
   static async createUsersBulk(users: CreateUserData[]): Promise<BulkCreateResult> {
     const result: BulkCreateResult = { creados: [], errores: [] };
@@ -128,8 +162,17 @@ export class AdminService {
 
   /**
    * Lista todos los usuarios del sistema con su estado de activación.
-   * Cruza la tabla 'usuarios' con los metadatos de Auth para determinar si cada
-   * usuario ya inició sesión (activo) o solo recibió la invitación (pendiente).
+   *
+   * @remarks
+   * Cruza dos fuentes de datos:
+   * - **Supabase Auth** (`listUsers`): provee `last_sign_in_at` para determinar si activó la cuenta.
+   * - **Tabla `usuarios`**: provee el perfil de aplicación (nombre, apellido, rol).
+   *
+   * El campo `estado` resultante es `"activo"` si el usuario ya inició sesión,
+   * o `"pendiente"` si solo recibió la invitación.
+   *
+   * @returns Array de perfiles enriquecidos con el campo `estado`.
+   * @throws Error si Supabase Auth o la tabla de perfiles no responden.
    */
   static async listUsers(): Promise<any[]> {
     const supabase = getSupabase();
@@ -165,6 +208,13 @@ export class AdminService {
 
   /**
    * Reenvía el email de invitación a un usuario que aún no activó su cuenta.
+   *
+   * @remarks
+   * Verifica que el usuario exista y que su `last_sign_in_at` sea nulo antes de
+   * reenviar. Si el usuario ya activó su cuenta, lanza un error descriptivo.
+   *
+   * @param userId - UUID del usuario al que reenviar la invitación.
+   * @throws Error si el usuario no existe, ya activó su cuenta o si el reenvío falla.
    */
   static async resendInvite(userId: string): Promise<void> {
     const supabase = getSupabase();
@@ -209,7 +259,14 @@ export class AdminService {
   }
 
   /**
-   * Elimina un usuario del sistema (Auth + perfil).
+   * Elimina un usuario del sistema: primero de Supabase Auth, luego su perfil.
+   *
+   * @remarks
+   * Elimina el perfil de `usuarios` después de Auth por si la cascada de base de
+   * datos no está configurada. Si Auth falla, el perfil no se toca.
+   *
+   * @param userId - UUID del usuario a eliminar.
+   * @throws Error si Supabase Auth no puede eliminar el usuario.
    */
   static async deleteUser(userId: string): Promise<void> {
     const supabase = getSupabase();

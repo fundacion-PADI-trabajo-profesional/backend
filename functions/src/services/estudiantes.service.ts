@@ -2,9 +2,34 @@ import { EstudianteRepository } from "../repositories/estudiante.repository"
 import type { CreateEstudianteData } from "../interfaces/estudiante.interface"
 import { getPrisma } from "../config/prismaClient"
 
+/**
+ * Servicio de gestión de estudiantes y sus asignaciones a aulas.
+ *
+ * @remarks
+ * Aplica control de acceso por rol en cada operación. Las reglas clave son:
+ * - **Docentes**: solo pueden crear estudiantes en aulas que les están asignadas;
+ *   `sala_id` y `escuela_id` se infieren del aula del docente para garantizar consistencia.
+ * - **Directores**: solo pueden ver y modificar estudiantes de su propia escuela.
+ * - **Encargados de zona**: ven estudiantes de todas las escuelas de su zona.
+ * - **PADI**: acceso total.
+ */
 export class EstudiantesService {
     private repo = EstudianteRepository
 
+    /**
+     * Crea un estudiante nuevo con validaciones de rol.
+     *
+     * @remarks
+     * Para docentes: verifica la asignación activa al aula y fuerza `sala_id`
+     * y `escuela_id` desde el aula (ignora lo que venga en el body).
+     * Para otros roles: requiere `escuela_id` y `sala_id` explícitos.
+     *
+     * @param data - Datos del estudiante a crear.
+     * @param user - Usuario autenticado.
+     * @returns El estudiante recién creado con sus relaciones.
+     * @throws Error si el docente no está asignado al aula, faltan campos obligatorios,
+     *         o el DNI ya existe.
+     */
     async create(
         data: CreateEstudianteData,
         user: { id: string; rol: string },
@@ -61,6 +86,17 @@ export class EstudiantesService {
         return await this.repo.create(data)
     }
 
+    /**
+     * Lista estudiantes según el scope del rol del usuario.
+     *
+     * @remarks
+     * - `"docente"`, `"director"`, `"equipo_padi"`: lista global (todos los estudiantes).
+     * - `"encargado_zona"`: lista solo los estudiantes de las escuelas de su zona.
+     *
+     * @param user - Usuario autenticado.
+     * @returns Array de estudiantes con aula activa e historial de evaluaciones.
+     * @throws Error si el rol no tiene permisos de listado.
+     */
     async list(user: { id: string; rol: string }) {
         if (user.rol === "docente" || user.rol === "director" || user.rol === "equipo_padi") {
             return await this.repo.list()
@@ -81,6 +117,13 @@ export class EstudiantesService {
         throw new Error("No tienes permisos para ver el listado completo de estudiantes. Filtra por escuela.");
     }
 
+    /**
+     * Retorna el catálogo de géneros disponibles.
+     *
+     * @param user - Usuario autenticado (cualquier rol válido).
+     * @returns Array de géneros del catálogo.
+     * @throws Error si el rol no tiene acceso.
+     */
     async getGeneros(user: { id: string; rol: string }) {
         if (user.rol === "docente" || user.rol === "director" || user.rol === "encargado_zona" || user.rol === "equipo_padi") {
             return await this.repo.getGeneros()
@@ -88,6 +131,13 @@ export class EstudiantesService {
         throw new Error("No tienes permisos para ver el listado completo de estudiantes. Filtra por escuela.");
     }
 
+    /**
+     * Retorna el catálogo de salas (años) disponibles.
+     *
+     * @param user - Usuario autenticado (cualquier rol válido).
+     * @returns Array de `{ id, nombre, grado }`.
+     * @throws Error si el rol no tiene acceso.
+     */
     async getSalas(user: { id: string; rol: string }) {
         if (user.rol === "docente" || user.rol === "director" || user.rol === "encargado_zona" || user.rol === "equipo_padi") {
             return await this.repo.getSalas()
@@ -95,6 +145,14 @@ export class EstudiantesService {
         throw new Error("No tienes permisos para ver el listado completo de estudiantes. Filtra por escuela.");
     }
 
+    /**
+     * Lista los estudiantes de una escuela específica.
+     *
+     * @param escuelaId - UUID de la escuela.
+     * @param user - Usuario autenticado (debe ser `"docente"` o `"director"`).
+     * @returns Array de estudiantes enriquecidos.
+     * @throws Error si el rol no tiene permisos de acceso filtrado por escuela.
+     */
     async listByEscuela(escuelaId: string, user: { id: string; rol: string }) {
         if (user.rol === "docente" || user.rol === "director") {
             return await this.repo.listByEscuela(escuelaId);
@@ -102,6 +160,20 @@ export class EstudiantesService {
         throw new Error("No tienes permisos para acceder a los estudiantes de esta escuela.");
     }
 
+    /**
+     * Crea o actualiza estudiantes en lote (importación masiva).
+     *
+     * @remarks
+     * Soporta modo `dryRun` para previsualizar la clasificación de estudiantes
+     * (nuevos / promovidos / repitentes / retrocesos) sin persistir cambios.
+     *
+     * @param estudiantes - Array de datos de estudiantes.
+     * @param commonData - Escuela y aula por defecto para todos.
+     * @param user - Usuario autenticado (debe ser `"director"`, `"encargado_zona"` o `"equipo_padi"`).
+     * @param dryRun - Si `true`, retorna clasificación sin escribir en la DB.
+     * @returns Clasificación (en dryRun) o array de estudiantes procesados.
+     * @throws Error si el rol no tiene permisos de importación masiva.
+     */
     async createBulk(estudiantes: any[], commonData: { escuela_id: string, aula_id?: string }, user: { id: string; rol: string }, dryRun: boolean = false) {
         if (user.rol !== "director" && user.rol !== "encargado_zona" && user.rol !== "equipo_padi") {
             throw new Error("No tienes permisos para crear estudiantes en masa.");
@@ -147,6 +219,20 @@ export class EstudiantesService {
         return await this.repo.update(id, data);
     }
 
+    /**
+     * Asigna un estudiante a un aula con validaciones de escuela y rol.
+     *
+     * @remarks
+     * Verifica que estudiante y aula pertenezcan a la misma escuela, y que el
+     * usuario tenga permisos sobre esa escuela según su rol.
+     *
+     * @param estudianteId - UUID del estudiante.
+     * @param aulaId - UUID del aula.
+     * @param user - Usuario autenticado.
+     * @returns El registro de asignación creado.
+     * @throws Error si el estudiante ya está en el aula, pertenecen a escuelas distintas,
+     *         o el usuario no tiene permisos.
+     */
     async asignarEstudianteAula(estudianteId: string, aulaId: string, user: { id: string; rol: string }) {
         if (user.rol !== "director" && user.rol !== "encargado_zona" && user.rol !== "equipo_padi") {
             throw new Error("No tienes permisos para asignar estudiantes a aulas.");

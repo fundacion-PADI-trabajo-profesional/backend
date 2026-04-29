@@ -4,11 +4,29 @@ import { AulasRepository, CreateAulaData, UpdateAulaData } from "../repositories
 import { ProfesoresAulasRepository } from "../repositories/profesor-aula.repository";
 import { DocenteRepository } from "../repositories/docente.repository";
 
+/**
+ * Servicio de gestión de aulas y sus asignaciones de docentes y estudiantes.
+ *
+ * @remarks
+ * Centraliza toda la lógica de autorización por rol usando el helper privado
+ * `getUserWithPermissions`, que resuelve el scope de escuelas permitidas para
+ * cada tipo de usuario:
+ * - `"equipo_padi"` (`padi`): acceso total a todas las escuelas.
+ * - `"encargado_zona"` (`encargado`): solo escuelas de su zona.
+ * - `"director"` (`director`): solo su escuela asignada.
+ */
 export class AulasService {
   private repo = AulasRepository;
   private profAulaRepo = ProfesoresAulasRepository;
   private docenteRepo = DocenteRepository;
 
+  /**
+   * Resuelve los permisos del usuario y el scope de escuelas accesibles.
+   *
+   * @param user - Usuario autenticado.
+   * @returns Objeto con `prismaAny`, `userType`, `allowedEscuelas` y datos específicos del rol.
+   * @throws Error si el rol no tiene acceso a la gestión de aulas.
+   */
   private async getUserWithPermissions(user: { id: string; rol: string }) {
     const prisma = getPrisma();
     if (!prisma) throw new Error("DB no disponible para gestionar aulas");
@@ -81,6 +99,19 @@ export class AulasService {
     throw new Error("No tienes permisos para gestionar aulas.");
   }
 
+  /**
+   * Crea un aula nueva validando permisos y existencia de la sala.
+   *
+   * @remarks
+   * - Directores: la `escuela_id` se toma de su perfil (no del body).
+   * - Encargados: deben especificar `escuela_id` y esta debe pertenecer a su zona.
+   * - PADI: pueden especificar cualquier `escuela_id`.
+   *
+   * @param data - DTO del aula a crear.
+   * @param user - Usuario autenticado.
+   * @returns El aula creada.
+   * @throws Error si la sala no existe, falta `escuela_id` o el usuario no tiene permisos.
+   */
   async create(data: CreateAulaDto, user: { id: string; rol: string }) {
     const userPerms = await this.getUserWithPermissions(user);
     // Ahora PADI también puede crear aulas
@@ -129,6 +160,12 @@ export class AulasService {
     return await this.repo.create(payload);
   }
 
+  /**
+   * Lista aulas según el scope del rol del usuario.
+   *
+   * @param user - Usuario autenticado.
+   * @returns Array de aulas con sala, escuela y docentes, filtrado por scope.
+   */
   async list(user: { id: string; rol: string }) {
     const userPerms = await this.getUserWithPermissions(user);
 
@@ -143,6 +180,15 @@ export class AulasService {
     }
   }
 
+  /**
+   * Actualiza los datos de un aula, verificando que el usuario tenga acceso a ella.
+   *
+   * @param id - UUID del aula.
+   * @param data - Campos a actualizar.
+   * @param user - Usuario autenticado (debe ser `"director"` o `"equipo_padi"`).
+   * @returns El aula actualizada.
+   * @throws Error si el aula no existe o el director intenta modificar un aula de otra escuela.
+   */
   async update(id: string, data: UpdateAulaData, user: { id: string; rol: string }) {
     const userPerms = await this.getUserWithPermissions(user);
     if (userPerms.userType !== "director" && userPerms.userType !== "padi") {
@@ -166,6 +212,14 @@ export class AulasService {
     return await this.repo.update(id, data);
   }
 
+  /**
+   * Elimina un aula, verificando que no tenga estudiantes ni docentes asignados.
+   *
+   * @param id - UUID del aula.
+   * @param user - Usuario autenticado.
+   * @returns `void` si la eliminación fue exitosa.
+   * @throws Error si el aula no existe, tiene asignaciones activas, o el usuario no tiene permisos.
+   */
   async delete(id: string, user: { id: string; rol: string }) {
     const userPerms = await this.getUserWithPermissions(user);
     if (userPerms.userType !== "director" && userPerms.userType !== "encargado" && userPerms.userType !== "padi") {
@@ -202,6 +256,14 @@ export class AulasService {
     await this.repo.delete(id);
   }
 
+  /**
+   * Lista los docentes asignados a un aula verificando permisos de acceso.
+   *
+   * @param aulaId - UUID del aula.
+   * @param user - Usuario autenticado.
+   * @returns Array de asignaciones docente-aula con datos del docente.
+   * @throws Error si el aula no existe o el usuario no tiene acceso a esa escuela.
+   */
   async listDocentes(aulaId: string, user: { id: string; rol: string }) {
     const userPerms = await this.getUserWithPermissions(user);
     const { prismaAny } = userPerms;
@@ -230,6 +292,19 @@ export class AulasService {
     return this.profAulaRepo.listByAula(aulaId);
   }
 
+  /**
+   * Asigna un docente a un aula, verificando que esté previamente asignado a la escuela del aula.
+   *
+   * @remarks
+   * Regla de negocio clave: un docente solo puede asignarse a un aula de una escuela
+   * a la que ya pertenece (relación activa en `profesoresEscuelas`).
+   *
+   * @param aulaId - UUID del aula.
+   * @param profesorId - UUID del docente.
+   * @param user - Usuario autenticado.
+   * @returns El registro de asignación creado.
+   * @throws Error si el docente no existe, no está en la escuela del aula, o el usuario no tiene permisos.
+   */
   async asignarDocente(aulaId: string, profesorId: string, user: { id: string; rol: string }) {
     const userPerms = await this.getUserWithPermissions(user);
     if (userPerms.userType !== "director" && userPerms.userType !== "encargado" && userPerms.userType !== "padi") {
@@ -274,6 +349,14 @@ export class AulasService {
     return this.profAulaRepo.add(profesorId, aulaId);
   }
 
+  /**
+   * Desasigna un docente de un aula.
+   *
+   * @param aulaId - UUID del aula.
+   * @param profesorId - UUID del docente.
+   * @param user - Usuario autenticado.
+   * @throws Error si el aula no existe o el usuario no tiene permisos sobre esa escuela.
+   */
   async desasignarDocente(aulaId: string, profesorId: string, user: { id: string; rol: string }) {
     const userPerms = await this.getUserWithPermissions(user);
     if (userPerms.userType !== "director" && userPerms.userType !== "encargado" && userPerms.userType !== "padi") {
@@ -300,6 +383,13 @@ export class AulasService {
     await this.profAulaRepo.remove(profesorId, aulaId);
   }
 
+  /**
+   * Lista las aulas asignadas al docente autenticado con sus estudiantes activos.
+   *
+   * @param user - Usuario autenticado (debe tener rol `"docente"`).
+   * @returns Array de aulas con estudiantes y resumen de evaluaciones.
+   * @throws Error si el rol no es `"docente"`.
+   */
   async listDocenteAulas(user: { id: string; rol: string }) {
     if (user.rol !== "docente") {
       throw new Error("No tienes permisos para ver tus aulas.");
@@ -308,6 +398,14 @@ export class AulasService {
     return await this.repo.listByProfesor(user.id);
   }
 
+  /**
+   * Lista los estudiantes activos de un aula con control de permisos.
+   *
+   * @param aulaId - UUID del aula.
+   * @param user - Usuario autenticado.
+   * @returns Array de estudiantes activos con datos personales y de sala.
+   * @throws Error si el aula no existe o el usuario no tiene acceso a esa escuela.
+   */
   async listEstudiantesAula(aulaId: string, user: { id: string; rol: string }) {
     const userPerms = await this.getUserWithPermissions(user);
     const { prismaAny } = userPerms;
@@ -335,6 +433,16 @@ export class AulasService {
     return await this.repo.listEstudiantesByAula(aulaId);
   }
 
+  /**
+   * Asigna un estudiante a un aula, verificando que pertenezcan a la misma escuela.
+   *
+   * @param aulaId - UUID del aula.
+   * @param estudianteId - UUID del estudiante.
+   * @param user - Usuario autenticado.
+   * @returns El registro de asignación creado.
+   * @throws Error si el estudiante o aula no existen, pertenecen a distintas escuelas,
+   *         o el usuario no tiene permisos.
+   */
   async asignarEstudiante(aulaId: string, estudianteId: string, user: { id: string; rol: string }) {
     const userPerms = await this.getUserWithPermissions(user);
     if (userPerms.userType !== "director" && userPerms.userType !== "encargado" && userPerms.userType !== "padi") {
@@ -368,6 +476,14 @@ export class AulasService {
     return await this.repo.addEstudiante(estudianteId, aulaId);
   }
 
+  /**
+   * Desasigna un estudiante de un aula estableciendo `fecha_fin` en la asignación activa.
+   *
+   * @param aulaId - UUID del aula.
+   * @param estudianteId - UUID del estudiante.
+   * @param user - Usuario autenticado.
+   * @throws Error si no existe asignación activa o el usuario no tiene permisos sobre esa escuela.
+   */
   async desasignarEstudiante(aulaId: string, estudianteId: string, user: { id: string; rol: string }) {
     const userPerms = await this.getUserWithPermissions(user);
     if (userPerms.userType !== "director" && userPerms.userType !== "encargado" && userPerms.userType !== "padi") {

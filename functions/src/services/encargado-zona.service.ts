@@ -1,9 +1,24 @@
 import { EncargadoRepository } from "../repositories/encargado-zona.repository";
 import { AuthService } from "./auth.service";
-// import { EmailService } from "./email.service"; // <-- Para el mail real
 
+/**
+ * Servicio de gestión de encargados de zona.
+ *
+ * @remarks
+ * Todas las operaciones (excepto `getCurrentEncargado`) son exclusivas del rol
+ * `"equipo_padi"`. La creación de un encargado genera una cuenta en Supabase Auth
+ * con contraseña temporal; en producción debería integrarse con un servicio de email
+ * para notificar al usuario (el código del `EmailService` está comentado).
+ */
 export class EncargadosService {
 
+    /**
+     * Lista todos los encargados de zona.
+     *
+     * @param user - Usuario autenticado.
+     * @returns Array de encargados con su zona asignada.
+     * @throws Error si el usuario no es `"equipo_padi"`.
+     */
     async list(user: { id: string; rol: string }) {
         if (user.rol === "equipo_padi") {
             return await EncargadoRepository.list();
@@ -11,6 +26,20 @@ export class EncargadosService {
         throw new Error("No tienes permisos para ver Encargados de Zona.");
     }
 
+    /**
+     * Crea un encargado de zona generando una cuenta con contraseña temporal.
+     *
+     * @remarks
+     * Genera una contraseña aleatoria (8 chars + sufijo `"Aa1!"`) y llama a
+     * `AuthService.register`. En producción, la contraseña debería enviarse por
+     * email al nuevo encargado (lógica comentada con `EmailService`).
+     * La contraseña temporal se retorna en la respuesta para uso del administrador.
+     *
+     * @param data - Datos del encargado a crear.
+     * @param user - Usuario autenticado (debe ser `"equipo_padi"`).
+     * @returns El resultado de `AuthService.register` más el campo `tempPassword`.
+     * @throws Error si el rol no es `"equipo_padi"` o si el registro falla.
+     */
     async create(data: {
         email: string;
         nombre: string;
@@ -46,6 +75,15 @@ export class EncargadosService {
         return { ...result, tempPassword: generatedPassword };
     }
 
+    /**
+     * Actualiza el perfil y la zona asignada de un encargado.
+     *
+     * @param id - UUID del encargado.
+     * @param data - Nuevos valores para nombre, apellido, email y zona_id.
+     * @param user - Usuario autenticado (debe ser `"equipo_padi"`).
+     * @returns El registro de `encargados` actualizado.
+     * @throws Error si el rol no es `"equipo_padi"`.
+     */
     async update(id: string, data: { nombre: string; apellido: string; email: string; zona_id: string }, user: { id: string; rol: string }) {
         if (user.rol !== "equipo_padi") {
             throw new Error("Solo el equipo PADI puede modificar encargados de zona.");
@@ -57,10 +95,24 @@ export class EncargadosService {
         });
     }
 
+    /**
+     * Retorna el perfil del encargado autenticado (endpoint `/encargados/me`).
+     *
+     * @param userId - UUID del encargado autenticado.
+     * @returns Perfil con id, nombre, apellido, email y zona asignada.
+     * @throws Error si el encargado no existe.
+     */
     async getCurrentEncargado(userId: string) {
         return await EncargadoRepository.getByUserId(userId);
     }
 
+    /**
+     * Elimina un encargado de zona del sistema.
+     *
+     * @param id - UUID del encargado a eliminar.
+     * @param user - Usuario autenticado (debe ser `"equipo_padi"`).
+     * @throws Error si el rol no es `"equipo_padi"`.
+     */
     async delete(id: string, user: { id: string; rol: string }) {
         if (user.rol !== "equipo_padi") {
             throw new Error("Solo el equipo PADI puede eliminar encargados de zona.");
