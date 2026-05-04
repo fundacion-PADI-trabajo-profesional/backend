@@ -1,3 +1,4 @@
+import { getPrisma } from "../config/prismaClient";
 import { getSupabase } from "../config/supabaseClient";
 
 const ROLES_VALIDOS = ["equipo_padi", "director", "encargado_zona", "docente"] as const;
@@ -270,12 +271,20 @@ export class AdminService {
    */
   static async deleteUser(userId: string): Promise<void> {
     const supabase = getSupabase();
-    if (!supabase) throw new Error("Supabase client no disponible.");
+    const prisma = getPrisma();
+    if (!supabase || !prisma) throw new Error("Clientes de DB no disponibles.");
+
+    try {
+      await (prisma as any).profesores.deleteMany({ where: { id: userId } });
+      await (prisma as any).personas.deleteMany({ where: { usuario_id: userId } });
+      await (prisma as any).encargados.deleteMany({ where: { usuario_id: userId } });
+    } catch (error) {
+      console.error("Error interno al limpiar registros en Prisma:", error);
+    }
+
+    await (supabase as any).from("usuarios").delete().eq("id", userId);
 
     const { error } = await supabase.auth.admin.deleteUser(userId);
     if (error) throw new Error(`Error al eliminar el usuario: ${error.message}`);
-
-    // Borrar perfil por las dudas (cascada puede no estar configurada)
-    await (supabase as any).from("usuarios").delete().eq("id", userId);
   }
 }

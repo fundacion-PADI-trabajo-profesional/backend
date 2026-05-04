@@ -20,8 +20,6 @@ const service = new DocentesService();
  */
 export async function listDocentes(req: AuthenticatedRequest, res: Response) {
   try {
-    // ANTES: const { usuario_id, rol } = req.query;
-    // AHORA: datos verificados del middleware
     const data = await service.list({
       id: req.user!.id,
       rol: req.user!.rol,
