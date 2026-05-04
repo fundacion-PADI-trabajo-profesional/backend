@@ -42,7 +42,7 @@ export class AdminService {
    * Flujo:
    * 1. Valida los datos de entrada (nombre, apellido, email, rol).
    * 2. Llama a `inviteUserByEmail` de Supabase, que envía el email con el link de activación.
-   * 3. Crea el perfil en la tabla `usuarios` para que esté disponible al aceptar la invitación.
+   * 3. Crea el perfil en las tablas `usuarios`, `personas` y la tabla que le corresponda para que esté disponible al aceptar la invitación.
    * 4. Si el perfil falla, elimina el usuario de Auth (rollback).
    *
    * @param data - Datos del usuario a invitar.
@@ -51,6 +51,7 @@ export class AdminService {
    */
   static async createUser(data: CreateUserData): Promise<{ id: string; email: string }> {
     const supabase = getSupabase();
+    const prisma = getPrisma();
     if (!supabase) throw new Error("Supabase client no disponible.");
 
     // Validaciones
@@ -114,6 +115,39 @@ export class AdminService {
         throw new Error("Ya existe un perfil con ese correo electrónico.");
       }
       throw new Error(`Error al guardar el perfil: ${profileError.message}`);
+    }
+
+    // Paso 3: Lógica específica de Prisma según el Rol
+    try {
+      if (data.rol === "encargado_zona") {
+        await (prisma as any).encargados.create({
+          data: {
+            usuario_id: userId,
+          }
+        });
+      } else if (data.rol === "docente") {
+        // 1. Crear Persona
+        const nuevaPersona = await (prisma as any).personas.create({
+          data: {
+            usuario_id: userId,
+            nombre: data.nombre.trim(),
+            primer_apellido: data.apellido.trim(),
+          }
+        });
+
+        // 2. Crear Profesor vinculado a la Persona
+        await (prisma as any).profesores.create({
+          data: {
+            id: userId, // Mantenemos el mismo ID de Auth como hacías en el register
+            persona_id: nuevaPersona.id
+          }
+        });
+      }
+    } catch (error: any) {
+      // Rollback completo si falla Prisma (reutilizamos la función que ya arreglamos)
+      console.error("Error en Prisma al crear entidades:", error.message);
+      await AdminService.deleteUser(userId).catch(() => {});
+      throw new Error("Ocurrió un error interno al guardar los datos específicos del rol.");
     }
 
     return { id: userId, email: data.email };
