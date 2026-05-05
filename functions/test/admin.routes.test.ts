@@ -127,7 +127,7 @@ describe("POST /admin/users", () => {
   afterEach(() => vi.restoreAllMocks());
 
   it("201: equipo_padi crea un usuario correctamente", async () => {
-    const { supabaseMock } = mockAuthAs("equipo_padi", "admin-id");
+    const { supabaseMock, prismaMock } = mockAuthAs("equipo_padi", "admin-id");
     supabaseMock.auth.admin.inviteUserByEmail = vi.fn().mockResolvedValue({
       data: { user: { id: "new-uid" } },
       error: null,
@@ -135,6 +135,9 @@ describe("POST /admin/users", () => {
     supabaseMock.from = vi.fn().mockReturnValue({
       insert: vi.fn().mockResolvedValue({ error: null }),
     });
+    prismaMock.personas = { create: vi.fn().mockResolvedValue({ id: "persona-id" }), deleteMany: vi.fn().mockResolvedValue({}) };
+    prismaMock.profesores = { create: vi.fn().mockResolvedValue({}), deleteMany: vi.fn().mockResolvedValue({}) };
+    prismaMock.encargados = { create: vi.fn().mockResolvedValue({}), deleteMany: vi.fn().mockResolvedValue({}) };
 
     const res = await request(app)
       .post("/admin/users")
@@ -250,7 +253,7 @@ describe("POST /admin/users/bulk", () => {
   ];
 
   it("200: crea todos los usuarios y devuelve 'creados' y 'errores'", async () => {
-    const { supabaseMock } = mockAuthAs("equipo_padi", "admin-id");
+    const { supabaseMock, prismaMock } = mockAuthAs("equipo_padi", "admin-id");
     let callCount = 0;
     supabaseMock.auth.admin.inviteUserByEmail = vi.fn().mockImplementation(async () => {
       callCount++;
@@ -259,6 +262,9 @@ describe("POST /admin/users/bulk", () => {
     supabaseMock.from = vi.fn().mockReturnValue({
       insert: vi.fn().mockResolvedValue({ error: null }),
     });
+    prismaMock.personas = { create: vi.fn().mockResolvedValue({ id: "persona-id" }), deleteMany: vi.fn().mockResolvedValue({}) };
+    prismaMock.profesores = { create: vi.fn().mockResolvedValue({}), deleteMany: vi.fn().mockResolvedValue({}) };
+    prismaMock.encargados = { create: vi.fn().mockResolvedValue({}), deleteMany: vi.fn().mockResolvedValue({}) };
 
     const res = await request(app)
       .post("/admin/users/bulk")
@@ -272,7 +278,7 @@ describe("POST /admin/users/bulk", () => {
   });
 
   it("200: resultado parcial cuando algunos fallan", async () => {
-    const { supabaseMock } = mockAuthAs("equipo_padi", "admin-id");
+    const { supabaseMock, prismaMock } = mockAuthAs("equipo_padi", "admin-id");
     let callCount = 0;
     supabaseMock.auth.admin.inviteUserByEmail = vi.fn().mockImplementation(async () => {
       callCount++;
@@ -282,6 +288,9 @@ describe("POST /admin/users/bulk", () => {
     supabaseMock.from = vi.fn().mockReturnValue({
       insert: vi.fn().mockResolvedValue({ error: null }),
     });
+    prismaMock.personas = { create: vi.fn().mockResolvedValue({ id: "persona-id" }), deleteMany: vi.fn().mockResolvedValue({}) };
+    prismaMock.profesores = { create: vi.fn().mockResolvedValue({}), deleteMany: vi.fn().mockResolvedValue({}) };
+    prismaMock.encargados = { create: vi.fn().mockResolvedValue({}), deleteMany: vi.fn().mockResolvedValue({}) };
 
     const res = await request(app)
       .post("/admin/users/bulk")

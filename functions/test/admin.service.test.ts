@@ -16,6 +16,24 @@ import { AdminService, type CreateUserData } from "../src/services/admin.service
 import * as supabaseClient from "../src/config/supabaseClient";
 import * as prismaClient from "../src/config/prismaClient"
 
+/** Mock de Prisma que cubre create y deleteMany para todos los modelos usados por AdminService */
+function buildPrismaMock() {
+  return {
+    profesores: {
+      deleteMany: vi.fn().mockResolvedValue({}),
+      create: vi.fn().mockResolvedValue({ id: "new-uid" }),
+    },
+    personas: {
+      deleteMany: vi.fn().mockResolvedValue({}),
+      create: vi.fn().mockResolvedValue({ id: "persona-id" }),
+    },
+    encargados: {
+      deleteMany: vi.fn().mockResolvedValue({}),
+      create: vi.fn().mockResolvedValue({}),
+    },
+  };
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Construye un mock mínimo de Supabase que cubre todos los métodos usados por AdminService */
@@ -66,6 +84,7 @@ describe("AdminService.createUser", () => {
   it("caso feliz: crea usuario en Auth y perfil, devuelve {id, email}", async () => {
     const mock = buildSupabaseMock();
     vi.spyOn(supabaseClient, "getSupabase").mockReturnValue(mock as any);
+    vi.spyOn(prismaClient, "getPrisma").mockReturnValue(buildPrismaMock() as any);
 
     const result = await AdminService.createUser(VALID_USER);
 
@@ -80,6 +99,7 @@ describe("AdminService.createUser", () => {
   it("pasa el metadata (nombre, apellido, rol) al invite", async () => {
     const mock = buildSupabaseMock();
     vi.spyOn(supabaseClient, "getSupabase").mockReturnValue(mock as any);
+    vi.spyOn(prismaClient, "getPrisma").mockReturnValue(buildPrismaMock() as any);
 
     await AdminService.createUser(VALID_USER);
 
@@ -201,6 +221,7 @@ describe("AdminService.createUser", () => {
     for (const rol of roles) {
       const mock = buildSupabaseMock();
       vi.spyOn(supabaseClient, "getSupabase").mockReturnValue(mock as any);
+      vi.spyOn(prismaClient, "getPrisma").mockReturnValue(buildPrismaMock() as any);
       await expect(AdminService.createUser({ ...VALID_USER, rol })).resolves.not.toThrow();
       vi.restoreAllMocks();
     }
@@ -215,6 +236,7 @@ describe("AdminService.createUsersBulk", () => {
   it("caso feliz: crea todos los usuarios y los devuelve en 'creados'", async () => {
     const mock = buildSupabaseMock();
     vi.spyOn(supabaseClient, "getSupabase").mockReturnValue(mock as any);
+    vi.spyOn(prismaClient, "getPrisma").mockReturnValue(buildPrismaMock() as any);
 
     const users: CreateUserData[] = [
       { nombre: "Ana", apellido: "G", email: "ana@t.com", rol: "docente" },
@@ -232,6 +254,7 @@ describe("AdminService.createUsersBulk", () => {
   it("reporte mixto: usuarios creados y con errores, no interrumpe el proceso", async () => {
     let callCount = 0;
     const mock = buildSupabaseMock();
+    vi.spyOn(prismaClient, "getPrisma").mockReturnValue(buildPrismaMock() as any);
     mock.auth.admin.inviteUserByEmail.mockImplementation(async () => {
       callCount++;
       if (callCount === 2) {
@@ -506,13 +529,6 @@ describe("AdminService.resendInvite", () => {
 
 describe("AdminService.deleteUser", () => {
   afterEach(() => vi.restoreAllMocks());
-
-  // Creamos un mock rápido para engañar a Prisma
-  const buildPrismaMock = () => ({
-    profesores: { deleteMany: vi.fn().mockResolvedValue({}) },
-    personas: { deleteMany: vi.fn().mockResolvedValue({}) },
-    encargados: { deleteMany: vi.fn().mockResolvedValue({}) },
-  });
 
   it("caso feliz: llama deleteUser en Auth y borra el perfil", async () => {
     const mock = buildSupabaseMock();
