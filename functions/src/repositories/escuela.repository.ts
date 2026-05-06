@@ -255,34 +255,6 @@ export const EscuelasRepository = {
     },
 
   /**
-   * Lista las escuelas bajo la responsabilidad de un encargado de zona.
-   *
-   * @param encargadoId - ID del encargado (campo `encargado_id` en la tabla `escuelas`).
-   * @returns Array de escuelas con directivos incluidos.
-   * @throws Error si la base de datos no está disponible.
-   */
-    async findByEncargadoId(encargadoId: string) {
-        const prisma = getPrisma();
-        if (!prisma) throw new Error("DB not available");
-
-        const rows = await prisma.escuelas.findMany({
-            where: { encargado_id: encargadoId },
-            include: {
-                directivos: {
-                    select: {
-                        id: true,
-                        nombre: true,
-                        apellido: true,
-                    },
-                },
-            },
-            orderBy: { createdAt: 'desc' }
-        });
-
-        return this.mapEscuelaDocentes(rows);
-    },
-
-  /**
    * Lista las escuelas de una zona buscada por nombre.
    *
    * @param nombreZona - Nombre exacto de la zona.
