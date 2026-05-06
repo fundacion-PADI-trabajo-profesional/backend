@@ -51,7 +51,6 @@ export class EscuelasService {
             }
 
             payload.zona_id = encargadoData.zona.id; // Hereda el ID de su zona
-            payload.encargado_id = encargadoData.id;
         }
         else {
             throw new Error("No tienes permisos para crear escuelas.");
@@ -78,12 +77,16 @@ export class EscuelasService {
         }
 
         if (user.rol === "encargado_zona") {
-            const encargadoData = await this.repo.findEncargadoProfile(user.id);
-            if (!encargadoData?.zona_id) {
-                throw new Error("No se encontró una zona asignada para el encargado.");
-            }
-            return await this.repo.findByZonaId(encargadoData.zona_id);
+        const encargadoData = await this.repo.findEncargadoProfile(user.id);
+
+        if (!encargadoData?.zona_id) {
+            throw new Error("No se encontró una zona asignada para el encargado.");
         }
+
+        const escuelas = await this.repo.findByZonaId(encargadoData.zona_id);
+
+        return escuelas;
+    }
 
         throw new Error("No tienes permisos para ver el listado de escuelas.");
     }

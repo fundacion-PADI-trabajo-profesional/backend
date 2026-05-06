@@ -48,7 +48,6 @@ export const EscuelasRepository = {
                     direccion: data.direccion,
                     telefono: data.telefono,
                     zona_id: data.zona_id,
-                    encargado_id: data.encargado_id
                 }
             });
         } catch (error: any) {

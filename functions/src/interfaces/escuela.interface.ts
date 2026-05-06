@@ -18,9 +18,4 @@ export interface CreateEscuelaDto {
    * Requerido cuando quien crea es un usuario PADI (admin).
    */
   zona_id: string;
-  /**
-   * ID del encargado de zona que administrará la escuela.
-   * Se autocompleta si quien crea la escuela es un encargado de zona.
-   */
-  encargado_id?: string;
 }
