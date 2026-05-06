@@ -538,7 +538,6 @@ describe("AdminService.deleteUser", () => {
     mock.from.mockReturnValue({ delete: vi.fn().mockReturnValue(deleteMock) });
     
     vi.spyOn(supabaseClient, "getSupabase").mockReturnValue(mock as any);
-    vi.spyOn(prismaClient, "getPrisma").mockReturnValue(buildPrismaMock() as any); // <-- Mock de Prisma
 
     await expect(AdminService.deleteUser("u-to-delete")).resolves.toBeUndefined();
     expect(mock.auth.admin.deleteUser).toHaveBeenCalledWith("u-to-delete");
@@ -552,18 +551,17 @@ describe("AdminService.deleteUser", () => {
     });
     
     vi.spyOn(supabaseClient, "getSupabase").mockReturnValue(mock as any);
-    vi.spyOn(prismaClient, "getPrisma").mockReturnValue(buildPrismaMock() as any); // <-- Mock de Prisma
 
     await expect(AdminService.deleteUser("u-bad")).rejects.toThrow(
-      "Error al eliminar el usuario: user not found"
+      "Error al revocar acceso de autenticación: user not found" 
     );
   });
 
-  it("lanza error si las dependencias de DB (Supabase o Prisma) no están disponibles", async () => {
+  it("lanza error si el cliente de Supabase no está disponible", async () => {
     vi.spyOn(supabaseClient, "getSupabase").mockReturnValue(null);
-    // Al no mockear Prisma o dejar Supabase en null, salta error
+    
     await expect(AdminService.deleteUser("u1")).rejects.toThrow(
-      "Clientes de DB no disponibles."
+      "Cliente de Supabase no disponible." 
     );
   });
 });
