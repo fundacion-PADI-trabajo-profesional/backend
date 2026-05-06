@@ -25,11 +25,22 @@ export class AdminController {
   static async createUser(req: AuthenticatedRequest, res: Response) {
     try {
       const { nombre, apellido, email, rol } = req.body;
+      const solicitanteRol = req.user?.rol;
 
       if (!nombre || !apellido || !email || !rol) {
         return res.status(400).json({
           message: "Todos los campos son obligatorios: nombre, apellido, email y rol.",
         });
+      }
+
+      const rolesPermitidos = ["equipo_padi", "encargado_zona", "director"];
+      if (!solicitanteRol || !rolesPermitidos.includes(solicitanteRol)) {
+        return res.status(403).json({ message: "No tenés permisos para crear usuarios." });
+      }
+
+      // Si el que crea NO es equipo_padi, entonces SOLO puede crear docentes.
+      if (solicitanteRol !== "equipo_padi" && rol !== "docente") {
+        return res.status(403).json({ message: "Solo tenés permisos para crear cuentas de docentes." });
       }
 
       const newUser = await AdminService.createUser({ nombre, apellido, email, rol });

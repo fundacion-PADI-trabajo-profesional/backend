@@ -294,14 +294,16 @@ export class AdminService {
   }
 
   /**
-   * Elimina un usuario del sistema: primero de Supabase Auth, luego su perfil.
+   * Elimina un usuario del sistema y limpia todas sus tablas relacionadas.
    *
    * @remarks
-   * Elimina el perfil de `usuarios` después de Auth por si la cascada de base de
-   * datos no está configurada. Si Auth falla, el perfil no se toca.
+   * Utiliza una transacción de Prisma para borrar en cascada y de forma segura
+   * los registros de profesores, personas y encargados. Si hay un error de FK
+   * (por ejemplo, el docente ya tiene evaluaciones), la transacción se aborta.
+   * Luego elimina el perfil público y finalmente la cuenta en Supabase Auth.
    *
    * @param userId - UUID del usuario a eliminar.
-   * @throws Error si Supabase Auth no puede eliminar el usuario.
+   * @throws Error si ocurre un fallo en Prisma o si Supabase Auth no puede eliminarlo.
    */
   static async deleteUser(userId: string): Promise<void> {
     const supabase = getSupabase();
@@ -309,16 +311,29 @@ export class AdminService {
     if (!supabase || !prisma) throw new Error("Clientes de DB no disponibles.");
 
     try {
-      await (prisma as any).profesores.deleteMany({ where: { id: userId } });
-      await (prisma as any).personas.deleteMany({ where: { usuario_id: userId } });
-      await (prisma as any).encargados.deleteMany({ where: { usuario_id: userId } });
-    } catch (error) {
-      console.error("Error interno al limpiar registros en Prisma:", error);
+      await (prisma as any).$transaction(async (tx: any) => {
+        
+        await tx.profesores.deleteMany({ where: { id: userId } });
+        await tx.personas.deleteMany({ where: { usuario_id: userId } });
+        await tx.encargados.deleteMany({ where: { usuario_id: userId } });
+      });
+    } catch (error: any) {
+      console.error("Error de Prisma al limpiar registros del usuario:", error);
+      throw new Error("No se pudo eliminar el usuario. Es posible que tenga registros asociados que impiden su borrado.");
     }
 
-    await (supabase as any).from("usuarios").delete().eq("id", userId);
+    const { error: profileError } = await (supabase as any)
+      .from("usuarios")
+      .delete()
+      .eq("id", userId);
 
-    const { error } = await supabase.auth.admin.deleteUser(userId);
-    if (error) throw new Error(`Error al eliminar el usuario: ${error.message}`);
+    if (profileError) {
+      console.error("Error menor al borrar perfil de la tabla usuarios:", profileError.message);
+    }
+
+    const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+    if (authError) {
+      throw new Error(`Error al eliminar la cuenta de autenticación: ${authError.message}`);
+    }
   }
 }

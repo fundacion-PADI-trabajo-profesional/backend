@@ -22,14 +22,13 @@ import { requireRole } from "../middlewares/auth.middleware";
 export function createAdminRouter() {
   const router = Router();
 
-  // Middleware de rol para todas las rutas de este router
-  router.use(requireRole("equipo_padi") as any);
+  // Rutas EXCLUSIVAS para equipo_padi (le pasamos el middleware individualmente a cada una)
+  router.get("/admin/users", requireRole("equipo_padi") as any, AdminController.listUsers as any);
+  router.post("/admin/users/bulk", requireRole("equipo_padi") as any, AdminController.createUsersBulk as any);
+  router.post("/admin/users/:id/resend-invite", requireRole("equipo_padi") as any, AdminController.resendInvite as any);
+  router.delete("/admin/users/:id", requireRole("equipo_padi") as any, AdminController.deleteUser as any);
 
-  router.get("/admin/users", AdminController.listUsers as any);
+  // la seguridad se maneja dentro del controlador
   router.post("/admin/users", AdminController.createUser as any);
-  router.post("/admin/users/bulk", AdminController.createUsersBulk as any);
-  router.post("/admin/users/:id/resend-invite", AdminController.resendInvite as any);
-  router.delete("/admin/users/:id", AdminController.deleteUser as any);
-
   return router;
 }
