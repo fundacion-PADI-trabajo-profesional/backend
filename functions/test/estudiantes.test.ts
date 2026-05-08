@@ -509,3 +509,105 @@ describe("GET /estudiantes - docente with escuela_id param", () => {
     expect(res.status).toBe(400);
   });
 });
+
+// ─── DELETE /estudiantes/:id ──────────────────────────────────────────────────
+describe("DELETE /estudiantes/:id", () => {
+  const makeTxMock = () => ({
+    evaluacionEstudiante: {
+      findMany: vi.fn().mockResolvedValue([{ id: "ev-1" }]),
+      deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
+    evaluacionesEstudianteArea: {
+      findMany: vi.fn().mockResolvedValue([{ id: "area-1" }]),
+      deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
+    evaluacionesEstudianteAreaPreguntas: {
+      deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
+    estudiantesAulas: {
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
+    estudiantes: {
+      delete: vi.fn().mockResolvedValue({ id: "s-1" }),
+    },
+    personas: {
+      delete: vi.fn().mockResolvedValue({ id: "p-1" }),
+    },
+  });
+
+  it("equipo_padi elimina un estudiante con éxito (200)", async () => {
+    const { prismaMock } = mockAuthAs("equipo_padi");
+    prismaMock.estudiantes = {
+      findUnique: vi.fn().mockResolvedValue({ id: "s-1", persona_id: "p-1" }),
+    };
+    prismaMock.$transaction = vi.fn().mockImplementation(async (cb: any) => cb(makeTxMock()));
+
+    const res = await request(app)
+      .delete("/estudiantes/s-1")
+      .set("Authorization", "Bearer fake-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
+
+  it("devuelve 403 cuando el rol no es equipo_padi", async () => {
+    mockAuthAs("director");
+
+    const res = await request(app)
+      .delete("/estudiantes/s-1")
+      .set("Authorization", "Bearer fake-token");
+
+    expect(res.status).toBe(403);
+    expect(res.body.error.code).toBe("DELETE_ERROR");
+  });
+
+  it.each(["encargado_zona", "docente"])(
+    "devuelve 403 para rol %s",
+    async (rol) => {
+      mockAuthAs(rol);
+      const res = await request(app)
+        .delete("/estudiantes/s-1")
+        .set("Authorization", "Bearer fake-token");
+      expect(res.status).toBe(403);
+    }
+  );
+
+  it("devuelve 400 cuando el estudiante no existe", async () => {
+    const { prismaMock } = mockAuthAs("equipo_padi");
+    prismaMock.estudiantes = {
+      findUnique: vi.fn().mockResolvedValue(null),
+    };
+
+    const res = await request(app)
+      .delete("/estudiantes/s-no-existe")
+      .set("Authorization", "Bearer fake-token");
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("DELETE_ERROR");
+  });
+
+  it("elimina evaluaciones, asignaciones y persona en la transacción", async () => {
+    const { prismaMock } = mockAuthAs("equipo_padi");
+    const txMock = makeTxMock();
+    prismaMock.estudiantes = {
+      findUnique: vi.fn().mockResolvedValue({ id: "s-1", persona_id: "p-1" }),
+    };
+    prismaMock.$transaction = vi.fn().mockImplementation(async (cb: any) => cb(txMock));
+
+    await request(app)
+      .delete("/estudiantes/s-1")
+      .set("Authorization", "Bearer fake-token");
+
+    expect(txMock.evaluacionesEstudianteAreaPreguntas.deleteMany).toHaveBeenCalled();
+    expect(txMock.evaluacionesEstudianteArea.deleteMany).toHaveBeenCalled();
+    expect(txMock.evaluacionEstudiante.deleteMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { estudiante_id: "s-1" } })
+    );
+    expect(txMock.estudiantesAulas.deleteMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { estudiante_id: "s-1" } })
+    );
+    expect(txMock.personas.delete).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "p-1" } })
+    );
+  });
+});

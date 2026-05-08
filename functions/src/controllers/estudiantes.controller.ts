@@ -277,6 +277,23 @@ export async function updateEstudiante(req: AuthenticatedRequest, res: Response)
  * @param req - Request autenticado. Body: `{ estudiantes, escuela_id, aula_id, dryRun? }`.
  * @param res - `201` si se crearon, `200` si es dry run, `400` si el array está vacío o es inválido.
  */
+export async function deleteEstudiante(req: AuthenticatedRequest, res: Response) {
+    try {
+        const { id } = req.params;
+        if (!id) {
+            return res.status(400).json(commonResponse(false, "Falta el ID del estudiante", null, { code: "VALIDATION_ERROR" }));
+        }
+        const user = { id: req.user!.id, rol: req.user!.rol };
+        await service.delete(id, user);
+        return res.status(200).json(commonResponse(true, "Estudiante eliminado con éxito", null));
+    } catch (error: any) {
+        const message = error.message || "Error al eliminar estudiante";
+        console.error("[deleteEstudiante] Error:", error);
+        const statusCode = message.includes("permisos") ? 403 : 400;
+        return res.status(statusCode).json(commonResponse(false, message, null, { code: "DELETE_ERROR", description: message }));
+    }
+}
+
 export async function bulkCreateEstudiantes(req: AuthenticatedRequest, res: Response) {
     try {
         const { estudiantes, escuela_id, aula_id, dryRun} = req.body;

@@ -8,6 +8,7 @@ import {
     desasignarEstudianteAula,
     bulkCreateEstudiantes,
     updateEstudiante,
+    deleteEstudiante,
 } from "../controllers/estudiantes.controller"
 
 /**
@@ -47,6 +48,7 @@ export function createEstudiantesRouter() {
     router.put("/estudiantes/:id", updateEstudiante)
     
     router.post("/estudiantes/bulk", bulkCreateEstudiantes);
+    router.delete("/estudiantes/:id", deleteEstudiante);
 
     return router
 }

@@ -373,4 +373,49 @@ export class EstudiantesService {
             data: { fecha_fin: new Date() }
         });
     }
+
+    async delete(id: string, user: { id: string; rol: string }) {
+        if (user.rol !== "equipo_padi") {
+            throw new Error("No tienes permisos para eliminar estudiantes.");
+        }
+
+        const prisma = getPrisma();
+        if (!prisma) throw new Error("DB not available");
+        const prismaAny = prisma as any;
+
+        const estudiante = await prismaAny.estudiantes.findUnique({
+            where: { id },
+            select: { id: true, persona_id: true },
+        });
+        if (!estudiante) throw new Error("Estudiante no encontrado.");
+
+        await prismaAny.$transaction(async (tx: any) => {
+            const evaluaciones = await tx.evaluacionEstudiante.findMany({
+                where: { estudiante_id: id },
+                select: { id: true },
+            });
+            const evalIds = evaluaciones.map((e: any) => e.id);
+
+            const evalAreas = await tx.evaluacionesEstudianteArea.findMany({
+                where: { evaluacion_estudiante_id: { in: evalIds } },
+                select: { id: true },
+            });
+            const evalAreaIds = evalAreas.map((e: any) => e.id);
+
+            await tx.evaluacionesEstudianteAreaPreguntas.deleteMany({
+                where: { evaluaciones_area_id: { in: evalAreaIds } },
+            });
+            await tx.evaluacionesEstudianteArea.deleteMany({
+                where: { evaluacion_estudiante_id: { in: evalIds } },
+            });
+            await tx.evaluacionEstudiante.deleteMany({
+                where: { estudiante_id: id },
+            });
+            await tx.estudiantesAulas.deleteMany({
+                where: { estudiante_id: id },
+            });
+            await tx.estudiantes.delete({ where: { id } });
+            await tx.personas.delete({ where: { id: estudiante.persona_id } });
+        });
+    }
 }
