@@ -277,7 +277,7 @@ describe("GET /estadisticas/escuela/heatmap-aulas", () => {
     expect(res.body.data.filas[0].meta?.turno).toBe("mañana");
   });
 
-  it("director sin escuela_id → 403", async () => {
+  it("director sin escuela_id → 400", async () => {
     mockAuthAs("director");
     vi.spyOn(EstadisticasRepository, "findAreas").mockResolvedValue(AREAS as any);
     vi.spyOn(EstadisticasRepository, "findReglasAprobacion").mockResolvedValue(REGLAS as any);
@@ -287,15 +287,15 @@ describe("GET /estadisticas/escuela/heatmap-aulas", () => {
       .get("/estadisticas/escuela/heatmap-aulas?periodo=2025&tipo=inicial")
       .set("Authorization", "Bearer fake-token");
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(400);
   });
 
-  it("encargado_zona → 403 (requireRole middleware)", async () => {
+  it("encargado_zona sin escuela_id → 400", async () => {
     mockAuthAs("encargado_zona");
     const res = await request(app)
       .get("/estadisticas/escuela/heatmap-aulas?periodo=2025&tipo=inicial")
       .set("Authorization", "Bearer fake-token");
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(400);
   });
 
   it("eval sin aula → ignorada en nivel aula", async () => {
@@ -557,7 +557,7 @@ describe("GET /estadisticas/escuela/estudiantes-en-riesgo", () => {
     expect(res.body.data.estudiantes[0].total_areas_en_riesgo).toBe(2);
   });
 
-  it("director sin escuela_id → 403", async () => {
+  it("director sin escuela_id → 400", async () => {
     mockAuthAs("director");
     vi.spyOn(EstadisticasRepository, "findAreas").mockResolvedValue(AREAS_2 as any);
     vi.spyOn(EstadisticasRepository, "findReglasAprobacion").mockResolvedValue(REGLAS_2 as any);
@@ -567,15 +567,15 @@ describe("GET /estadisticas/escuela/estudiantes-en-riesgo", () => {
       .get("/estadisticas/escuela/estudiantes-en-riesgo?periodo=2025")
       .set("Authorization", "Bearer fake-token");
 
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(400);
   });
 
-  it("encargado_zona → 403", async () => {
+  it("encargado_zona sin escuela_id → 400", async () => {
     mockAuthAs("encargado_zona");
     const res = await request(app)
       .get("/estadisticas/escuela/estudiantes-en-riesgo?periodo=2025")
       .set("Authorization", "Bearer fake-token");
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(400);
   });
 
   it("sin periodo → 400", async () => {
@@ -754,7 +754,7 @@ describe("GET /estadisticas/escuela/evolucion", () => {
     const res = await request(app)
       .get("/estadisticas/escuela/evolucion?periodo=2025")
       .set("Authorization", "Bearer fake-token");
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(400);
   });
 });
 
@@ -857,7 +857,7 @@ describe("GET /estadisticas/escuela/areas-criticas", () => {
     expect(res.body.data.areas[0].area_id).toBe("A1"); // 20% < 70%
   });
 
-  it("director sin escuela → 403", async () => {
+  it("director sin escuela → 400", async () => {
     mockAuthAs("director");
     vi.spyOn(EstadisticasRepository, "findAreas").mockResolvedValue(AREAS_EVO as any);
     vi.spyOn(EstadisticasRepository, "findReglasAprobacion").mockResolvedValue(REGLAS_EVO as any);
@@ -866,15 +866,15 @@ describe("GET /estadisticas/escuela/areas-criticas", () => {
     const res = await request(app)
       .get("/estadisticas/escuela/areas-criticas?periodo=2025&tipo=final")
       .set("Authorization", "Bearer fake-token");
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(400);
   });
 
-  it("encargado_zona → 403", async () => {
+  it("encargado_zona sin escuela_id → 400", async () => {
     mockAuthAs("encargado_zona");
     const res = await request(app)
       .get("/estadisticas/escuela/areas-criticas?periodo=2025&tipo=final")
       .set("Authorization", "Bearer fake-token");
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(400);
   });
 });
 
@@ -913,23 +913,23 @@ const RESPUESTAS_FIXTURE = [
   },
 ];
 
-describe("GET /estadisticas/docente/items-error", () => {
-  it("docente con aula propia recibe ranking de errores", async () => {
+describe("GET /estadisticas/docente/aprobacion-preguntas", () => {
+  it("docente con aula propia recibe aprobación por pregunta", async () => {
     mockAuthAs("docente");
     vi.spyOn(EstadisticasRepository, "findProfesorIdDeUsuario").mockResolvedValue("prof-1");
     vi.spyOn(EstadisticasRepository, "findAulaDelProfesor").mockResolvedValue(true);
     vi.spyOn(EstadisticasRepository, "findRespuestasPorAula").mockResolvedValue(RESPUESTAS_FIXTURE as any);
 
     const res = await request(app)
-      .get("/estadisticas/docente/items-error?periodo=2025&aula_id=aula-1")
+      .get("/estadisticas/docente/aprobacion-preguntas?periodo=2025&aula_id=aula-1")
       .set("Authorization", "Bearer fake-token");
 
     expect(res.status).toBe(200);
     expect(res.body.data.items).toHaveLength(2);
-    // P1 tiene 2/2 incorrectos → tasa 1.0; P2 tiene 0/1 → tasa 0
+    // P1 tiene 0/2 correctos → tasa_aprobacion 0.0 (peor primero); P2 tiene 1/1 → tasa 1.0
     expect(res.body.data.items[0].pregunta_id).toBe("P1");
-    expect(res.body.data.items[0].tasa_error).toBeCloseTo(1.0);
-    expect(res.body.data.items[1].tasa_error).toBeCloseTo(0);
+    expect(res.body.data.items[0].tasa_aprobacion).toBeCloseTo(0.0);
+    expect(res.body.data.items[1].tasa_aprobacion).toBeCloseTo(1.0);
   });
 
   it("docente sin acceso al aula → 403", async () => {
@@ -938,7 +938,7 @@ describe("GET /estadisticas/docente/items-error", () => {
     vi.spyOn(EstadisticasRepository, "findAulaDelProfesor").mockResolvedValue(false);
 
     const res = await request(app)
-      .get("/estadisticas/docente/items-error?periodo=2025&aula_id=aula-ajena")
+      .get("/estadisticas/docente/aprobacion-preguntas?periodo=2025&aula_id=aula-ajena")
       .set("Authorization", "Bearer fake-token");
 
     expect(res.status).toBe(403);
@@ -949,7 +949,7 @@ describe("GET /estadisticas/docente/items-error", () => {
     vi.spyOn(EstadisticasRepository, "findProfesorIdDeUsuario").mockResolvedValue(null);
 
     const res = await request(app)
-      .get("/estadisticas/docente/items-error?periodo=2025&aula_id=aula-1")
+      .get("/estadisticas/docente/aprobacion-preguntas?periodo=2025&aula_id=aula-1")
       .set("Authorization", "Bearer fake-token");
 
     expect(res.status).toBe(403);
@@ -958,17 +958,18 @@ describe("GET /estadisticas/docente/items-error", () => {
   it("falta aula_id → 400", async () => {
     mockAuthAs("docente");
     const res = await request(app)
-      .get("/estadisticas/docente/items-error?periodo=2025")
+      .get("/estadisticas/docente/aprobacion-preguntas?periodo=2025")
       .set("Authorization", "Bearer fake-token");
     expect(res.status).toBe(400);
   });
 
-  it("rol incorrecto (director) → 403", async () => {
+  it("director puede acceder con aula_id → 200 (acceso jerárquico)", async () => {
     mockAuthAs("director");
+    vi.spyOn(EstadisticasRepository, "findRespuestasPorAula").mockResolvedValue(RESPUESTAS_FIXTURE as any);
     const res = await request(app)
-      .get("/estadisticas/docente/items-error?periodo=2025&aula_id=aula-1")
+      .get("/estadisticas/docente/aprobacion-preguntas?periodo=2025&aula_id=aula-1")
       .set("Authorization", "Bearer fake-token");
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 });
 
@@ -1077,13 +1078,13 @@ describe("GET /estadisticas/escuela/actividad-docentes", () => {
     expect(res.body.data.docentes).toHaveLength(2);
   });
 
-  it("director sin escuela → 403", async () => {
+  it("director sin escuela → 400", async () => {
     mockAuthAs("director");
     vi.spyOn(EstadisticasRepository, "findActividadDocentes").mockResolvedValue([] as any);
     const res = await request(app)
       .get("/estadisticas/escuela/actividad-docentes?periodo=2025")
       .set("Authorization", "Bearer fake-token");
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(400);
   });
 });
 
@@ -1163,12 +1164,12 @@ describe("GET /estadisticas/escuela/comparativa", () => {
     expect(res.status).toBe(400);
   });
 
-  it("encargado_zona → 403", async () => {
+  it("encargado_zona sin escuela_id → 400", async () => {
     mockAuthAs("encargado_zona");
     const res = await request(app)
       .get("/estadisticas/escuela/comparativa?periodo=2025&tipo=inicial")
       .set("Authorization", "Bearer fake-token");
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(400);
   });
 });
 
@@ -1193,10 +1194,10 @@ describe("GET /estadisticas/docente/progresion-estudiante", () => {
     });
     vi.spyOn(EstadisticasRepository, "findAreas").mockResolvedValue(AREAS as any);
     vi.spyOn(EstadisticasRepository, "findReglasAprobacion").mockResolvedValue(REGLAS as any);
-    vi.spyOn(EstadisticasRepository, "findProgresionEstudiante").mockResolvedValue(PROGRESION_FIXTURE as any);
+    vi.spyOn(EstadisticasRepository, "findUltimasEvaluaciones").mockResolvedValue(PROGRESION_FIXTURE as any);
 
     const res = await request(app)
-      .get("/estadisticas/docente/progresion-estudiante?periodo=2025&estudiante_id=est-1")
+      .get("/estadisticas/docente/progresion-estudiante?estudiante_id=est-1")
       .set("Authorization", "Bearer fake-token");
 
     expect(res.status).toBe(200);
@@ -1234,10 +1235,10 @@ describe("GET /estadisticas/escuela/progresion-estudiante", () => {
     });
     vi.spyOn(EstadisticasRepository, "findAreas").mockResolvedValue(AREAS as any);
     vi.spyOn(EstadisticasRepository, "findReglasAprobacion").mockResolvedValue(REGLAS as any);
-    vi.spyOn(EstadisticasRepository, "findProgresionEstudiante").mockResolvedValue(PROGRESION_FIXTURE as any);
+    vi.spyOn(EstadisticasRepository, "findUltimasEvaluaciones").mockResolvedValue(PROGRESION_FIXTURE as any);
 
     const res = await request(app)
-      .get("/estadisticas/escuela/progresion-estudiante?periodo=2025&estudiante_id=est-1")
+      .get("/estadisticas/escuela/progresion-estudiante?estudiante_id=est-1")
       .set("Authorization", "Bearer fake-token");
 
     expect(res.status).toBe(200);
