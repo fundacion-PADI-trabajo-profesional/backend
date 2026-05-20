@@ -11,6 +11,7 @@ import { createAulasRouter } from "./routes/aulas.router";
 import { createZonasRouter } from "./routes/zonas.router";
 import { createAuthRouter, createAuthProtectedRouter } from "./routes/auth.router";
 import { createAdminRouter } from "./routes/admin.router";
+import { createEstadisticasRouter } from "./routes/estadisticas.router";
 import { requireAuth } from "./middlewares/auth.middleware";
 
 /**
@@ -82,6 +83,7 @@ export function createApp() {
   app.use(createAulasRouter());
   app.use(createZonasRouter());
   app.use(createAdminRouter());
+  app.use(createEstadisticasRouter());
 
   return app;
 }
