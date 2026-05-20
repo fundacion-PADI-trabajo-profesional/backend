@@ -1,12 +1,19 @@
 import { getPrisma } from "../config/prismaClient";
 
-// Repository (acceso a datos): punto para hablar con la BDD
-// Verifica la conexion con la base de Prisma
-
+/**
+ * Repositorio de health-check de la base de datos.
+ *
+ * @remarks
+ * Usado exclusivamente por los endpoints de liveness/readiness para
+ * verificar que la conexión a Prisma (y por ende a la base de datos)
+ * está operativa. No realiza ninguna operación de negocio.
+ */
 export class HealthRepository {
   /**
-   * Verifica la conexión a la base de datos ejecutando una consulta simple.
-   * Si la consulta falla, Prisma lanzará un error que será capturado más arriba.
+   * Verifica la conexión a la base de datos ejecutando `SELECT 1`.
+   *
+   * @returns `{ ok: true }` si la conexión es exitosa.
+   * @throws Error si el cliente Prisma no está disponible o si la consulta falla.
    */
   async getStatus(): Promise<{ ok: true }> {
     const prisma = getPrisma();

@@ -2,22 +2,46 @@ import { EstudianteRepository } from "../repositories/estudiante.repository"
 import type { CreateEstudianteData } from "../interfaces/estudiante.interface"
 import { getPrisma } from "../config/prismaClient"
 
-
+/**
+ * Servicio de gestión de estudiantes y sus asignaciones a aulas.
+ *
+ * @remarks
+ * Aplica control de acceso por rol en cada operación. Las reglas clave son:
+ * - **Docentes**: solo pueden crear estudiantes en aulas que les están asignadas;
+ *   `sala_id` y `escuela_id` se infieren del aula del docente para garantizar consistencia.
+ * - **Directores**: solo pueden ver y modificar estudiantes de su propia escuela.
+ * - **Encargados de zona**: ven estudiantes de todas las escuelas de su zona.
+ * - **PADI**: acceso total.
+ */
 export class EstudiantesService {
     private repo = EstudianteRepository
 
+    /**
+     * Crea un estudiante nuevo con validaciones de rol.
+     *
+     * @remarks
+     * Para docentes: verifica la asignación activa al aula y fuerza `sala_id`
+     * y `escuela_id` desde el aula (ignora lo que venga en el body).
+     * Para otros roles: requiere `escuela_id` y `sala_id` explícitos.
+     *
+     * @param data - Datos del estudiante a crear.
+     * @param user - Usuario autenticado.
+     * @returns El estudiante recién creado con sus relaciones.
+     * @throws Error si el docente no está asignado al aula, faltan campos obligatorios,
+     *         o el DNI ya existe.
+     */
     async create(
         data: CreateEstudianteData,
-        actor?: { id: string; rol: string },
+        user: { id: string; rol: string },
     ) {
         // Validar permisos generales
-        if (actor) {
-            if (actor.rol !== "docente" && actor.rol !== "director" && actor.rol !== "encargado_zona" && actor.rol !== "equipo_padi") {
+        if (user) {
+            if (user.rol !== "docente" && user.rol !== "director" && user.rol !== "encargado_zona" && user.rol !== "equipo_padi") {
                 throw new Error("No tienes permisos para crear estudiantes.");
             }
         }
 
-        if (actor?.rol === "docente") {
+        if (user?.rol === "docente") {
             if (!data.aula_id) {
                 throw new Error("Debes seleccionar un aula para registrar al estudiante.");
             }
@@ -28,7 +52,7 @@ export class EstudiantesService {
 
             const asignacion = await prismaAny.profesoresAulas.findFirst({
                 where: {
-                    profesor_id: actor.id,
+                    profesor_id: user.id,
                     aula_id: data.aula_id,
                     fecha_fin: null,
                 },
@@ -50,9 +74,7 @@ export class EstudiantesService {
             // Forzamos consistencia con el aula asignada al docente.
             data.sala_id = asignacion.aula.sala_id;
             data.escuela_id = asignacion.aula.escuela_id;
-        } else if (actor?.rol === "equipo_padi" || actor?.rol === "encargado_zona" || actor?.rol === "director") {
-            // PADI, encargados y directores pueden crear estudiantes con más flexibilidad
-            // pero deben especificar escuela_id y sala_id si no están ya establecidos
+        } else if (user?.rol === "equipo_padi" || user?.rol === "encargado_zona" || user?.rol === "director") {
             if (!data.escuela_id) {
                 throw new Error("Debe especificar la escuela del estudiante.");
             }
@@ -64,28 +86,155 @@ export class EstudiantesService {
         return await this.repo.create(data)
     }
 
-    async list() {
-        return await this.repo.list()
+    /**
+     * Lista estudiantes según el scope del rol del usuario.
+     *
+     * @remarks
+     * - `"docente"`, `"director"`, `"equipo_padi"`: lista global (todos los estudiantes).
+     * - `"encargado_zona"`: lista solo los estudiantes de las escuelas de su zona.
+     *
+     * @param user - Usuario autenticado.
+     * @returns Array de estudiantes con aula activa e historial de evaluaciones.
+     * @throws Error si el rol no tiene permisos de listado.
+     */
+    async list(user: { id: string; rol: string }) {
+        if (user.rol === "docente" || user.rol === "director" || user.rol === "equipo_padi") {
+            return await this.repo.list()
+        }
+        if (user.rol === "encargado_zona") {
+            const prisma = getPrisma();
+            if (!prisma) throw new Error("DB not available");
+            const prismaAny = prisma as any;
+
+            const encargado = await prismaAny.encargados.findUnique({
+                where: { usuario_id: user.id },
+                include: { zona: { include: { escuelas: { select: { id: true } } } } }
+            });
+            const escuelaIds = encargado?.zona?.escuelas.map((e: any) => e.id) ?? [];
+            return await this.repo.listByEscuelas(escuelaIds);
+        }
+        
+        throw new Error("No tienes permisos para ver el listado completo de estudiantes. Filtra por escuela.");
     }
 
-    async getGeneros() {
-        return await this.repo.getGeneros()
+    /**
+     * Retorna el catálogo de géneros disponibles.
+     *
+     * @param user - Usuario autenticado (cualquier rol válido).
+     * @returns Array de géneros del catálogo.
+     * @throws Error si el rol no tiene acceso.
+     */
+    async getGeneros(user: { id: string; rol: string }) {
+        if (user.rol === "docente" || user.rol === "director" || user.rol === "encargado_zona" || user.rol === "equipo_padi") {
+            return await this.repo.getGeneros()
+        }
+        throw new Error("No tienes permisos para ver el listado completo de estudiantes. Filtra por escuela.");
     }
 
-    async getSalas() {
-        return await this.repo.getSalas()
-    }
-    async listByEscuela(escuelaId: string) {
-        // Llama al método que definiremos en el repositorio
-        return await this.repo.listByEscuela(escuelaId);
+    /**
+     * Retorna el catálogo de salas (años) disponibles.
+     *
+     * @param user - Usuario autenticado (cualquier rol válido).
+     * @returns Array de `{ id, nombre, grado }`.
+     * @throws Error si el rol no tiene acceso.
+     */
+    async getSalas(user: { id: string; rol: string }) {
+        if (user.rol === "docente" || user.rol === "director" || user.rol === "encargado_zona" || user.rol === "equipo_padi") {
+            return await this.repo.getSalas()
+        }
+        throw new Error("No tienes permisos para ver el listado completo de estudiantes. Filtra por escuela.");
     }
 
-    async createBulk(estudiantes: any[], commonData: { escuela_id: string, aula_id?: string }, actor?: any) {      
-        return await this.repo.createBulk(estudiantes, commonData);
+    /**
+     * Lista los estudiantes de una escuela específica.
+     *
+     * @param escuelaId - UUID de la escuela.
+     * @param user - Usuario autenticado (debe ser `"docente"` o `"director"`).
+     * @returns Array de estudiantes enriquecidos.
+     * @throws Error si el rol no tiene permisos de acceso filtrado por escuela.
+     */
+    async listByEscuela(escuelaId: string, user: { id: string; rol: string }) {
+        if (user.rol === "docente" || user.rol === "director") {
+            return await this.repo.listByEscuela(escuelaId);
+        }
+        throw new Error("No tienes permisos para acceder a los estudiantes de esta escuela.");
     }
-    async asignarEstudianteAula(estudianteId: string, aulaId: string, actor: { id: string; rol: string }) {
-        // Validar permisos para asignar estudiantes a aulas
-        if (actor.rol !== "director" && actor.rol !== "encargado_zona" && actor.rol !== "equipo_padi") {
+
+    /**
+     * Crea o actualiza estudiantes en lote (importación masiva).
+     *
+     * @remarks
+     * Soporta modo `dryRun` para previsualizar la clasificación de estudiantes
+     * (nuevos / promovidos / repitentes / retrocesos) sin persistir cambios.
+     *
+     * @param estudiantes - Array de datos de estudiantes.
+     * @param commonData - Escuela y aula por defecto para todos.
+     * @param user - Usuario autenticado (debe ser `"director"`, `"encargado_zona"` o `"equipo_padi"`).
+     * @param dryRun - Si `true`, retorna clasificación sin escribir en la DB.
+     * @returns Clasificación (en dryRun) o array de estudiantes procesados.
+     * @throws Error si el rol no tiene permisos de importación masiva.
+     */
+    async createBulk(estudiantes: any[], commonData: { escuela_id: string, aula_id?: string }, user: { id: string; rol: string }, dryRun: boolean = false) {
+        if (user.rol !== "director" && user.rol !== "encargado_zona" && user.rol !== "equipo_padi") {
+            throw new Error("No tienes permisos para crear estudiantes en masa.");
+        }
+        
+        return await this.repo.createBulk(estudiantes, commonData, user, dryRun);
+    }
+
+    /**
+     * Actualizar datos de un estudiante.
+     * Solo roles con acceso de gestión pueden modificar.
+     * Directores solo pueden modificar estudiantes de su propia escuela.
+     */
+    async update(
+        id: string,
+        data: Partial<CreateEstudianteData>,
+        user: { id: string; rol: string; escuela_id?: string }
+    ) {
+        const rolesPermitidos = ["director", "encargado_zona", "equipo_padi"];
+        if (!rolesPermitidos.includes(user.rol)) {
+            throw new Error("No tienes permisos para modificar datos de estudiantes.");
+        }
+
+        // Para directores, verificar que el estudiante pertenece a su escuela
+        if (user.rol === "director") {
+            const prisma = getPrisma();
+            if (!prisma) throw new Error("DB not available");
+            const prismaAny = prisma as any;
+
+            const estudiante = await prismaAny.estudiantes.findUnique({
+                where: { id },
+                select: { escuela_id: true }
+            });
+
+            if (!estudiante) throw new Error("Estudiante no encontrado.");
+
+            const escuelaDirector = user.escuela_id;
+            if (!escuelaDirector || estudiante.escuela_id !== escuelaDirector) {
+                throw new Error("No tienes permisos para modificar estudiantes de esta escuela.");
+            }
+        }
+
+        return await this.repo.update(id, data);
+    }
+
+    /**
+     * Asigna un estudiante a un aula con validaciones de escuela y rol.
+     *
+     * @remarks
+     * Verifica que estudiante y aula pertenezcan a la misma escuela, y que el
+     * usuario tenga permisos sobre esa escuela según su rol.
+     *
+     * @param estudianteId - UUID del estudiante.
+     * @param aulaId - UUID del aula.
+     * @param user - Usuario autenticado.
+     * @returns El registro de asignación creado.
+     * @throws Error si el estudiante ya está en el aula, pertenecen a escuelas distintas,
+     *         o el usuario no tiene permisos.
+     */
+    async asignarEstudianteAula(estudianteId: string, aulaId: string, user: { id: string; rol: string }) {
+        if (user.rol !== "director" && user.rol !== "encargado_zona" && user.rol !== "equipo_padi") {
             throw new Error("No tienes permisos para asignar estudiantes a aulas.");
         }
 
@@ -93,7 +242,6 @@ export class EstudiantesService {
         if (!prisma) throw new Error("DB not available");
         const prismaAny = prisma as any;
 
-        // Verificar que el estudiante existe
         const estudiante = await prismaAny.estudiantes.findUnique({
             where: { id: estudianteId },
             select: { id: true, escuela_id: true }
@@ -103,7 +251,6 @@ export class EstudiantesService {
             throw new Error("Estudiante no encontrado.");
         }
 
-        // Verificar que el aula existe
         const aula = await prismaAny.aulas.findUnique({
             where: { id: aulaId },
             select: { id: true, escuela_id: true }
@@ -113,24 +260,22 @@ export class EstudiantesService {
             throw new Error("Aula no encontrada.");
         }
 
-        // Verificar que el estudiante y el aula pertenecen a la misma escuela
         if (estudiante.escuela_id !== aula.escuela_id) {
             throw new Error("El estudiante y el aula deben pertenecer a la misma escuela.");
         }
 
-        // Para roles que no sean PADI, verificar permisos sobre la escuela
-        if (actor.rol === "director") {
+        if (user.rol === "director") {
             const director = await prismaAny.usuarioPerfil.findUnique({
-                where: { id: actor.id },
+                where: { id: user.id },
                 select: { escuela_id: true }
             });
 
             if (director?.escuela_id !== aula.escuela_id) {
                 throw new Error("No tienes permisos para gestionar esta escuela.");
             }
-        } else if (actor.rol === "encargado_zona") {
+        } else if (user.rol === "encargado_zona") {
             const encargado = await prismaAny.encargados.findUnique({
-                where: { usuario_id: actor.id },
+                where: { usuario_id: user.id },
                 include: {
                     zona: {
                         include: {
@@ -147,7 +292,6 @@ export class EstudiantesService {
         }
         // PADI puede asignar en cualquier escuela
 
-        // Verificar si ya existe una asignación activa
         const asignacionExistente = await prismaAny.estudiantesAulas.findFirst({
             where: {
                 estudiante_id: estudianteId,
@@ -160,7 +304,6 @@ export class EstudiantesService {
             throw new Error("El estudiante ya está asignado a esta aula.");
         }
 
-        // Crear la asignación
         return await prismaAny.estudiantesAulas.create({
             data: {
                 estudiante_id: estudianteId,
@@ -171,7 +314,6 @@ export class EstudiantesService {
     }
 
     async desasignarEstudianteAula(estudianteId: string, aulaId: string, actor: { id: string; rol: string }) {
-        // Validar permisos para desasignar estudiantes de aulas
         if (actor.rol !== "director" && actor.rol !== "encargado_zona" && actor.rol !== "equipo_padi") {
             throw new Error("No tienes permisos para desasignar estudiantes de aulas.");
         }
@@ -180,7 +322,6 @@ export class EstudiantesService {
         if (!prisma) throw new Error("DB not available");
         const prismaAny = prisma as any;
 
-        // Buscar la asignación activa
         const asignacion = await prismaAny.estudiantesAulas.findFirst({
             where: {
                 estudiante_id: estudianteId,
@@ -196,7 +337,6 @@ export class EstudiantesService {
             throw new Error("No se encontró una asignación activa para este estudiante en esta aula.");
         }
 
-        // Verificar permisos sobre la escuela
         if (actor.rol === "director") {
             const director = await prismaAny.usuarioPerfil.findUnique({
                 where: { id: actor.id },
@@ -223,12 +363,59 @@ export class EstudiantesService {
                 throw new Error("No tienes permisos para gestionar esta escuela.");
             }
         }
-        // PADI puede desasignar en cualquier escuela
 
-        // Marcar la asignación como terminada
-        return await prismaAny.estudiantesAulas.update({
-            where: { id: asignacion.id },
+        return await prismaAny.estudiantesAulas.updateMany({
+            where: {
+                estudiante_id: estudianteId,
+                aula_id: aulaId,
+                fecha_fin: null
+            },
             data: { fecha_fin: new Date() }
+        });
+    }
+
+    async delete(id: string, user: { id: string; rol: string }) {
+        if (user.rol !== "equipo_padi") {
+            throw new Error("No tienes permisos para eliminar estudiantes.");
+        }
+
+        const prisma = getPrisma();
+        if (!prisma) throw new Error("DB not available");
+        const prismaAny = prisma as any;
+
+        const estudiante = await prismaAny.estudiantes.findUnique({
+            where: { id },
+            select: { id: true, persona_id: true },
+        });
+        if (!estudiante) throw new Error("Estudiante no encontrado.");
+
+        await prismaAny.$transaction(async (tx: any) => {
+            const evaluaciones = await tx.evaluacionEstudiante.findMany({
+                where: { estudiante_id: id },
+                select: { id: true },
+            });
+            const evalIds = evaluaciones.map((e: any) => e.id);
+
+            const evalAreas = await tx.evaluacionesEstudianteArea.findMany({
+                where: { evaluacion_estudiante_id: { in: evalIds } },
+                select: { id: true },
+            });
+            const evalAreaIds = evalAreas.map((e: any) => e.id);
+
+            await tx.evaluacionesEstudianteAreaPreguntas.deleteMany({
+                where: { evaluaciones_area_id: { in: evalAreaIds } },
+            });
+            await tx.evaluacionesEstudianteArea.deleteMany({
+                where: { evaluacion_estudiante_id: { in: evalIds } },
+            });
+            await tx.evaluacionEstudiante.deleteMany({
+                where: { estudiante_id: id },
+            });
+            await tx.estudiantesAulas.deleteMany({
+                where: { estudiante_id: id },
+            });
+            await tx.estudiantes.delete({ where: { id } });
+            await tx.personas.delete({ where: { id: estudiante.persona_id } });
         });
     }
 }

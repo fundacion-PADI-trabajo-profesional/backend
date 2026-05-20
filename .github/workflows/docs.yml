@@ -1,0 +1,46 @@
+name: Publicar documentación en Firebase Hosting
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'functions/src/**'
+      - 'functions/typedoc.json'
+      - 'functions/package.json'
+      - '.github/workflows/docs.yml'
+
+  # Permite ejecutar manualmente desde la pestaña Actions
+  workflow_dispatch:
+
+jobs:
+  build_and_deploy:
+    name: Generar y publicar documentación
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+        working-directory: functions
+        env:
+          DATABASE_URL: postgres://localhost:5432/postgres
+
+      - name: Generar documentación con TypeDoc
+        run: npm run docs
+        working-directory: functions
+
+      - name: Publicar en Firebase Hosting (docs)
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_FUNDACIONPADI_41CB2 }}
+          projectId: fundacionpadi-41cb2
+          target: docs
+          channelId: live

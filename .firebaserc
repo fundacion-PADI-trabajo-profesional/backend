@@ -1,6 +1,13 @@
 {
   "projects": {
     "default": "fundacionpadi-41cb2"
+  },
+  "targets": {
+    "fundacionpadi-41cb2": {
+      "hosting": {
+        "docs": ["fundacionpadi-docs"]
+      }
+    }
   }
 }
 

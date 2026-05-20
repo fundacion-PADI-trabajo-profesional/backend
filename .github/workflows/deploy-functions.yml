@@ -1,0 +1,51 @@
+name: Deploy Firebase Functions
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout frontend (para tests de contrato)
+        uses: actions/checkout@v4
+        with:
+          repository: fundacion-PADI-trabajo-profesional/frontend
+          token: ${{ secrets.ORG_PAT }}
+          path: frontend
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: functions/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+        working-directory: functions
+
+      - name: Compilar TypeScript
+        run: npm run build
+        working-directory: functions
+
+      - name: Correr tests y verificar cobertura mínima (70%)
+        run: npm run test:coverage
+        working-directory: functions
+        env:
+          DATABASE_URL: postgres://localhost:5432/postgres
+          FRONTEND_ROOT: ${{ github.workspace }}/frontend
+
+      - name: Crear .env de producción
+        run: echo "FRONTEND_URL=${{ vars.FRONTEND_URL }}" > functions/.env
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_FUNDACIONPADI_41CB2 }}
+
+      - name: Deployear a Firebase Functions
+        run: npx firebase-tools deploy --only functions --project fundacionpadi-41cb2

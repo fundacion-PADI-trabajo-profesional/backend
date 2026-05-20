@@ -3,6 +3,13 @@ import { getPrisma } from "../config/prismaClient";
 
 const UNIQUE_VIOLATION = "23505";
 const PRISMA_ERROR = "P2002";
+
+/**
+ * Traduce los códigos de error de Supabase Auth a mensajes legibles en español.
+ *
+ * @param error - Objeto de error retornado por Supabase Auth.
+ * @returns Mensaje descriptivo para mostrar al usuario.
+ */
 const traducirErrorAuth = (error: any): string => {
   // Verificamos si el error trae un código de Supabase Auth
   if (error?.code) {
@@ -28,9 +35,27 @@ const traducirErrorAuth = (error: any): string => {
   return "Ocurrió un error inesperado al procesar la solicitud.";
 };
 
+/**
+ * Servicio de autenticación y gestión de sesiones.
+ *
+ * @remarks
+ * Todos los métodos son estáticos. Interactúa con Supabase Auth para las
+ * operaciones de sesión y con Prisma para la gestión del perfil de usuario.
+ * Los errores de Supabase Auth se traducen a mensajes en español con `traducirErrorAuth`.
+ */
 export class AuthService {
   /**
-   * Autentica a un usuario contra Supabase Auth.
+   * Autentica a un usuario contra Supabase Auth y retorna sesión + perfil.
+   *
+   * @remarks
+   * Además de validar las credenciales, consulta el perfil del usuario en la
+   * tabla `usuarios` de Supabase. Si el usuario existe en Auth pero no tiene
+   * perfil de aplicación, lanza un error (estado inconsistente).
+   *
+   * @param email - Correo electrónico del usuario.
+   * @param password - Contraseña del usuario.
+   * @returns `{ user, session, profile }` donde `profile` incluye escuela anidada.
+   * @throws Error con mensaje traducido si las credenciales son inválidas o el perfil no existe.
    */
   static async login(email: string, password: string) {
     const supabase = getSupabase();
@@ -62,8 +87,24 @@ export class AuthService {
     return { user: data.user, session: data.session, profile };
   }
 
-  /*
-   * Registra usuario completo: Auth + UsuarioPerfil + (Persona o Encargado según rol)
+  /**
+   * Registra un usuario completo: cuenta en Supabase Auth + perfil + datos según rol.
+   *
+   * @remarks
+   * Flujo de creación:
+   * 1. Crea la cuenta en Supabase Auth (`signUp`).
+   * 2. Crea el perfil en la tabla `usuarios`.
+   * 3. Según el rol:
+   *    - `"encargado_zona"`: crea registro en `encargados`.
+   *    - `"docente"`: crea `personas` + `profesores`.
+   *    - `"equipo_padi"`: sin datos adicionales.
+   *
+   * En caso de error en cualquier paso, realiza rollback eliminando el usuario
+   * de Auth y el perfil de `usuarios` si ya fue creado.
+   *
+   * @param userData - Datos del nuevo usuario.
+   * @returns El objeto `authData` de Supabase con `user` y `session`.
+   * @throws Error con mensaje descriptivo si algún paso falla.
    */
   static async register(userData: {
     email: string;
@@ -176,4 +217,150 @@ export class AuthService {
 
     return authData;
   }
+
+  /**
+   * Renueva la sesión usando un `refresh_token`.
+   *
+   * @param refreshToken - Token de refresco emitido por Supabase en el login anterior.
+   * @returns `{ access_token, refresh_token }` con los nuevos tokens.
+   * @throws Error si el token es inválido o la sesión no pudo renovarse.
+   */
+  static async refreshSession(refreshToken: string) {
+    const supabase = getSupabase();
+    if (!supabase) throw new Error("Supabase client no está disponible.");
+
+    const { data, error } = await supabase.auth.refreshSession({
+      refresh_token: refreshToken,
+    });
+
+    if (error || !data.session) {
+      throw new Error("No se pudo renovar la sesión. Por favor, iniciá sesión nuevamente.");
+    }
+
+    return {
+      access_token: data.session.access_token,
+      refresh_token: data.session.refresh_token,
+    };
+  }
+
+  /**
+   * Actualiza el nombre y apellido del perfil del usuario autenticado.
+   *
+   * @remarks
+   * Actualiza `usuarioPerfil` y, si existe, el registro correspondiente en `personas`.
+   * El error de `personas.update` se ignora silenciosamente para no bloquear
+   * usuarios cuyo rol no genera registro en esa tabla (p. ej. `equipo_padi`).
+   *
+   * @param userId - UUID del usuario a actualizar.
+   * @param nombre - Nuevo nombre.
+   * @param apellido - Nuevo apellido.
+   * @returns El registro de `usuarioPerfil` actualizado.
+   * @throws Error si el cliente Prisma no está disponible o si la actualización falla.
+   */
+  static async updateProfile(userId: string, nombre: string, apellido: string) {
+    const prisma = getPrisma();
+    if (!prisma) throw new Error("Cliente de DB no disponible.");
+
+    try {
+      const updatedUser = await (prisma as any).usuarioPerfil.update({
+        where: { id: userId },
+        data: { nombre, apellido }
+      });
+
+      try {
+        await (prisma as any).personas.update({
+          where: { usuario_id: userId },
+          data: {
+            nombre: nombre,
+            primer_apellido: apellido
+          }
+        });
+      } catch (e) { }
+
+      return updatedUser;
+    } catch (error) {
+      console.error("Error al actualizar perfil:", error);
+      throw new Error("No se pudo actualizar el perfil.");
+    }
+  }
+
+  /**
+   * Envía un correo con el link seguro para cambiar la contraseña.
+   *
+   * @remarks
+   * Verifica primero que el email exista en la tabla `usuarios` antes de llamar
+   * a Supabase. Si no existe, lanza `"EMAIL_NOT_REGISTERED"` para que el
+   * controlador pueda responder con un mensaje apropiado sin revelar si el email
+   * está o no registrado.
+   * El link redirige a `FRONTEND_URL/actualizar-password`.
+   *
+   * @param email - Dirección de correo del usuario.
+   * @returns Objeto con mensaje de confirmación.
+   * @throws `"EMAIL_NOT_REGISTERED"` si el email no existe en el sistema.
+   * @throws Error si el envío por Supabase falla.
+   */
+  static async sendPasswordResetEmail(email: string) {
+    const supabase = getSupabase();
+    if (!supabase) throw new Error("Supabase client no está disponible.");
+
+    // Verificar si el email existe en la tabla de usuarios de la aplicación
+    const { data: existingUser } = await (supabase as any)
+      .from("usuarios")
+      .select("id")
+      .eq("email", email)
+      .maybeSingle();
+
+    if (!existingUser) {
+      throw new Error("EMAIL_NOT_REGISTERED");
+    }
+
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${frontendUrl}/actualizar-password`,
+    });
+
+    if (error) throw new Error(traducirErrorAuth(error));
+
+    return { message: "Correo de recuperación enviado exitosamente." };
+  }
+
+  /**
+   * Actualiza la contraseña del usuario usando los tokens del link de recuperación.
+   *
+   * @remarks
+   * Establece la sesión con los tokens del link (`setSession`), actualiza la
+   * contraseña y luego cierra la sesión temporal del backend para no dejar
+   * estado residual en el servidor.
+   *
+   * @param accessToken - Token de acceso del link de recuperación.
+   * @param refreshToken - Token de refresco del link de recuperación.
+   * @param newPassword - Nueva contraseña del usuario.
+   * @returns Objeto con mensaje de confirmación.
+   * @throws Error si el link expiró, es inválido o si la actualización falla.
+   */
+  static async updatePassword(accessToken: string, refreshToken: string, newPassword: string) {
+    const supabase = getSupabase();
+    if (!supabase) throw new Error("Supabase client no está disponible.");
+
+    // 1. Establecemos la sesión con los tokens que vinieron en el link
+    const { error: sessionError } = await supabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+
+    if (sessionError) throw new Error("El link de recuperación es inválido o ya expiró.");
+
+    // 2. Actualizamos la contraseña del usuario
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    // 3. Cerramos esta sesión temporal del backend para limpiar el estado
+    await supabase.auth.signOut();
+
+    if (updateError) throw new Error(traducirErrorAuth(updateError));
+
+    return { message: "Contraseña actualizada exitosamente." };
+  }
+
 }

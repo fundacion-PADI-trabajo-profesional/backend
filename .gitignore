@@ -3,6 +3,7 @@ functions/node_modules/
 functions/lib/
 lib/
 coverage/
+functions/docs/
 .firebase/
 firebase-debug.log
 firebase-debug.*.log
@@ -10,3 +11,7 @@ firebase-debug.*.log
 .env.*
 .DS_Store
 install_nvm.sh
+.gitnexus
+.claude/
+CLAUDE.md
+AGENTS.md

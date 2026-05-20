@@ -1,0 +1,14 @@
+{
+  "entryPointStrategy": "expand",
+  "entryPoints": ["src"],
+  "out": "docs",
+  "name": "Fundación PADI — Backend API",
+  "includeVersion": true,
+  "readme": "none",
+  "skipErrorChecking": true,
+  "excludeInternal": true,
+  "searchInComments": true,
+  "navigationLinks": {
+    "GitHub": "https://github.com/fundacion-PADI-trabajo-profesional/backend"
+  }
+}

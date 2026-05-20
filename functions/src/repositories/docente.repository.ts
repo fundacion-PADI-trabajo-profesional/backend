@@ -1,7 +1,22 @@
 import { getPrisma } from "../config/prismaClient";
 import { DocenteItem } from "../interfaces/docente.interface";
 
+/**
+ * Repositorio de acceso a datos para docentes (usuarios con rol `"docente"`).
+ *
+ * @remarks
+ * Los docentes se almacenan en la tabla `profesores` y están vinculados a la
+ * tabla `personas` (datos personales) y a `usuarioPerfil` (rol y autenticación).
+ * Las asignaciones a escuelas y aulas se mantienen con `fecha_fin` para
+ * conservar el historial completo de asignaciones.
+ */
 export const DocenteRepository = {
+  /**
+   * Lista todos los docentes del sistema con sus asignaciones activas a aulas y escuelas.
+   *
+   * @returns Array de {@link DocenteItem} ordenado por apellido.
+   *          Retorna array vacío si la base de datos no está disponible.
+   */
   async list(): Promise<DocenteItem[]> {
     const prisma = getPrisma();
     if (!prisma) return [];
@@ -66,6 +81,17 @@ export const DocenteRepository = {
     return rows as DocenteItem[];
   },
 
+  /**
+   * Lista los docentes asignados a una escuela específica.
+   *
+   * @remarks
+   * Filtra por `profesores_escuelas` con `fecha_fin: null` para devolver
+   * únicamente asignaciones activas a esa escuela.
+   *
+   * @param escuelaId - UUID de la escuela.
+   * @returns Array de {@link DocenteItem} ordenado por apellido.
+   *          Retorna array vacío si la base de datos no está disponible.
+   */
   async listByEscuela(escuelaId: string): Promise<DocenteItem[]> {
     const prisma = getPrisma();
     if (!prisma) return [];
@@ -135,6 +161,14 @@ export const DocenteRepository = {
     return rows as DocenteItem[];
   },
 
+  /**
+   * Asigna un docente a una escuela creando un registro activo en `profesoresEscuelas`.
+   *
+   * @param profesorId - UUID del docente.
+   * @param escuelaId - UUID de la escuela.
+   * @returns El registro de asignación creado con datos de la escuela.
+   * @throws Error si el docente ya está asignado a esa escuela o si la DB no está disponible.
+   */
   async addEscuela(profesorId: string, escuelaId: string) {
     const prisma = getPrisma();
     if (!prisma) throw new Error("DB not available");
@@ -169,6 +203,18 @@ export const DocenteRepository = {
     });
   },
 
+  /**
+   * Desasigna un docente de una escuela en una transacción atómica.
+   *
+   * @remarks
+   * Establece `fecha_fin` en el registro de `profesoresEscuelas` y también
+   * cierra todas las asignaciones activas del docente a aulas de esa escuela
+   * (`profesoresAulas`), manteniendo el historial.
+   *
+   * @param profesorId - UUID del docente.
+   * @param escuelaId - UUID de la escuela.
+   * @throws Error si el docente no está asignado a esa escuela o si la DB no está disponible.
+   */
   async removeEscuela(profesorId: string, escuelaId: string) {
     const prisma = getPrisma();
     if (!prisma) throw new Error("DB not available");
@@ -210,6 +256,14 @@ export const DocenteRepository = {
     });
   },
 
+  /**
+   * Verifica si un docente tiene una asignación activa a una escuela.
+   *
+   * @param profesorId - UUID del docente.
+   * @param escuelaId - UUID de la escuela.
+   * @returns `true` si existe una asignación activa; `false` en caso contrario
+   *          o si la base de datos no está disponible.
+   */
   async hasActiveEscuelaAssignment(profesorId: string, escuelaId: string): Promise<boolean> {
     const prisma = getPrisma();
     if (!prisma) return false;

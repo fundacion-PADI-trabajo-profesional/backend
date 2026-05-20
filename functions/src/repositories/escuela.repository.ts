@@ -1,8 +1,23 @@
 import { getPrisma } from "../config/prismaClient";
 import { CreateEscuelaDto } from "../interfaces/escuela.interface";
 
+/**
+ * Repositorio de acceso a datos para la entidad `Escuela`.
+ *
+ * @remarks
+ * Centraliza todas las operaciones de lectura y escritura sobre la tabla `escuelas`
+ * y sus relaciones (zonas, directivos, docentes, estudiantes).
+ * Las listas de docentes se procesan con `mapEscuelaDocentes` para aplanar
+ * la relación `profesores_escuelas` en un array `profesores` más simple.
+ */
 export const EscuelasRepository = {
-    // Busca el perfil de encargado usando el ID de usuario (login)
+  /**
+   * Busca el registro de encargado de zona a partir del UUID de usuario.
+   *
+   * @param usuarioId - UUID del usuario en `usuarioPerfil`.
+   * @returns El encargado con su zona incluida, o `null` si no existe.
+   * @throws Error si la base de datos no está disponible.
+   */
     async findEncargadoProfile(usuarioId: string) {
         const prisma = getPrisma();
         if (!prisma) throw new Error("DB not available");
@@ -15,6 +30,13 @@ export const EscuelasRepository = {
         });
     },
 
+  /**
+   * Crea una escuela nueva en la base de datos.
+   *
+   * @param data - DTO con los datos de la escuela a crear.
+   * @returns El registro de escuela recién creado.
+   * @throws Error si la creación falla (p. ej. clave foránea inválida).
+   */
     async create(data: CreateEscuelaDto) {
         const prisma = getPrisma();
         if (!prisma) throw new Error("DB not available");
@@ -26,7 +48,6 @@ export const EscuelasRepository = {
                     direccion: data.direccion,
                     telefono: data.telefono,
                     zona_id: data.zona_id,
-                    encargado_id: data.encargado_id
                 }
             });
         } catch (error: any) {
@@ -35,6 +56,20 @@ export const EscuelasRepository = {
         }
     },
 
+  /**
+   * Elimina una escuela en una transacción atómica.
+   *
+   * @remarks
+   * Orden de operaciones:
+   * 1. Desasigna estudiantes (`escuela_id → null`).
+   * 2. Desasigna directivos (`escuela_id → null`).
+   * 3. Cierra asignaciones docentes (`fecha_fin = now`).
+   * 4. Elimina todas las aulas de la escuela.
+   * 5. Elimina la escuela.
+   *
+   * @param id - UUID de la escuela a eliminar.
+   * @returns El registro de escuela eliminado.
+   */
     async delete(id: string) {
         const prisma = getPrisma();
 
@@ -65,12 +100,23 @@ export const EscuelasRepository = {
                 },
             });
 
+            await tx.aulas.deleteMany({
+                where: { escuela_id: id }
+            });
+
             return await tx.escuelas.delete({
                 where: { id }
             });
         });
     },
 
+  /**
+   * Transforma el array crudo de Prisma aplanando la relación `profesores_escuelas`
+   * en un campo `profesores` con `{ id, personas }` por escuela.
+   *
+   * @param data - Array de escuelas devuelto por Prisma con `profesores_escuelas` incluido.
+   * @returns El mismo array con el campo `profesores` agregado.
+   */
     mapEscuelaDocentes(data: any[]) {
         return data.map((escuela) => ({
             ...escuela,
@@ -83,6 +129,14 @@ export const EscuelasRepository = {
         }));
     },
 
+  /**
+   * Actualiza los datos editables de una escuela.
+   *
+   * @param id - UUID de la escuela a actualizar.
+   * @param data - Nuevos valores para nombre, dirección, teléfono y zona.
+   * @returns El registro de escuela actualizado.
+   * @throws Error si la actualización falla (p. ej. zona_id inválida).
+   */
     async update(id: string, data: {
         nombre: string;
         direccion?: string;
@@ -109,7 +163,15 @@ export const EscuelasRepository = {
         }
     },
 
-    // Lista TODAS las escuelas (Para Equipo PADI)
+  /**
+   * Lista todas las escuelas del sistema con zona, directivos, docentes y estudiantes.
+   *
+   * @remarks
+   * Uso exclusivo del rol `admin`. Puede devolver un dataset grande.
+   *
+   * @returns Array de escuelas procesado por `mapEscuelaDocentes`, ordenado por fecha de creación.
+   * @throws Error si la base de datos no está disponible.
+   */
     async findAll() {
         const prisma = getPrisma();
         if (!prisma) throw new Error("DB not available");
@@ -147,6 +209,13 @@ export const EscuelasRepository = {
         return this.mapEscuelaDocentes(rows);
     },
 
+  /**
+   * Lista las escuelas de una zona específica.
+   *
+   * @param zonaId - UUID de la zona.
+   * @returns Array de escuelas con zona, directivos, docentes y estudiantes.
+   * @throws Error si la base de datos no está disponible.
+   */
     async findByZonaId(zonaId: string) {
         const prisma = getPrisma();
         if (!prisma) throw new Error("DB not available");
@@ -185,29 +254,13 @@ export const EscuelasRepository = {
         return this.mapEscuelaDocentes(rows);
     },
 
-    // Lista solo escuelas de un encargado específico (Para Encargado Zona)
-    async findByEncargadoId(encargadoId: string) {
-        const prisma = getPrisma();
-        if (!prisma) throw new Error("DB not available");
-
-        const rows = await prisma.escuelas.findMany({
-            where: { encargado_id: encargadoId },
-            include: {
-                directivos: {
-                    select: {
-                        id: true,
-                        nombre: true,
-                        apellido: true,
-                    },
-                },
-            },
-            orderBy: { createdAt: 'desc' }
-        });
-
-        return this.mapEscuelaDocentes(rows);
-    },
-
-    // Lista escuelas por zona (para encargados de esa zona)
+  /**
+   * Lista las escuelas de una zona buscada por nombre.
+   *
+   * @param nombreZona - Nombre exacto de la zona.
+   * @returns Array de escuelas con zona, directivos y estudiantes.
+   * @throws Error si la base de datos no está disponible.
+   */
     async findByZona(nombreZona: string) {
         const prisma = getPrisma();
         if (!prisma) throw new Error("DB not available");
@@ -236,6 +289,12 @@ export const EscuelasRepository = {
         return this.mapEscuelaDocentes(rows);
     },
 
+  /**
+   * Crea una relación docente-escuela si no existe una activa.
+   *
+   * @param escuelaId - UUID de la escuela.
+   * @param profesorId - UUID del docente.
+   */
     async addDocenteRelation(escuelaId: string, profesorId: string) {
         const prisma = getPrisma();
         const prismaAny = prisma as any;
@@ -260,6 +319,14 @@ export const EscuelasRepository = {
         });
     },
 
+  /**
+   * Cierra la relación docente-escuela y desasigna el docente de todas las aulas
+   * de esa escuela en una sola transacción.
+   *
+   * @param escuelaId - UUID de la escuela.
+   * @param profesorId - UUID del docente.
+   * @throws Error si la base de datos no está disponible.
+   */
     async removeDocenteRelation(escuelaId: string, profesorId: string) {
         const prisma = getPrisma();
         if (!prisma) throw new Error("DB not available");
@@ -292,6 +359,13 @@ export const EscuelasRepository = {
         });
     },
 
+  /**
+   * Asigna un directivo a una escuela actualizando su `escuela_id` en `usuarioPerfil`.
+   *
+   * @param escuelaId - UUID de la escuela.
+   * @param usuarioId - UUID del usuario directivo.
+   * @returns El perfil de usuario actualizado.
+   */
     async addDirectivoRelation(escuelaId: string, usuarioId: string) {
         const prisma = getPrisma();
         return await (prisma as any).usuarioPerfil.update({
@@ -300,11 +374,67 @@ export const EscuelasRepository = {
         });
     },
 
+  /**
+   * Desasigna un directivo de su escuela poniendo `escuela_id = null`.
+   *
+   * @param usuarioId - UUID del usuario directivo.
+   * @returns El perfil de usuario actualizado.
+   */
     async removeDirectivoRelation(usuarioId: string) {
         const prisma = getPrisma();
         return await (prisma as any).usuarioPerfil.update({
             where: { id: usuarioId },
             data: { escuela_id: null }
         });
-    }
+    },
+
+  /**
+   * Retorna las escuelas visibles para un usuario según su rol.
+   *
+   * @remarks
+   * - `"director"`: retorna únicamente su propia escuela.
+   * - `"encargado_zona"`: retorna las escuelas de su zona.
+   * - Cualquier otro rol (admin): retorna todas las escuelas.
+   *
+   * @param user - Datos del usuario autenticado.
+   * @returns Array de `{ id, nombre }` de las escuelas accesibles.
+   * @throws Error si la base de datos no está disponible.
+   */
+    async getEscuelasParaRol(user: {
+        id: string;
+        rol: string;
+        escuela_id: string | null;
+    }): Promise<{ id: string; nombre: string }[]> {
+        const prisma = getPrisma();
+        if (!prisma) throw new Error("DB not available");
+
+        if (user.rol === "director") {
+            if (!user.escuela_id) return [];
+            const escuela = await prisma.escuelas.findUnique({
+                where: { id: user.escuela_id },
+                select: { id: true, nombre: true },
+            });
+            return escuela ? [escuela] : [];
+        }
+
+        if (user.rol === "encargado_zona") {
+            const encargado = await prisma.encargados.findUnique({
+                where: { usuario_id: user.id },
+                select: { zona_id: true },
+            });
+            if (!encargado?.zona_id) return [];
+            return prisma.escuelas.findMany({
+                where: { zona_id: encargado.zona_id },
+                select: { id: true, nombre: true },
+                orderBy: { nombre: "asc" },
+            });
+        }
+
+        // equipo_padi: todas
+        return prisma.escuelas.findMany({
+            select: { id: true, nombre: true },
+            orderBy: { nombre: "asc" },
+        });
+    },
+
 };

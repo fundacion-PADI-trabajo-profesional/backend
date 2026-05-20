@@ -1,8 +1,23 @@
+/**
+ * DTO para la creación de un aula.
+ *
+ * @remarks
+ * Usado por `AulasService.create` y por `createEscuela` al generar las aulas por defecto
+ * (salas 3, 4 y 5) al momento de crear una escuela nueva.
+ */
 export interface CreateAulaDto {
-  sala_id: number;   // id de la sala (3, 4, 5, etc.)
-  comision: string;  // nombre de la comisión, ej: "Delfines"
-  turno: string;     // "mañana", "tarde", etc.
-  escuela_id?: string; // opcional, requerido para PADI y encargados
+  /** ID numérico de la sala (p. ej. 3, 4 o 5 para sala de 3, 4 y 5 años). */
+  sala_id: number;
+  /** Nombre de la comisión, por ejemplo `"Delfines"` o `"Única"`. */
+  comision: string;
+  /** Turno del aula: `"Mañana"`, `"Tarde"`, etc. */
+  turno: string;
+  /**
+   * ID de la escuela a la que pertenece el aula.
+   * Requerido para usuarios con rol `admin` o `encargado_zona`.
+   * Los docentes lo infieren desde su aula asignada.
+   */
+  escuela_id?: string;
 }
 
 

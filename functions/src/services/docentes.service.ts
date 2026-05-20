@@ -2,9 +2,23 @@ import { DocenteRepository } from "../repositories/docente.repository";
 import type { DocenteItem } from "../interfaces/docente.interface";
 import { getPrisma } from "../config/prismaClient";
 
+/**
+ * Servicio de gestión de docentes y sus asignaciones a escuelas.
+ *
+ * @remarks
+ * Aplica control de acceso por rol y transforma los datos crudos del repositorio
+ * en el formato que espera el frontend (aplanando `profesores_aulas` y `profesores_escuelas`).
+ */
 export class DocentesService {
   private repo = DocenteRepository;
 
+  /**
+   * Obtiene el UUID de la escuela asignada al director autenticado.
+   *
+   * @param usuarioId - UUID del usuario con rol `"director"`.
+   * @returns UUID de la escuela del director.
+   * @throws Error si el perfil no existe o el director no tiene escuela asignada.
+   */
   private async getDirectorEscuelaId(usuarioId: string): Promise<string> {
     const prisma = getPrisma();
     if (!prisma) throw new Error("DB no disponible para listar docentes");
@@ -24,6 +38,16 @@ export class DocentesService {
     return director.escuela_id;
   }
 
+  /**
+   * Transforma las filas crudas del repositorio en el formato de respuesta del frontend.
+   *
+   * @remarks
+   * Aplana `profesores_escuelas` → `escuelas[]` y `profesores_aulas` → `aulas[]`,
+   * descartando asignaciones inactivas (el repositorio ya filtra por `fecha_fin: null`).
+   *
+   * @param rows - Array de {@link DocenteItem} retornado por el repositorio.
+   * @returns Array transformado con `{ id, nombre, apellido, escuelas, aulas }`.
+   */
   private mapRows(rows: DocenteItem[]) {
     return rows.map((row) => ({
       id: row.id,
@@ -43,6 +67,17 @@ export class DocentesService {
     }));
   }
 
+  /**
+   * Lista docentes según el scope del rol del usuario autenticado.
+   *
+   * @remarks
+   * - `"equipo_padi"` y `"encargado_zona"`: todos los docentes.
+   * - `"director"`: solo los docentes asignados a su escuela.
+   *
+   * @param user - Usuario autenticado.
+   * @returns Array de docentes transformados con escuelas y aulas activas.
+   * @throws Error si el rol no tiene permisos de lectura.
+   */
   async list(user: { id: string; rol: string }) {
     let rows: DocenteItem[] = [];
 
@@ -58,6 +93,15 @@ export class DocentesService {
     return this.mapRows(rows);
   }
 
+  /**
+   * Asigna un docente a una escuela, verificando que ambos existan.
+   *
+   * @param profesorId - UUID del docente.
+   * @param escuelaId - UUID de la escuela.
+   * @param user - Usuario autenticado (debe ser `"equipo_padi"` o `"encargado_zona"`).
+   * @returns El registro de asignación creado con datos de la escuela.
+   * @throws Error si el docente o la escuela no existen, o si el usuario no tiene permisos.
+   */
   async assignEscuela(
     profesorId: string,
     escuelaId: string,
@@ -88,6 +132,14 @@ export class DocentesService {
     return this.repo.addEscuela(profesorId, escuelaId);
   }
 
+  /**
+   * Desasigna un docente de una escuela y cierra sus asignaciones de aula activas.
+   *
+   * @param profesorId - UUID del docente.
+   * @param escuelaId - UUID de la escuela.
+   * @param user - Usuario autenticado (debe ser `"equipo_padi"` o `"encargado_zona"`).
+   * @throws Error si el usuario no tiene permisos.
+   */
   async unassignEscuela(
     profesorId: string,
     escuelaId: string,

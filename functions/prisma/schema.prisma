@@ -39,7 +39,6 @@ model Encargados {
 
   // Relación: Si borrás el usuario, se borra el encargado (Cascade)
   usuario  UsuarioPerfil @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
-  escuelas Escuelas[]
 
   @@map("encargados")
 }
@@ -214,10 +213,6 @@ model Escuelas {
   zona_id String? @db.Uuid
   zona    Zonas? @relation(fields: [zona_id], references: [id])
   createdAt DateTime @default(now())
-
-  // Relación con Encargado (1 Encargado -> Muchas Escuelas)
-  encargado_id String?     @db.Uuid
-  encargado    Encargados? @relation(fields: [encargado_id], references: [id])
 
   // Relación con Personas
   directivos UsuarioPerfil[] // Directores asignados a esta escuela
