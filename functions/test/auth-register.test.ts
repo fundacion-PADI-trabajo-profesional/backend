@@ -111,9 +111,27 @@ describe("auth register flow", () => {
       })
       .set("Content-Type", "application/json");
 
-    expect(res.status).toBe(201);
+    // NC1: director ya no puede auto-registrarse
+    expect(res.status).toBe(400);
     expect(personasCreate).not.toHaveBeenCalled();
     expect(profesoresCreate).not.toHaveBeenCalled();
+  });
+
+  // NC1 — regresión: director rechazado en auto-registro público
+  it("POST /auth/register con rol=director devuelve 400 (NC1)", async () => {
+    const res = await request(app)
+      .post("/auth/register")
+      .send({
+        email: "director2@ex.com",
+        password: "secret123",
+        nombre: "Dir",
+        apellido: "Ector",
+        rol: "director",
+      })
+      .set("Content-Type", "application/json");
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContain("Rol no permitido");
   });
 });
 

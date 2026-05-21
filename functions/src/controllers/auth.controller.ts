@@ -42,8 +42,8 @@ export class AuthController {
   static async register(req: Request, res: Response) {
     try {
       const { rol } = req.body;
-      const selfRegistrableRoles = ["docente", "director"];
-      if (!selfRegistrableRoles.includes(rol)) {
+      const selfRegistrableRoles = ["docente"];
+      if (!rol || !selfRegistrableRoles.includes(rol)) {
         return res.status(400).json({ message: "Rol no permitido para auto-registro." });
       }
       const authData = await AuthService.register(req.body);
