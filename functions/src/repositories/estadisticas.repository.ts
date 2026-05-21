@@ -173,7 +173,7 @@ export const EstadisticasRepository = {
   async findAulaDelProfesor(profesorId: string, aulaId: string): Promise<boolean> {
     const prisma = getPrisma() as any;
     const entry = await prisma.profesoresAulas.findFirst({
-      where: { profesor_id: profesorId, aula_id: aulaId },
+      where: { profesor_id: profesorId, aula_id: aulaId, fecha_fin: null },
     });
     return entry != null;
   },
