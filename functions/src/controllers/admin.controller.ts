@@ -104,7 +104,9 @@ export class AdminController {
    */
   static async listUsers(req: AuthenticatedRequest, res: Response) {
     try {
-      const users = await AdminService.listUsers();
+      const page = Math.max(1, parseInt(String(req.query.page ?? "1"), 10) || 1);
+      const perPage = Math.min(100, Math.max(1, parseInt(String(req.query.perPage ?? "50"), 10) || 50));
+      const users = await AdminService.listUsers(page, perPage);
       return res.status(200).json(users);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
