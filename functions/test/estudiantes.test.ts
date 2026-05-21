@@ -485,7 +485,13 @@ describe("POST /estudiantes/bulk", () => {
 
 describe("GET /estudiantes - docente with escuela_id param", () => {
   it("docente with escuela_id lists students by escuela", async () => {
-    mockAuthAs("docente");
+    const { prismaMock } = mockAuthAs("docente", "doc-1");
+    // getDocenteEscuelas: persona → profesor → profesores_escuelas activas
+    prismaMock.personas = {
+      findUnique: vi.fn().mockResolvedValue({
+        profesores: [{ profesores_escuelas: [{ escuela_id: "esc-1" }] }],
+      }),
+    };
     vi.spyOn(EstudianteRepository, "listByEscuela").mockResolvedValue([] as any);
     const res = await request(app)
       .get("/estudiantes?escuela_id=esc-1")

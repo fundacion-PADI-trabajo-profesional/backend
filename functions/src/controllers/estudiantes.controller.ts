@@ -2,6 +2,7 @@ import type { Request, Response } from "express"
 import { EstudiantesService } from "../services/estudiantes.service"
 import { commonResponse } from "../interfaces/common-response.interface"
 import { AuthenticatedRequest } from "../middlewares/auth.middleware"
+import { getDocenteEscuelas } from "../utils/scope"
 
 
 const service = new EstudiantesService()
@@ -93,10 +94,15 @@ export async function listEstudiantes(req: AuthenticatedRequest, res: Response) 
                 return res.status(400).json(commonResponse(false, "Usted no tiene una escuela asignada.", null, { code: "VALIDATION_ERROR" }));
             }
             data = await service.listByEscuela(escuelaIdFromToken, user);
-        } else if (user.rol === "docente" && escuela_id) {
+        } else if (user.rol === "docente") {
+            if (!escuela_id) {
+                return res.status(400).json(commonResponse(false, "Se requiere escuela_id para listar estudiantes.", null, { code: "VALIDATION_ERROR" }));
+            }
+            const docenteEscuelas = await getDocenteEscuelas(user.id);
+            if (!docenteEscuelas.includes(String(escuela_id))) {
+                return res.status(403).json(commonResponse(false, "No tiene permisos para ver estudiantes de esa escuela.", null));
+            }
             data = await service.listByEscuela(String(escuela_id), user);
-        } else if (user.rol === "docente" && !escuela_id) {
-            return res.status(400).json(commonResponse(false, "Usted no tiene una escuela asignada.", null, { code: "VALIDATION_ERROR" }));
         } else {
             // Usuarios admin (PADI/Encargados) siguen viendo todo el listado
             data = await service.list(user);
