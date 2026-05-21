@@ -178,7 +178,40 @@ export class EstudiantesService {
         if (user.rol !== "director" && user.rol !== "encargado_zona" && user.rol !== "equipo_padi") {
             throw new Error("No tienes permisos para crear estudiantes en masa.");
         }
-        
+
+        // NM1: encargado_zona solo puede importar a escuelas de su zona
+        if (user.rol === "encargado_zona") {
+            const prisma = getPrisma();
+            if (!prisma) throw new Error("DB not available");
+            const prismaAny = prisma as any;
+
+            const encargado = await prismaAny.encargados.findUnique({
+                where: { usuario_id: user.id },
+                include: { zona: { include: { escuelas: { select: { id: true } } } } }
+            });
+            const escuelasDeZona: string[] = encargado?.zona?.escuelas.map((e: any) => e.id) ?? [];
+
+            if (!commonData.escuela_id || !escuelasDeZona.includes(commonData.escuela_id)) {
+                throw new Error("No tienes permisos para importar estudiantes en esta escuela.");
+            }
+        }
+
+        // NM1: director solo puede importar a su propia escuela
+        if (user.rol === "director") {
+            const prisma = getPrisma();
+            if (!prisma) throw new Error("DB not available");
+            const prismaAny = prisma as any;
+
+            const director = await prismaAny.usuarioPerfil.findUnique({
+                where: { id: user.id },
+                select: { escuela_id: true }
+            });
+
+            if (!director?.escuela_id || director.escuela_id !== commonData.escuela_id) {
+                throw new Error("No tienes permisos para importar estudiantes en esta escuela.");
+            }
+        }
+
         return await this.repo.createBulk(estudiantes, commonData, user, dryRun);
     }
 
@@ -213,6 +246,30 @@ export class EstudiantesService {
             const escuelaDirector = user.escuela_id;
             if (!escuelaDirector || estudiante.escuela_id !== escuelaDirector) {
                 throw new Error("No tienes permisos para modificar estudiantes de esta escuela.");
+            }
+        }
+
+        // NH1: para encargado_zona, verificar que el estudiante pertenece a una escuela de su zona
+        if (user.rol === "encargado_zona") {
+            const prisma = getPrisma();
+            if (!prisma) throw new Error("DB not available");
+            const prismaAny = prisma as any;
+
+            const estudiante = await prismaAny.estudiantes.findUnique({
+                where: { id },
+                select: { escuela_id: true }
+            });
+
+            if (!estudiante) throw new Error("Estudiante no encontrado.");
+
+            const encargado = await prismaAny.encargados.findUnique({
+                where: { usuario_id: user.id },
+                include: { zona: { include: { escuelas: { select: { id: true } } } } }
+            });
+            const escuelasDeZona: string[] = encargado?.zona?.escuelas.map((e: any) => e.id) ?? [];
+
+            if (!escuelasDeZona.includes(estudiante.escuela_id)) {
+                throw new Error("No tienes permisos para modificar estudiantes de esta zona.");
             }
         }
 

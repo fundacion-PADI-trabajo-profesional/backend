@@ -318,6 +318,7 @@ export async function bulkCreateEstudiantes(req: AuthenticatedRequest, res: Resp
     } catch (error: any) {
         const message = error.message || "Error interno al crear estudiantes en masa";
         console.error("[bulkCreateEstudiantes] Error:", error);
-        res.status(400).json(commonResponse(false, message, null, { code: "BULK_ERROR", description: message }));
+        const statusCode = message.includes("permisos") ? 403 : 400;
+        res.status(statusCode).json(commonResponse(false, message, null, { code: "BULK_ERROR", description: message }));
     }
 }

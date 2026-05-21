@@ -308,6 +308,29 @@ describe("PUT /estudiantes/:id", () => {
       .send({ nombre: "X" });
     expect(res.status).toBe(403);
   });
+
+  // NH1 — regresión: encargado_zona no puede editar estudiante de otra zona
+  it("encargado_zona no puede editar estudiante de escuela fuera de su zona (NH1)", async () => {
+    const { prismaMock } = mockAuthAs("encargado_zona", "encargado-zona-a");
+
+    // Estudiante pertenece a escuela-b (fuera de la zona del encargado)
+    prismaMock.estudiantes = {
+      findUnique: vi.fn().mockResolvedValue({ escuela_id: "escuela-b" }),
+    };
+    // Zona del encargado solo tiene escuela-a
+    prismaMock.encargados = {
+      findUnique: vi.fn().mockResolvedValue({
+        zona: { escuelas: [{ id: "escuela-a" }] },
+      }),
+    };
+
+    const res = await request(app)
+      .put("/estudiantes/s-fuera-de-zona")
+      .set("Authorization", "Bearer fake-token")
+      .send({ nombre: "Intento" });
+
+    expect(res.status).toBe(403);
+  });
 });
 
 describe("POST /estudiantes/:id/asignar-aula", () => {
@@ -480,6 +503,34 @@ describe("POST /estudiantes/bulk", () => {
         data: expect.objectContaining({ grado: 3 }),
       }),
     );
+  });
+
+  // NM1 — regresión: encargado_zona no puede importar a escuela fuera de su zona
+  it("encargado_zona no puede bulk import a escuela fuera de su zona → 403 (NM1)", async () => {
+    const { prismaMock } = mockAuthAs("encargado_zona", "encargado-zona-a");
+
+    // Zona del encargado solo tiene escuela-a
+    prismaMock.encargados = {
+      findUnique: vi.fn().mockResolvedValue({
+        zona: { escuelas: [{ id: "escuela-a" }] },
+      }),
+    };
+
+    const validRow = {
+      dni: "55111222",
+      nombre: "Luis",
+      apellido: "Ríos",
+      fecha_nacimiento: "2019-03-01",
+      genero_id: "M",
+      sala_id: 1,
+    };
+
+    const res = await request(app)
+      .post("/estudiantes/bulk")
+      .set("Authorization", "Bearer fake-token")
+      .send({ estudiantes: [validRow], escuela_id: "escuela-b" }); // fuera de zona
+
+    expect(res.status).toBe(403);
   });
 });
 
