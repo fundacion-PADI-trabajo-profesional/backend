@@ -2,6 +2,7 @@ import type { Response } from "express";
 import type { AuthenticatedRequest } from "../middlewares/auth.middleware";
 import { commonResponse } from "../interfaces/common-response.interface";
 import { EstadisticasService } from "../services/estadisticas.service";
+import { getEncargadoZonaId, escuelaPerteneceAZona } from "../utils/scope";
 
 const service = new EstadisticasService();
 const TIPOS_VALIDOS = ["inicial", "final"];
@@ -16,9 +17,27 @@ function badParams(res: Response) {
     .json(commonResponse(false, "Parámetros inválidos: se requieren periodo (año) y tipo (inicial|final)", null));
 }
 
-function resolveEscuelaId(req: AuthenticatedRequest): string | null {
-  if (req.user!.rol === "director") return req.user!.escuela_id ?? null;
-  return req.query.escuela_id ? String(req.query.escuela_id) : null;
+/**
+ * Resuelve el escuela_id para los endpoints de estadísticas por escuela.
+ * - Director: forzado desde el token.
+ * - Encargado de zona: validado que la escuela pertenezca a su zona.
+ * - PADI: cualquier escuela del query param.
+ * @throws Error si encargado_zona intenta acceder a una escuela fuera de su zona.
+ */
+async function resolveEscuelaId(req: AuthenticatedRequest): Promise<string | null> {
+  const rol = req.user!.rol;
+  if (rol === "director") return req.user!.escuela_id ?? null;
+
+  const escuelaId = req.query.escuela_id ? String(req.query.escuela_id) : null;
+  if (!escuelaId) return null;
+
+  if (rol === "encargado_zona") {
+    const zonaId = await getEncargadoZonaId(req.user!.id);
+    const pertenece = await escuelaPerteneceAZona(escuelaId, zonaId);
+    if (!pertenece) throw new Error("No tenés permisos para ver estadísticas de esa escuela.");
+  }
+
+  return escuelaId;
 }
 
 export async function getHeatmapZonas(req: AuthenticatedRequest, res: Response) {
@@ -82,7 +101,7 @@ export async function getEvolucionEscuela(req: AuthenticatedRequest, res: Respon
   try {
     const periodo = parsePeriodo(req.query.periodo);
     if (!periodo) return badParams(res);
-    const escuelaId = resolveEscuelaId(req);
+    const escuelaId = await resolveEscuelaId(req);
     if (!escuelaId) return res.status(400).json(commonResponse(false, "Se requiere escuela_id", null));
     const data = await service.evolucionEscuela({
       periodo,
@@ -129,7 +148,7 @@ export async function getAreasCriticasEscuela(req: AuthenticatedRequest, res: Re
     const periodo = parsePeriodo(req.query.periodo);
     const tipo = String(req.query.tipo ?? "");
     if (!periodo || !TIPOS_VALIDOS.includes(tipo)) return badParams(res);
-    const escuelaId = resolveEscuelaId(req);
+    const escuelaId = await resolveEscuelaId(req);
     if (!escuelaId) return res.status(400).json(commonResponse(false, "Se requiere escuela_id", null));
     const data = await service.areasCriticasEscuela({
       periodo,
@@ -171,7 +190,7 @@ export async function getEstudiantesEnRiesgoEscuela(req: AuthenticatedRequest, r
     const umbralRaw = parseFloat(String(req.query.umbral ?? "0.5"));
     const umbral = isNaN(umbralRaw) || umbralRaw <= 0 || umbralRaw >= 1 ? 0.5 : umbralRaw;
 
-    const escuelaId = resolveEscuelaId(req);
+    const escuelaId = await resolveEscuelaId(req);
     if (!escuelaId) return res.status(400).json(commonResponse(false, "Se requiere escuela_id", null));
 
     const data = await service.estudiantesEnRiesgoEscuela({
@@ -205,7 +224,7 @@ export async function getActividadDocentesEscuela(req: AuthenticatedRequest, res
   try {
     const periodo = parsePeriodo(req.query.periodo);
     if (!periodo) return badParams(res);
-    const escuelaId = resolveEscuelaId(req);
+    const escuelaId = await resolveEscuelaId(req);
     if (!escuelaId) return res.status(400).json(commonResponse(false, "Se requiere escuela_id", null));
     const data = await service.actividadDocentesEscuela({
       periodo,
@@ -234,7 +253,7 @@ export async function getComparativaEscuela(req: AuthenticatedRequest, res: Resp
     const periodo = parsePeriodo(req.query.periodo);
     const tipo = String(req.query.tipo ?? "");
     if (!periodo || !TIPOS_VALIDOS.includes(tipo)) return badParams(res);
-    const escuelaId = resolveEscuelaId(req);
+    const escuelaId = await resolveEscuelaId(req);
     if (!escuelaId) return res.status(400).json(commonResponse(false, "Se requiere escuela_id", null));
     const data = await service.comparativaEscuela({
       periodo,
@@ -269,7 +288,7 @@ export async function getProgresionEstudianteEscuela(req: AuthenticatedRequest, 
   try {
     const estudianteId = String(req.query.estudiante_id ?? "");
     if (!estudianteId) return badParams(res);
-    const escuelaId = resolveEscuelaId(req);
+    const escuelaId = await resolveEscuelaId(req);
     if (!escuelaId) return res.status(400).json(commonResponse(false, "Se requiere escuela_id", null));
     const data = await service.progresionEstudianteEscuela({
       estudianteId,
@@ -324,7 +343,7 @@ export async function getHeatmapAulas(req: AuthenticatedRequest, res: Response) 
     const tipo = String(req.query.tipo ?? "");
     if (!periodo || !TIPOS_VALIDOS.includes(tipo)) return badParams(res);
 
-    const escuelaId = resolveEscuelaId(req);
+    const escuelaId = await resolveEscuelaId(req);
     if (!escuelaId) return res.status(400).json(commonResponse(false, "Se requiere escuela_id", null));
 
     const data = await service.heatmapAulas({
