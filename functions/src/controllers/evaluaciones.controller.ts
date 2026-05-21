@@ -87,10 +87,9 @@ export async function getEvaluaciones(req: AuthenticatedRequest, res: Response) 
       }
     }
 
-    if (rol === "docente" && !filters.escuelaId && !filters.profesorId) {
-      return res
-        .status(400)
-        .json(commonResponse(false, "Faltan filtros para listar evaluaciones del docente.", null, { code: "VALIDATION_ERROR" }));
+    if (rol === "docente") {
+      // NC2: ignorar profesorId del query y forzar siempre el propio ID para prevenir IDOR
+      filters.profesorId = userId;
     }
     data = await service.listWithFilters(filters);
 

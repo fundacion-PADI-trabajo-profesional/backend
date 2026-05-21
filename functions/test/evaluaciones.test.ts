@@ -60,10 +60,26 @@ describe("evaluaciones - branches de rol y errores", () => {
     expect(res.status).toBe(400);
   });
 
-  it("GET /evaluaciones as docente without filter returns 400", async () => {
-    mockAuthAs("docente");
+  it("GET /evaluaciones as docente without filter returns 200 with own evaluaciones (NC2)", async () => {
+    // NC2: docente ya no recibe 400; el controller fuerza profesorId=userId y retorna sus propias evaluaciones
+    mockAuthAs("docente", "docente-own-id");
+    const spy = vi.spyOn(evaluacionRepo.EvaluacionRepository, "listWithFilters").mockResolvedValue([]);
     const res = await request(app).get("/evaluaciones").set("Authorization", "Bearer fake-token");
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ profesorId: "docente-own-id" }));
+  });
+
+  // NC2 — regresión IDOR: docente que pasa ?profesorId=otro-uuid recibe solo sus propias evaluaciones
+  it("GET /evaluaciones as docente con ?profesorId=otro ignora el param y usa su propio ID (NC2)", async () => {
+    mockAuthAs("docente", "docente-own-id");
+    const spy = vi.spyOn(evaluacionRepo.EvaluacionRepository, "listWithFilters").mockResolvedValue([]);
+    const res = await request(app)
+      .get("/evaluaciones?profesorId=uuid-de-otro-docente")
+      .set("Authorization", "Bearer fake-token");
+    expect(res.status).toBe(200);
+    // El repositorio debe recibir el ID del usuario autenticado, no el del query param
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ profesorId: "docente-own-id" }));
+    expect(spy).not.toHaveBeenCalledWith(expect.objectContaining({ profesorId: "uuid-de-otro-docente" }));
   });
 
   it("GET /evaluaciones service throws returns 500", async () => {
