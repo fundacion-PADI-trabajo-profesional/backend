@@ -55,12 +55,6 @@ export class EncargadosService {
         // Generar contraseña aleatoria
         const generatedPassword = Math.random().toString(36).slice(-8) + "Aa1!";
 
-        console.log("----------------------------------------------------");
-        console.log(`📧 SIMULANDO ENVÍO DE EMAIL A: ${data.email}`);
-        console.log(`📍 ZONA ASIGNADA: ${data.zona}`);
-        console.log(`🔑 CONTRASEÑA GENERADA: ${generatedPassword}`);
-        console.log("----------------------------------------------------");
-
         const result = await AuthService.register({
             email: data.email,
             password: generatedPassword,
@@ -70,9 +64,9 @@ export class EncargadosService {
             zona: data.zona,
         });
 
-        // await EmailService.sendWelcomeEmail(data.email, data.nombre, generatedPassword);
+        // TODO: reemplazar con EmailService.sendWelcomeEmail(data.email, data.nombre, generatedPassword)
 
-        return { ...result, tempPassword: generatedPassword };
+        return result;
     }
 
     /**
