@@ -57,6 +57,38 @@ describe("auth register flow", () => {
     expect(profesoresCreate).toHaveBeenCalledTimes(1);
   });
 
+  it("POST /auth/register rechaza rol=equipo_padi con 400", async () => {
+    const res = await request(app)
+      .post("/auth/register")
+      .send({
+        email: "padi@ex.com",
+        password: "secret123",
+        nombre: "Padi",
+        apellido: "User",
+        rol: "equipo_padi",
+      })
+      .set("Content-Type", "application/json");
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContain("Rol no permitido");
+  });
+
+  it("POST /auth/register rechaza rol=encargado_zona con 400", async () => {
+    const res = await request(app)
+      .post("/auth/register")
+      .send({
+        email: "enc@ex.com",
+        password: "secret123",
+        nombre: "Enc",
+        apellido: "Zona",
+        rol: "encargado_zona",
+      })
+      .set("Content-Type", "application/json");
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContain("Rol no permitido");
+  });
+
   it("POST /auth/register no toca profesores/personas cuando rol!=docente", async () => {
     mockSupabaseSuccess("dir-1");
     const personasCreate = vi.fn();
