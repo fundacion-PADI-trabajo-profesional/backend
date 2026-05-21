@@ -23,10 +23,22 @@ describe("directivos assign escuela endpoint", () => {
     vi.restoreAllMocks();
   });
 
-  it("allows encargado_zona to assign escuela to director within same zona", async () => {
-    const { prismaMock } = mockAuthAs("encargado_zona", "encargado-user-1");
+  it("encargado_zona gets 403 on POST /directivos/:id/asignar-escuela (C9 fix — solo PADI)", async () => {
+    // Tras la fix C9, POST /directivos/:id/asignar-escuela requiere equipo_padi.
+    // encargado_zona ya no puede asignar escuelas a directivos directamente.
+    mockAuthAs("encargado_zona", "encargado-user-1");
 
-    // 2. Definimos el mock para la transacción (lo que pasa ADENTRO del servicio)
+    const res = await request(app)
+      .post("/directivos/dir1/asignar-escuela")
+      .set("Authorization", "Bearer fake-token")
+      .send({ escuela_id: "esc1" });
+
+    expect(res.status).toBe(403);
+  });
+
+  it("equipo_padi can assign escuela to director", async () => {
+    const { prismaMock } = mockAuthAs("equipo_padi", "padi-user-1");
+
     const txMock = {
       usuarioPerfil: {
         updateMany: vi.fn().mockResolvedValue({ count: 0 }),
@@ -39,16 +51,9 @@ describe("directivos assign escuela endpoint", () => {
       },
     };
 
-    // 3. Inyectamos los mocks específicos de este test en el prismaMock del helper
-    prismaMock.encargados = {
-      findUnique: vi.fn().mockResolvedValue({ id: "enc1", zona: "Norte" }),
-    };
     prismaMock.escuelas = {
       findUnique: vi.fn().mockResolvedValue({ id: "esc1", zona: "Norte" }),
     };
-    // Mockeamos el perfil del director al que queremos asignar
-    // Conservamos el comportamiento por defecto (perfil del usuario autenticado)
-    // y solo devolvemos el director cuando se busca por su id 'dir1'.
     const originalFindUnique = prismaMock.usuarioPerfil.findUnique;
     prismaMock.usuarioPerfil.findUnique = vi.fn().mockImplementation(async (args: any) => {
       if (args && args.where && args.where.id === "dir1") {
@@ -59,13 +64,10 @@ describe("directivos assign escuela endpoint", () => {
 
     prismaMock.$transaction = vi.fn().mockImplementation(async (cb: any) => cb(txMock));
 
-    // 4. Realizamos la petición limpia
     const res = await request(app)
       .post("/directivos/dir1/asignar-escuela")
       .set("Authorization", "Bearer fake-token")
-      .send({
-        escuela_id: "esc1",
-      });
+      .send({ escuela_id: "esc1" });
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ success: true });

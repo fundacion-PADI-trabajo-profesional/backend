@@ -15,16 +15,16 @@ describe("GET /directivos", () => {
     expect(res.body.success).toBe(true);
   });
 
-  it("encargado_zona can also list directivos", async () => {
+  it("encargado_zona gets 403 (C9 fix — solo PADI)", async () => {
     mockAuthAs("encargado_zona");
     const res = await request(app).get("/directivos").set("Authorization", "Bearer fake-token");
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(403);
   });
 
-  it("docente gets 500 (service throws)", async () => {
+  it("docente gets 403 (requireRole blocks)", async () => {
     mockAuthAs("docente");
     const res = await request(app).get("/directivos").set("Authorization", "Bearer fake-token");
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(403);
   });
 });
 
@@ -40,10 +40,10 @@ describe("GET /directivos/disponibles", () => {
     expect(res.body.success).toBe(true);
   });
 
-  it("director gets 500 (service throws)", async () => {
+  it("director gets 403 (requireRole blocks)", async () => {
     mockAuthAs("director");
     const res = await request(app).get("/directivos/disponibles").set("Authorization", "Bearer fake-token");
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(403);
   });
 });
 

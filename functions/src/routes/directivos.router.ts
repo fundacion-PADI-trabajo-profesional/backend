@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { listDirectivos, assignEscuelaToDirectivo, listDirectivosDisponibles } from "../controllers/directivos.controller";
+import { requireRole } from "../middlewares/auth.middleware";
 
 /**
  * Crea el router de directivos (usuarios con rol `"director"`).
@@ -17,9 +18,9 @@ import { listDirectivos, assignEscuelaToDirectivo, listDirectivosDisponibles } f
  */
 export function createDirectivosRouter() {
     const router = Router();
-    router.get("/directivos", listDirectivos);
-    router.get("/directivos/disponibles", listDirectivosDisponibles);
-    router.post("/directivos/:id/asignar-escuela", assignEscuelaToDirectivo);
+    router.get("/directivos", requireRole("equipo_padi") as any, listDirectivos);
+    router.get("/directivos/disponibles", requireRole("equipo_padi") as any, listDirectivosDisponibles);
+    router.post("/directivos/:id/asignar-escuela", requireRole("equipo_padi") as any, assignEscuelaToDirectivo);
     return router;
 }
 
