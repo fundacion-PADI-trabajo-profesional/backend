@@ -28,8 +28,10 @@
     "cors": "^2.8.5",
     "cross-env": "^10.1.0",
     "express": "^4.19.2",
+    "express-rate-limit": "^8.5.2",
     "firebase-admin": "^12.6.0",
     "firebase-functions": "^5.1.1",
+    "helmet": "^8.1.0",
     "prisma": "^6.18.0",
     "tpp-padi-backend": "file:..",
     "xlsx": "^0.18.5"

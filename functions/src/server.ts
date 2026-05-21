@@ -1,5 +1,6 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
 import { createHealthRouter } from "./routes/health.router";
 import { createEvaluacionesRouter } from "./routes/evaluaciones.router";
 import { createEstudiantesRouter } from "./routes/estudiantes.router"
@@ -54,6 +55,7 @@ export function createApp() {
   };
 
   // Middlewares Globales
+  app.use(helmet());
   app.options('*', cors(corsOptions));
   app.use(cors(corsOptions));
   app.use(express.json());
