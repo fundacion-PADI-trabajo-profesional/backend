@@ -31,8 +31,8 @@ import { requireRole } from "../middlewares/auth.middleware";
 export function createEscuelasRouter() {
     const router = Router();
 
-    // Listar: equipo_padi y encargado_zona
-    router.get("/escuelas", requireRole("equipo_padi", "encargado_zona") as any, listEscuelas);
+    // Listar: equipo_padi, encargado_zona y director (director ve solo su escuela via service)
+    router.get("/escuelas", requireRole("equipo_padi", "encargado_zona", "director") as any, listEscuelas);
 
     // Crear y modificar: equipo_padi y encargado_zona (servicio aplica scope de zona)
     router.post("/escuelas", requireRole("equipo_padi", "encargado_zona") as any, createEscuela);
