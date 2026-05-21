@@ -209,14 +209,14 @@ export class AdminService {
    * @returns Array de perfiles enriquecidos con el campo `estado`.
    * @throws Error si Supabase Auth o la tabla de perfiles no responden.
    */
-  static async listUsers(): Promise<any[]> {
+  static async listUsers(page = 1, perPage = 50): Promise<any[]> {
     const supabase = getSupabase();
     if (!supabase) throw new Error("Supabase client no disponible.");
 
-    // 1. Obtener todos los usuarios de Auth (con last_sign_in_at)
+    // 1. Obtener usuarios de Auth paginados
     const { data: authData, error: authError } = await supabase.auth.admin.listUsers({
-      page: 1,
-      perPage: 1000,
+      page,
+      perPage,
     });
 
     if (authError) throw new Error(`Error al listar usuarios de Auth: ${authError.message}`);
