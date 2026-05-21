@@ -191,8 +191,8 @@ export class AulasService {
    */
   async update(id: string, data: UpdateAulaData, user: { id: string; rol: string }) {
     const userPerms = await this.getUserWithPermissions(user);
-    if (userPerms.userType !== "director" && userPerms.userType !== "padi") {
-      throw new Error("Solo directores y equipo PADI pueden gestionar aulas.");
+    if (userPerms.userType !== "director" && userPerms.userType !== "encargado" && userPerms.userType !== "padi") {
+      throw new Error("Solo directores, encargados de zona y equipo PADI pueden gestionar aulas.");
     }
     const { prismaAny } = userPerms;
 
@@ -206,6 +206,9 @@ export class AulasService {
     }
 
     if (userPerms.userType === "director" && aula.escuela_id !== userPerms.escuelaId) {
+      throw new Error("No tienes permisos para modificar esta aula.");
+    }
+    if (userPerms.userType === "encargado" && !(userPerms.allowedEscuelas as string[]).includes(aula.escuela_id)) {
       throw new Error("No tienes permisos para modificar esta aula.");
     }
 
