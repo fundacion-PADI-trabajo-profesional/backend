@@ -183,6 +183,14 @@ export async function deleteEvaluacion(req: AuthenticatedRequest, res: Response)
 export async function getPreguntasDeArea(req: AuthenticatedRequest, res: Response) {
   try {
     const { id, areaId } = req.params;
+    const { rol, id: userId } = req.user!;
+
+    const evaluacion = await service.getDetalle(id);
+
+    if (rol === "docente" && evaluacion.profesor_id !== userId) {
+      return res.status(403).json(commonResponse(false, "No tienes permisos para ver esta evaluación.", null));
+    }
+
     const data = await service.getPreguntasArea(id, areaId);
     res.status(200).json(commonResponse(true, "ok", data));
   } catch (error: any) {
@@ -203,6 +211,13 @@ export async function guardarRespuestasArea(req: AuthenticatedRequest, res: Resp
   try {
     const { id } = req.params; //evaluacionId
     const { areaId, questions } = req.body;
+    const { rol, id: userId } = req.user!;
+
+    const evaluacion = await service.getDetalle(id);
+
+    if (rol === "docente" && evaluacion.profesor_id !== userId) {
+      return res.status(403).json(commonResponse(false, "No tienes permisos para modificar esta evaluación.", null));
+    }
 
     const data = await service.guardarRespuestas(id, areaId, questions);
 

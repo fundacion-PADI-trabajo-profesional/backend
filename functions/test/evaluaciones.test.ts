@@ -103,6 +103,10 @@ describe("evaluaciones - branches de rol y errores", () => {
 
   it("GET /evaluaciones/:id/areas/:areaId/preguntas returns 200", async () => {
     mockAuthAs("equipo_padi");
+    vi.spyOn(evaluacionRepo.EvaluacionRepository, "findById").mockResolvedValue({
+      id: "ev-1",
+      profesor_id: "any-prof",
+    } as any);
     vi.spyOn(evaluacionRepo.EvaluacionRepository, "getPreguntasArea").mockResolvedValue({
       preguntas: [],
       respuestas: [],
@@ -116,12 +120,41 @@ describe("evaluaciones - branches de rol y errores", () => {
 
   it("POST /evaluaciones/:id/respuestas returns 200", async () => {
     mockAuthAs("equipo_padi");
+    vi.spyOn(evaluacionRepo.EvaluacionRepository, "findById").mockResolvedValue({
+      id: "ev-1",
+      profesor_id: "any-prof",
+    } as any);
     vi.spyOn(evaluacionRepo.EvaluacionRepository, "saveRespuestas").mockResolvedValue({} as any);
     const res = await request(app)
       .post("/evaluaciones/ev-1/respuestas")
       .set("Authorization", "Bearer fake-token")
       .send({ areaId: "area-1", questions: [] });
     expect(res.status).toBe(200);
+  });
+
+  it("GET /evaluaciones/:id/areas/:areaId/preguntas returns 403 for docente viewing other's eval (C3)", async () => {
+    mockAuthAs("docente", "docente-1");
+    vi.spyOn(evaluacionRepo.EvaluacionRepository, "findById").mockResolvedValue({
+      id: "ev-1",
+      profesor_id: "otro-docente",
+    } as any);
+    const res = await request(app)
+      .get("/evaluaciones/ev-1/areas/area-1/preguntas")
+      .set("Authorization", "Bearer fake-token");
+    expect(res.status).toBe(403);
+  });
+
+  it("POST /evaluaciones/:id/respuestas returns 403 for docente modifying other's eval (C3)", async () => {
+    mockAuthAs("docente", "docente-1");
+    vi.spyOn(evaluacionRepo.EvaluacionRepository, "findById").mockResolvedValue({
+      id: "ev-1",
+      profesor_id: "otro-docente",
+    } as any);
+    const res = await request(app)
+      .post("/evaluaciones/ev-1/respuestas")
+      .set("Authorization", "Bearer fake-token")
+      .send({ areaId: "area-1", questions: [] });
+    expect(res.status).toBe(403);
   });
 });
 
