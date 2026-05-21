@@ -1,6 +1,7 @@
 import { DocenteRepository } from "../repositories/docente.repository";
 import type { DocenteItem } from "../interfaces/docente.interface";
 import { getPrisma } from "../config/prismaClient";
+import { getEncargadoZonaId, escuelaPerteneceAZona } from "../utils/scope";
 
 /**
  * Servicio de gestión de docentes y sus asignaciones a escuelas.
@@ -81,8 +82,11 @@ export class DocentesService {
   async list(user: { id: string; rol: string }) {
     let rows: DocenteItem[] = [];
 
-    if (user.rol === "equipo_padi" || user.rol === "encargado_zona") {
+    if (user.rol === "equipo_padi") {
       rows = await this.repo.list();
+    } else if (user.rol === "encargado_zona") {
+      const zonaId = await getEncargadoZonaId(user.id);
+      rows = await this.repo.listByZona(zonaId);
     } else if (user.rol === "director") {
       const escuelaId = await this.getDirectorEscuelaId(user.id);
       rows = await this.repo.listByEscuela(escuelaId);
@@ -109,6 +113,12 @@ export class DocentesService {
   ) {
     if (user.rol !== "equipo_padi" && user.rol !== "encargado_zona") {
       throw new Error("No tienes permisos para asignar docentes a colegios.");
+    }
+
+    if (user.rol === "encargado_zona") {
+      const zonaId = await getEncargadoZonaId(user.id);
+      const pertenece = await escuelaPerteneceAZona(escuelaId, zonaId);
+      if (!pertenece) throw new Error("No tenés permisos para asignar docentes en esa escuela.");
     }
 
     const prisma = getPrisma();
@@ -147,6 +157,12 @@ export class DocentesService {
   ) {
     if (user.rol !== "equipo_padi" && user.rol !== "encargado_zona") {
       throw new Error("No tienes permisos para desasignar docentes de colegios.");
+    }
+
+    if (user.rol === "encargado_zona") {
+      const zonaId = await getEncargadoZonaId(user.id);
+      const pertenece = await escuelaPerteneceAZona(escuelaId, zonaId);
+      if (!pertenece) throw new Error("No tenés permisos para desasignar docentes de esa escuela.");
     }
 
     return this.repo.removeEscuela(profesorId, escuelaId);

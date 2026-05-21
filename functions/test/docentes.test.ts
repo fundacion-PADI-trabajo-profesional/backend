@@ -90,6 +90,14 @@ describe("docentes endpoints", () => {
     //Mockeamos la sesión (encargado_zona tiene permiso)
     const { prismaMock } = mockAuthAs("encargado_zona");
 
+    // Zone check: encargados → zona-1; escuelas → zona-1 (misma zona)
+    prismaMock.encargados = {
+      findUnique: vi.fn().mockResolvedValue({ zona_id: "zona-1" }),
+    };
+    prismaMock.escuelas = {
+      findUnique: vi.fn().mockResolvedValue({ zona_id: "zona-1" }),
+    };
+
     // Mock del transaction
     prismaMock.$transaction = vi.fn().mockImplementation(async (cb: any) =>
       cb({
