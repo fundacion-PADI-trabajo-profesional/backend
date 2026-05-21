@@ -156,6 +156,38 @@ describe("evaluaciones - branches de rol y errores", () => {
       .send({ areaId: "area-1", questions: [] });
     expect(res.status).toBe(403);
   });
+
+  it("POST /evaluaciones/:id/respuestas returns 403 for director from different school (C3)", async () => {
+    mockAuthAs("director", "dir-1", { escuela_id: "esc-mia" });
+    vi.spyOn(evaluacionRepo.EvaluacionRepository, "findById").mockResolvedValue({
+      id: "ev-1",
+      profesor_id: "prof-1",
+      estudiantes: { escuela_id: "esc-otra" },
+    } as any);
+    const res = await request(app)
+      .post("/evaluaciones/ev-1/respuestas")
+      .set("Authorization", "Bearer fake-token")
+      .send({ areaId: "area-1", questions: [] });
+    expect(res.status).toBe(403);
+  });
+
+  it("GET /evaluaciones/:id/areas/:areaId/preguntas returns 403 for encargado_zona out of zone (C3)", async () => {
+    const { prismaMock } = mockAuthAs("encargado_zona", "enc-1");
+    prismaMock.encargados = {
+      findUnique: vi.fn().mockResolvedValue({
+        zona: { escuelas: [{ id: "escuela-a" }] },
+      }),
+    };
+    vi.spyOn(evaluacionRepo.EvaluacionRepository, "findById").mockResolvedValue({
+      id: "ev-1",
+      profesor_id: "prof-1",
+      estudiantes: { escuela_id: "escuela-otra-zona" },
+    } as any);
+    const res = await request(app)
+      .get("/evaluaciones/ev-1/areas/area-1/preguntas")
+      .set("Authorization", "Bearer fake-token");
+    expect(res.status).toBe(403);
+  });
 });
 
 describe("evaluaciones - encargado_zona zone scoping", () => {

@@ -28,7 +28,7 @@ export function createAdminRouter() {
   router.post("/admin/users/:id/resend-invite", requireRole("equipo_padi") as any, AdminController.resendInvite as any);
   router.delete("/admin/users/:id", requireRole("equipo_padi") as any, AdminController.deleteUser as any);
 
-  // la seguridad se maneja dentro del controlador
-  router.post("/admin/users", AdminController.createUser as any);
+  // equipo_padi, encargado_zona y director pueden crear usuarios (lógica fina dentro del controlador)
+  router.post("/admin/users", requireRole("equipo_padi", "encargado_zona", "director") as any, AdminController.createUser as any);
   return router;
 }

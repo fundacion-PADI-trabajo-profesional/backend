@@ -183,18 +183,35 @@ export async function deleteEvaluacion(req: AuthenticatedRequest, res: Response)
 export async function getPreguntasDeArea(req: AuthenticatedRequest, res: Response) {
   try {
     const { id, areaId } = req.params;
-    const { rol, id: userId } = req.user!;
+    const { rol, id: userId, escuela_id: userEscuelaId } = req.user!;
 
     const evaluacion = await service.getDetalle(id);
+    const escuelaEvaluacion = (evaluacion as any).estudiantes?.escuela_id;
 
     if (rol === "docente" && evaluacion.profesor_id !== userId) {
       return res.status(403).json(commonResponse(false, "No tienes permisos para ver esta evaluación.", null));
+    }
+    if (rol === "director" && userEscuelaId && escuelaEvaluacion && escuelaEvaluacion !== userEscuelaId) {
+      return res.status(403).json(commonResponse(false, "No tienes permisos para ver esta evaluación.", null));
+    }
+    if (rol === "encargado_zona" && escuelaEvaluacion) {
+      const prisma = getPrisma();
+      if (!prisma) throw new Error("DB not available");
+      const encargado = await (prisma as any).encargados.findUnique({
+        where: { usuario_id: userId },
+        include: { zona: { include: { escuelas: { select: { id: true } } } } }
+      });
+      const escuelasDeZona: string[] = encargado?.zona?.escuelas.map((e: any) => e.id) ?? [];
+      if (!escuelasDeZona.includes(escuelaEvaluacion)) {
+        return res.status(403).json(commonResponse(false, "No tienes permisos para ver esta evaluación.", null));
+      }
     }
 
     const data = await service.getPreguntasArea(id, areaId);
     res.status(200).json(commonResponse(true, "ok", data));
   } catch (error: any) {
-    res.status(400).json(commonResponse(false, error.message, null));
+    const status = error.message?.includes("no encontrada") ? 404 : 400;
+    res.status(status).json(commonResponse(false, error.message, null));
   }
 }
 
@@ -211,18 +228,35 @@ export async function guardarRespuestasArea(req: AuthenticatedRequest, res: Resp
   try {
     const { id } = req.params; //evaluacionId
     const { areaId, questions } = req.body;
-    const { rol, id: userId } = req.user!;
+    const { rol, id: userId, escuela_id: userEscuelaId } = req.user!;
 
     const evaluacion = await service.getDetalle(id);
+    const escuelaEvaluacion = (evaluacion as any).estudiantes?.escuela_id;
 
     if (rol === "docente" && evaluacion.profesor_id !== userId) {
       return res.status(403).json(commonResponse(false, "No tienes permisos para modificar esta evaluación.", null));
+    }
+    if (rol === "director" && userEscuelaId && escuelaEvaluacion && escuelaEvaluacion !== userEscuelaId) {
+      return res.status(403).json(commonResponse(false, "No tienes permisos para modificar esta evaluación.", null));
+    }
+    if (rol === "encargado_zona" && escuelaEvaluacion) {
+      const prisma = getPrisma();
+      if (!prisma) throw new Error("DB not available");
+      const encargado = await (prisma as any).encargados.findUnique({
+        where: { usuario_id: userId },
+        include: { zona: { include: { escuelas: { select: { id: true } } } } }
+      });
+      const escuelasDeZona: string[] = encargado?.zona?.escuelas.map((e: any) => e.id) ?? [];
+      if (!escuelasDeZona.includes(escuelaEvaluacion)) {
+        return res.status(403).json(commonResponse(false, "No tienes permisos para modificar esta evaluación.", null));
+      }
     }
 
     const data = await service.guardarRespuestas(id, areaId, questions);
 
     res.status(200).json(commonResponse(true, "ok", data));
   } catch (error: any) {
-    res.status(400).json(commonResponse(false, error.message, null));
+    const status = error.message?.includes("no encontrada") ? 404 : 400;
+    res.status(status).json(commonResponse(false, error.message, null));
   }
 }
