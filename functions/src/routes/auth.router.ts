@@ -1,5 +1,19 @@
 import { Router } from "express";
+import { rateLimit } from "express-rate-limit";
 import { AuthController } from "../controllers/auth.controller";
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 20,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  validate: { ip: false }, // req.ip es undefined en Firebase Cloud Functions
+  keyGenerator: (req) =>
+    (req.headers["x-forwarded-for"] as string)?.split(",")[0].trim()
+    ?? req.socket?.remoteAddress
+    ?? "unknown",
+  message: { message: "Demasiados intentos. Intentá de nuevo en 15 minutos." },
+});
 
 /**
  * Crea el router de autenticación con rutas **públicas** (sin JWT requerido).
@@ -17,10 +31,10 @@ import { AuthController } from "../controllers/auth.controller";
 export function createAuthRouter() {
     const router = Router();
 
-    router.post("/auth/login", AuthController.login);
-    router.post("/auth/register", AuthController.register);
+    router.post("/auth/login", authLimiter, AuthController.login);
+    router.post("/auth/register", authLimiter, AuthController.register);
     router.post("/auth/refresh-token", AuthController.refreshToken);
-    router.post("/auth/reset-password-request", AuthController.requestPasswordReset);
+    router.post("/auth/reset-password-request", authLimiter, AuthController.requestPasswordReset);
     router.post("/auth/update-password", AuthController.updatePassword);
 
     return router;
