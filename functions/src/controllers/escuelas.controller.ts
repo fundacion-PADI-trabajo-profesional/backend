@@ -61,7 +61,8 @@ export async function updateEscuela(req: AuthenticatedRequest, res: Response) {
 
         res.status(200).json(commonResponse(true, "Institución actualizada", result));
     } catch (error: any) {
-        res.status(400).json(commonResponse(false, error.message, null));
+        const isAuthz = error?.message?.includes("permisos");
+        res.status(isAuthz ? 403 : 400).json(commonResponse(false, error.message, null));
     }
 }
 
