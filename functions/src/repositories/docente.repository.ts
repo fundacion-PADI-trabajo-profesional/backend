@@ -162,6 +162,55 @@ export const DocenteRepository = {
   },
 
   /**
+   * Lista los docentes activos en escuelas de una zona específica.
+   *
+   * @param zonaId - UUID de la zona.
+   * @returns Array de {@link DocenteItem} con asignaciones activas en escuelas de esa zona.
+   */
+  async listByZona(zonaId: string): Promise<DocenteItem[]> {
+    const prisma = getPrisma();
+    if (!prisma) return [];
+
+    const rows = await (prisma as any).profesores.findMany({
+      where: {
+        personas: { usuario: { rol: "docente" } },
+        profesores_escuelas: {
+          some: {
+            fecha_fin: null,
+            escuela: { zona_id: zonaId },
+          },
+        },
+      },
+      include: {
+        personas: {
+          select: { nombre: true, primer_apellido: true },
+        },
+        profesores_aulas: {
+          where: { fecha_fin: null },
+          include: {
+            aula: {
+              select: {
+                id: true,
+                comision: true,
+                turno: true,
+                sala: { select: { grado: true } },
+                escuela: { select: { nombre: true } },
+              },
+            },
+          },
+        },
+        profesores_escuelas: {
+          where: { fecha_fin: null },
+          include: { escuela: { select: { id: true, nombre: true } } },
+        },
+      },
+      orderBy: { personas: { primer_apellido: "asc" } },
+    });
+
+    return rows as DocenteItem[];
+  },
+
+  /**
    * Asigna un docente a una escuela creando un registro activo en `profesoresEscuelas`.
    *
    * @param profesorId - UUID del docente.
