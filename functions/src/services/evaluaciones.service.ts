@@ -82,7 +82,7 @@ export class EvaluacionService {
       profesorIdFinal = user.id;
     }
 
-    await this.ensureProfesorRecord(data.profesor_id);
+    await this.ensureProfesorRecord(profesorIdFinal);
 
     const estudiante = await this.repo.findEstudianteByDni(data.dni);
     if (!estudiante) throw new Error("Estudiante no encontrado");
@@ -100,7 +100,7 @@ export class EvaluacionService {
 
     return await this.repo.create({
       estudiante_id: estudiante.id,
-      profesor_id: data.profesor_id,
+      profesor_id: profesorIdFinal,
       sala_id: salaId,
       aula_id: aulaId,
       tipo_id: data.tipo_id,

@@ -146,6 +146,31 @@ describe("evaluaciones instancias (API /evaluaciones)", () => {
     );
   });
 
+  it("POST /evaluaciones fuerza profesor_id del token cuando rol=docente (C2)", async () => {
+    mockAuthAs("docente", "docente-real");
+
+    vi.spyOn(EvaluacionService.prototype as any, "ensureProfesorRecord").mockResolvedValue(undefined);
+    vi.spyOn(EvaluacionRepository, "findEstudianteByDni").mockResolvedValue({ id: "s1", sala_id: 1 } as any);
+
+    const createSpy = vi.spyOn(EvaluacionRepository, "create").mockResolvedValue({ id: "e200" } as any);
+
+    const res = await request(app)
+      .post("/evaluaciones")
+      .set("Authorization", "Bearer fake-token")
+      .send({
+        dni: "44111222",
+        profesor_id: "otro-docente-id", // intento de suplantación
+        tipo_id: "inicial",
+        fecha_creacion: "2026-02",
+      });
+
+    expect(res.status).toBe(201);
+    // El profesor_id debe ser el del token, no el del body
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ profesor_id: "docente-real" })
+    );
+  });
+
   it("POST /evaluaciones devuelve 400 si estudiante no está activo en el aula", async () => {
     mockAuthAs("docente", "docente-1");
 
