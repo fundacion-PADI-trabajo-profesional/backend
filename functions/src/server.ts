@@ -1,6 +1,11 @@
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import swaggerUi from "swagger-ui-express";
+import * as fs from "fs";
+import * as path from "path";
+import * as yaml from "js-yaml";
+
 import { createHealthRouter } from "./routes/health.router";
 import { createEvaluacionesRouter } from "./routes/evaluaciones.router";
 import { createEstudiantesRouter } from "./routes/estudiantes.router"
@@ -66,6 +71,12 @@ export function createApp() {
    */
   app.use(createHealthRouter());
   app.use(createAuthRouter());
+
+  // ── Swagger UI (público, sin auth) ──────────────
+  const swaggerDocument = yaml.load(
+    fs.readFileSync(path.join(__dirname, "../../swagger.yaml"), "utf8")
+  ) as object;
+  app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
   // A partir de acá, TODAS las rutas requieren JWT válido
   app.use(requireAuth as any);

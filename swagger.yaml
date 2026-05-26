@@ -1,0 +1,2006 @@
+openapi: 3.0.3
+info:
+  title: PADI API
+  description: |
+    Documentación de la API REST del backend del sistema PADI.
+
+    ## Autenticación
+    La mayoría de los endpoints requieren un token JWT en el header `Authorization: Bearer <token>`.
+    Los endpoints bajo `/auth/login`, `/auth/register`, `/auth/refresh-token`, `/auth/reset-password-request` y `/auth/update-password` son públicos.
+
+    ## Roles
+    - **equipo_padi**: Acceso total al sistema.
+    - **encargado_zona**: Gestión de escuelas y datos de su zona.
+    - **director**: Acceso a datos de su escuela.
+    - **docente**: Acceso a sus aulas y evaluaciones.
+  version: 1.0.0
+
+servers:
+  - url: https://{region}-{project}.cloudfunctions.net/api
+    description: Firebase Cloud Functions (producción)
+    variables:
+      region:
+        default: us-central1
+      project:
+        default: padi-project
+
+tags:
+  - name: Health
+    description: Estado del servicio
+  - name: Auth
+    description: Autenticación y gestión de sesión
+  - name: Admin
+    description: Panel de administración de usuarios (solo equipo_padi)
+  - name: Aulas
+    description: Gestión de aulas y asignación de docentes/estudiantes
+  - name: Escuelas
+    description: Gestión de instituciones educativas
+  - name: Estudiantes
+    description: Gestión de estudiantes
+  - name: Evaluaciones
+    description: Evaluaciones, preguntas y respuestas
+  - name: Docentes
+    description: Gestión de docentes
+  - name: Directivos
+    description: Gestión de directivos
+  - name: Zonas
+    description: Gestión de zonas geográficas (solo equipo_padi)
+  - name: Encargados
+    description: Gestión de encargados de zona
+
+# ─────────────────────────────────────────────
+# PATHS
+# ─────────────────────────────────────────────
+paths:
+
+  # ── HEALTH ──────────────────────────────────
+  /health:
+    get:
+      tags: [Health]
+      summary: Verificar estado del servicio
+      security: []
+      responses:
+        '200':
+          description: Servicio operativo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  # ── AUTH (públicos) ──────────────────────────
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Iniciar sesión
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: usuario@padi.edu.ar
+                password:
+                  type: string
+                  format: password
+                  example: "MiContraseña123"
+      responses:
+        '200':
+          description: Login exitoso
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthData'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Registrar nuevo usuario
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Usuario registrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthData'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/refresh-token:
+    post:
+      tags: [Auth]
+      summary: Renovar access token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Tokens renovados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tokens'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/reset-password-request:
+    post:
+      tags: [Auth]
+      summary: Solicitar reseteo de contraseña
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Email de recuperación enviado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/update-password:
+    post:
+      tags: [Auth]
+      summary: Actualizar contraseña con tokens de recuperación
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [accessToken, refreshToken, newPassword]
+              properties:
+                accessToken:
+                  type: string
+                refreshToken:
+                  type: string
+                newPassword:
+                  type: string
+                  format: password
+      responses:
+        '200':
+          description: Contraseña actualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/profile:
+    put:
+      tags: [Auth]
+      summary: Actualizar perfil del usuario autenticado
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [nombre, apellido]
+              properties:
+                nombre:
+                  type: string
+                apellido:
+                  type: string
+      responses:
+        '200':
+          description: Perfil actualizado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  profile:
+                    $ref: '#/components/schemas/UserProfile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ── ADMIN ────────────────────────────────────
+  /admin/users:
+    get:
+      tags: [Admin]
+      summary: Listar todos los usuarios
+      description: Requiere rol `equipo_padi`.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de usuarios
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      tags: [Admin]
+      summary: Crear un usuario
+      description: Requiere rol `equipo_padi`. Envía un email con contraseña temporal.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: Usuario creado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/users/bulk:
+    post:
+      tags: [Admin]
+      summary: Crear usuarios en lote
+      description: Requiere rol `equipo_padi`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [users]
+              properties:
+                users:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '200':
+          description: Proceso completado (puede incluir errores parciales)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  creados:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                  errores:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        email:
+                          type: string
+                        error:
+                          type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/users/{id}/resend-invite:
+    post:
+      tags: [Admin]
+      summary: Reenviar email de invitación
+      description: Requiere rol `equipo_padi`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Invitación reenviada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/users/{id}:
+    delete:
+      tags: [Admin]
+      summary: Eliminar un usuario
+      description: Requiere rol `equipo_padi`. Un admin no puede eliminarse a sí mismo.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Usuario eliminado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ── AULAS ────────────────────────────────────
+  /aulas:
+    get:
+      tags: [Aulas]
+      summary: Listar aulas accesibles según rol
+      description: El resultado se filtra automáticamente según el rol del usuario autenticado.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de aulas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      tags: [Aulas]
+      summary: Crear un aula
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sala_id, turno]
+              properties:
+                sala_id:
+                  type: integer
+                  example: 3
+                turno:
+                  type: string
+                  example: Mañana
+                escuela_id:
+                  type: string
+                  example: "abc123"
+                comision:
+                  type: string
+                  default: Única
+      responses:
+        '201':
+          description: Aula creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /aulas/{id}:
+    put:
+      tags: [Aulas]
+      summary: Actualizar un aula
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sala_id:
+                  type: integer
+                comision:
+                  type: string
+                turno:
+                  type: string
+      responses:
+        '200':
+          description: Aula actualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    delete:
+      tags: [Aulas]
+      summary: Eliminar un aula
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Aula eliminada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /aulas/{id}/docentes:
+    get:
+      tags: [Aulas]
+      summary: Listar docentes asignados a un aula
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Lista de docentes del aula
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /aulas/{id}/asignar-docente:
+    post:
+      tags: [Aulas]
+      summary: Asignar un docente a un aula
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [profesor_id]
+              properties:
+                profesor_id:
+                  type: string
+      responses:
+        '200':
+          description: Docente asignado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /aulas/{id}/desasignar-docente:
+    post:
+      tags: [Aulas]
+      summary: Desasignar un docente de un aula
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [profesor_id]
+              properties:
+                profesor_id:
+                  type: string
+      responses:
+        '200':
+          description: Docente desasignado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /aulas/{id}/estudiantes:
+    get:
+      tags: [Aulas]
+      summary: Listar estudiantes de un aula
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Lista de estudiantes del aula
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /aulas/{id}/asignar-estudiante:
+    post:
+      tags: [Aulas]
+      summary: Asignar un estudiante a un aula
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [estudiante_id]
+              properties:
+                estudiante_id:
+                  type: string
+      responses:
+        '200':
+          description: Estudiante asignado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /aulas/{id}/desasignar-estudiante:
+    post:
+      tags: [Aulas]
+      summary: Desasignar un estudiante de un aula
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [estudiante_id]
+              properties:
+                estudiante_id:
+                  type: string
+      responses:
+        '200':
+          description: Estudiante desasignado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /docentes/aulas:
+    get:
+      tags: [Aulas]
+      summary: Listar aulas del docente autenticado
+      description: Devuelve las aulas asignadas al docente que realiza la petición, con sus estudiantes.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Aulas del docente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ── ESCUELAS ─────────────────────────────────
+  /escuelas:
+    get:
+      tags: [Escuelas]
+      summary: Listar escuelas
+      description: Roles permitidos `equipo_padi`, `encargado_zona`.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de escuelas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      tags: [Escuelas]
+      summary: Crear una escuela
+      description: |
+        Roles permitidos: `equipo_padi`, `encargado_zona`.
+        Al crear la escuela se generan automáticamente aulas para salas 3, 4 y 5 en turno Mañana.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EscuelaRequest'
+      responses:
+        '201':
+          description: Escuela creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /escuelas/{id}:
+    put:
+      tags: [Escuelas]
+      summary: Actualizar una escuela
+      description: Roles permitidos `equipo_padi`, `encargado_zona`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EscuelaRequest'
+      responses:
+        '200':
+          description: Escuela actualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    delete:
+      tags: [Escuelas]
+      summary: Eliminar una escuela
+      description: Solo `equipo_padi`. Libera todos los vínculos asociados.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Escuela eliminada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /escuelas/asignar-directivo:
+    post:
+      tags: [Escuelas]
+      summary: Asignar un directivo a una escuela
+      description: Solo `equipo_padi`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [escuelaId, usuarioId]
+              properties:
+                escuelaId:
+                  type: string
+                usuarioId:
+                  type: string
+      responses:
+        '200':
+          description: Directivo asignado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /escuelas/desasignar-directivo:
+    post:
+      tags: [Escuelas]
+      summary: Desasignar un directivo de su escuela
+      description: Solo `equipo_padi`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [usuarioId]
+              properties:
+                usuarioId:
+                  type: string
+      responses:
+        '200':
+          description: Directivo removido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ── ESTUDIANTES ──────────────────────────────
+  /estudiantes:
+    get:
+      tags: [Estudiantes]
+      summary: Listar estudiantes
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de estudiantes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Estudiantes]
+      summary: Crear un estudiante
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EstudianteRequest'
+      responses:
+        '201':
+          description: Estudiante creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /estudiantes/{id}:
+    put:
+      tags: [Estudiantes]
+      summary: Actualizar un estudiante
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EstudianteRequest'
+      responses:
+        '200':
+          description: Estudiante actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /estudiantes/bulk:
+    post:
+      tags: [Estudiantes]
+      summary: Crear estudiantes en lote
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [estudiantes]
+              properties:
+                estudiantes:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/EstudianteRequest'
+      responses:
+        '200':
+          description: Proceso completado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /estudiantes/asignar-aula:
+    post:
+      tags: [Estudiantes]
+      summary: Asignar estudiante a un aula
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [estudiante_id, aula_id]
+              properties:
+                estudiante_id:
+                  type: string
+                aula_id:
+                  type: string
+      responses:
+        '200':
+          description: Estudiante asignado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /estudiantes/desasignar-aula:
+    post:
+      tags: [Estudiantes]
+      summary: Desasignar estudiante de un aula
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [estudiante_id, aula_id]
+              properties:
+                estudiante_id:
+                  type: string
+                aula_id:
+                  type: string
+      responses:
+        '200':
+          description: Estudiante desasignado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /generos:
+    get:
+      tags: [Estudiantes]
+      summary: Obtener lista de géneros (para formularios)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de géneros disponibles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /salas:
+    get:
+      tags: [Estudiantes]
+      summary: Obtener lista de salas (para formularios)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de salas disponibles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ── EVALUACIONES ─────────────────────────────
+  /evaluaciones:
+    get:
+      tags: [Evaluaciones]
+      summary: Listar evaluaciones con filtros
+      description: |
+        Filtra según el rol del usuario autenticado.
+        - `director`: solo ve evaluaciones de su escuela.
+        - `encargado_zona`: ve evaluaciones de las escuelas de su zona.
+        - `docente`: requiere `profesorId` o `escuela_id` en query.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: estudianteId
+          schema:
+            type: string
+        - in: query
+          name: profesorId
+          schema:
+            type: string
+        - in: query
+          name: salaId
+          schema:
+            type: integer
+        - in: query
+          name: tipoId
+          schema:
+            type: string
+        - in: query
+          name: estadoId
+          schema:
+            type: string
+        - in: query
+          name: escuela_id
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lista de evaluaciones
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      tags: [Evaluaciones]
+      summary: Crear una evaluación
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EvaluacionRequest'
+      responses:
+        '201':
+          description: Evaluación creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /evaluaciones/{id}:
+    get:
+      tags: [Evaluaciones]
+      summary: Obtener detalle de una evaluación
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Detalle de la evaluación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Evaluaciones]
+      summary: Eliminar una evaluación
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Evaluación eliminada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /evaluaciones/{id}/areas/{areaId}/preguntas:
+    get:
+      tags: [Evaluaciones]
+      summary: Obtener preguntas de un área de una evaluación
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+        - in: path
+          name: areaId
+          required: true
+          schema:
+            type: string
+          description: ID del área de evaluación
+      responses:
+        '200':
+          description: Preguntas del área
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /evaluaciones/{id}/respuestas:
+    post:
+      tags: [Evaluaciones]
+      summary: Guardar respuestas de un área de una evaluación
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [areaId, questions]
+              properties:
+                areaId:
+                  type: string
+                  description: ID del área evaluada
+                questions:
+                  type: array
+                  description: Array de respuestas por pregunta
+                  items:
+                    type: object
+                    properties:
+                      pregunta_id:
+                        type: string
+                      valor:
+                        type: string
+      responses:
+        '200':
+          description: Respuestas guardadas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ── DOCENTES ─────────────────────────────────
+  /docentes:
+    get:
+      tags: [Docentes]
+      summary: Listar docentes
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de docentes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /docentes/{id}/asignar-escuela:
+    post:
+      tags: [Docentes]
+      summary: Asignar docente a una escuela
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [escuela_id]
+              properties:
+                escuela_id:
+                  type: string
+      responses:
+        '200':
+          description: Docente asignado a escuela
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /docentes/{id}/desasignar-escuela:
+    post:
+      tags: [Docentes]
+      summary: Desasignar docente de una escuela
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [escuela_id]
+              properties:
+                escuela_id:
+                  type: string
+      responses:
+        '200':
+          description: Docente desasignado de escuela
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ── DIRECTIVOS ───────────────────────────────
+  /directivos:
+    get:
+      tags: [Directivos]
+      summary: Listar directivos
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de directivos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /directivos/disponibles:
+    get:
+      tags: [Directivos]
+      summary: Listar directivos disponibles (sin escuela asignada)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de directivos disponibles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /directivos/{id}/asignar-escuela:
+    post:
+      tags: [Directivos]
+      summary: Asignar directivo a una escuela
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [escuela_id]
+              properties:
+                escuela_id:
+                  type: string
+      responses:
+        '200':
+          description: Directivo asignado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ── ZONAS ────────────────────────────────────
+  /zonas:
+    get:
+      tags: [Zonas]
+      summary: Listar zonas
+      description: Solo `equipo_padi`.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de zonas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags: [Zonas]
+      summary: Crear una zona
+      description: Solo `equipo_padi`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ZonaRequest'
+      responses:
+        '201':
+          description: Zona creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /zonas/encargados:
+    get:
+      tags: [Zonas]
+      summary: Listar encargados de zona con sus zonas asignadas
+      description: Solo `equipo_padi`.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de encargados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /zonas/{id}:
+    get:
+      tags: [Zonas]
+      summary: Obtener detalle de una zona
+      description: Solo `equipo_padi`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Detalle de la zona
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    put:
+      tags: [Zonas]
+      summary: Actualizar una zona
+      description: Solo `equipo_padi`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ZonaRequest'
+      responses:
+        '200':
+          description: Zona actualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /zonas/{id}/asignar-escuela:
+    post:
+      tags: [Zonas]
+      summary: Asignar una escuela a una zona
+      description: Solo `equipo_padi`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [escuela_id]
+              properties:
+                escuela_id:
+                  type: string
+      responses:
+        '200':
+          description: Escuela asignada a la zona
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /zonas/{id}/asignar-encargado:
+    post:
+      tags: [Zonas]
+      summary: Asignar un encargado a una zona
+      description: Solo `equipo_padi`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [encargado_id]
+              properties:
+                encargado_id:
+                  type: string
+      responses:
+        '200':
+          description: Encargado asignado a la zona
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /escuelas-sin-zona:
+    get:
+      tags: [Zonas]
+      summary: Listar escuelas sin zona asignada
+      description: Solo `equipo_padi`.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de escuelas disponibles para asignar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /encargados-sin-zona:
+    get:
+      tags: [Zonas]
+      summary: Listar encargados sin zona asignada
+      description: Solo `equipo_padi`.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de encargados disponibles para asignar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /escuelas/{escuelaId}/quitar-escuela:
+    post:
+      tags: [Zonas]
+      summary: Quitar una escuela de su zona
+      description: Solo `equipo_padi`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: escuelaId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Escuela removida de la zona
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /encargados/{encargadoId}/quitar-zona:
+    post:
+      tags: [Zonas]
+      summary: Quitar un encargado de su zona
+      description: Solo `equipo_padi`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: encargadoId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Encargado removido de la zona
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ── ENCARGADOS ───────────────────────────────
+  /encargados/me:
+    get:
+      tags: [Encargados]
+      summary: Obtener perfil del encargado autenticado
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Perfil del encargado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /encargados:
+    get:
+      tags: [Encargados]
+      summary: Listar encargados de zona
+      description: Solo `equipo_padi`.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Lista de encargados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    post:
+      tags: [Encargados]
+      summary: Crear un encargado de zona
+      description: Solo `equipo_padi`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EncargadoRequest'
+      responses:
+        '201':
+          description: Encargado creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /encargados/{id}:
+    put:
+      tags: [Encargados]
+      summary: Actualizar un encargado de zona
+      description: Solo `equipo_padi`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EncargadoRequest'
+      responses:
+        '200':
+          description: Encargado actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    delete:
+      tags: [Encargados]
+      summary: Eliminar un encargado de zona
+      description: Solo `equipo_padi`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Encargado eliminado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+# ─────────────────────────────────────────────
+# COMPONENTS
+# ─────────────────────────────────────────────
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    IdPath:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: string
+      description: Identificador único del recurso
+
+  schemas:
+    # ── Respuesta genérica ──────────────────────
+    CommonResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: ok
+        data:
+          nullable: true
+          description: Payload de la respuesta (varía según el endpoint)
+        error:
+          type: object
+          nullable: true
+          properties:
+            code:
+              type: string
+              example: VALIDATION_ERROR
+            description:
+              type: string
+
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+
+    # ── Auth ────────────────────────────────────
+    AuthData:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        user:
+          $ref: '#/components/schemas/UserProfile'
+
+    Tokens:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+
+    UserProfile:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        nombre:
+          type: string
+        apellido:
+          type: string
+        rol:
+          type: string
+          enum: [equipo_padi, encargado_zona, director, docente]
+
+    RegisterRequest:
+      type: object
+      required: [nombre, apellido, email, password, rol]
+      properties:
+        nombre:
+          type: string
+        apellido:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        rol:
+          type: string
+          enum: [equipo_padi, encargado_zona, director, docente]
+
+    # ── Admin ───────────────────────────────────
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        nombre:
+          type: string
+        apellido:
+          type: string
+        email:
+          type: string
+          format: email
+        rol:
+          type: string
+          enum: [equipo_padi, encargado_zona, director, docente]
+
+    CreateUserRequest:
+      type: object
+      required: [nombre, apellido, email, rol]
+      properties:
+        nombre:
+          type: string
+        apellido:
+          type: string
+        email:
+          type: string
+          format: email
+        rol:
+          type: string
+          enum: [equipo_padi, encargado_zona, director, docente]
+
+    # ── Escuelas ────────────────────────────────
+    EscuelaRequest:
+      type: object
+      required: [nombre, zona_id]
+      properties:
+        nombre:
+          type: string
+          example: "Escuela N° 12 Malvinas Argentinas"
+        direccion:
+          type: string
+          example: "Av. Siempreviva 742"
+        telefono:
+          type: string
+          example: "011-4444-5555"
+        zona_id:
+          type: string
+          example: "zona-001"
+
+    # ── Estudiantes ─────────────────────────────
+    EstudianteRequest:
+      type: object
+      required: [nombre, apellido]
+      properties:
+        nombre:
+          type: string
+        apellido:
+          type: string
+        fecha_nacimiento:
+          type: string
+          format: date
+          example: "2018-03-15"
+        genero_id:
+          type: integer
+        sala_id:
+          type: integer
+        escuela_id:
+          type: string
+
+    # ── Evaluaciones ────────────────────────────
+    EvaluacionRequest:
+      type: object
+      required: [estudiante_id, tipo_id]
+      properties:
+        estudiante_id:
+          type: string
+        tipo_id:
+          type: string
+          description: Tipo de evaluación
+        sala_id:
+          type: integer
+        escuela_id:
+          type: string
+        profesor_id:
+          type: string
+
+    # ── Zonas ───────────────────────────────────
+    ZonaRequest:
+      type: object
+      required: [nombre]
+      properties:
+        nombre:
+          type: string
+          example: "Zona Norte"
+        descripcion:
+          type: string
+
+    # ── Encargados ──────────────────────────────
+    EncargadoRequest:
+      type: object
+      required: [usuario_id]
+      properties:
+        usuario_id:
+          type: string
+        zona_id:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Datos inválidos o faltantes
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CommonResponse'
+          example:
+            success: false
+            message: "Faltan datos obligatorios"
+            data: null
+            error:
+              code: VALIDATION_ERROR
+
+    Unauthorized:
+      description: Token ausente o inválido
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+          example:
+            message: "Token inválido o expirado"
+
+    Forbidden:
+      description: Sin permisos para este recurso
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CommonResponse'
+          example:
+            success: false
+            message: "No tienes permisos para realizar esta acción"
+            data: null
+
+    NotFound:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CommonResponse'
+          example:
+            success: false
+            message: "Recurso no encontrado"
+            data: null
+
+    InternalError:
+      description: Error interno del servidor
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CommonResponse'
+          example:
+            success: false
+            message: "Error interno del servidor"
+            data: null
+            error:
+              code: INTERNAL_ERROR
