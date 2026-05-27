@@ -16,6 +16,8 @@ info:
   version: 1.0.0
 
 servers:
+  - url: http://localhost:8080
+    description: Servidor Local (Docker)
   - url: https://{region}-{project}.cloudfunctions.net/api
     description: Firebase Cloud Functions (producción)
     variables:
