@@ -2,7 +2,7 @@
         test test-backend test-contracts \
         coverage coverage-backend
 
-# ── Dev local ──────────────────────────────────────────────
+# DEV
 
 up-backend:
 	docker compose up -d
@@ -19,10 +19,7 @@ restart:
 logs:
 	docker compose logs -f backend
 
-db-push:
-	docker compose exec -w /app/functions backend npx prisma db push --schema=prisma/schema.prisma
-
-# ── Tests ──────────────────────────────────────────────────
+# TESTS
 
 test: test-backend
 
@@ -32,7 +29,7 @@ test-backend:
 test-contracts:
 	cd functions && npm run test:contracts
 
-# ── Coverage ───────────────────────────────────────────────
+# COVERAGE
 
 coverage: coverage-backend
 

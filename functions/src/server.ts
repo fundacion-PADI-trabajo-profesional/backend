@@ -40,6 +40,7 @@ export function createApp() {
    * Filtra valores nulos para evitar errores en el despliegue si `FRONTEND_URL` no está definida.
    */
   const allowedOrigins = [
+    "http://localhost:8080",
     "http://localhost:5173",
     "http://localhost:4173",
     "https://fundacionpadi-41cb2.web.app",

@@ -97,34 +97,42 @@ Ambos comandos toman la `DATABASE_URL` desde `functions/prisma/.env`.
 
 ---
 
-### Opción A — Docker (recomendado)
+### Opción A — Docker
 
 Este modo levanta la API Express directamente junto con una instancia local de PostgreSQL. No requiere Firebase CLI ni conexión a Supabase para la base de datos.
 
 #### Configuración inicial (una sola vez)
 
-Crear el archivo `.env` en la raíz del repositorio:
+Crear el archivo `.env` en la raíz del repositorio (a la altura del docker-compose):
 
 ```env
+DATABASE_URL=supabase_database_url_dev
 SUPABASE_URL=https://<proyecto>.supabase.co
-SUPABASE_KEY=<anon_key_o_service_role_key>
+SUPABASE_KEY=<secret_service_role_key>
 ```
 
-> La autenticación JWT sigue validando contra Supabase. Solo la base de datos corre localmente.
+Se deben actualizar a su vez los archivos de configuracion `backend\functions\.env.local` con las claves del proyecto de supabase de desarrollo:
+```env
+SUPABASE_URL=https://<proyecto>.supabase.co
+SUPABASE_KEY=<secret_service_role_key>
+```
+
+y el archivo `backend\functions\prisma\.env` con el dato de la base de datos de desarrollo:
+```env
+DATABASE_URL=supabase_database_url_dev
+```
 
 Construir la imagen y crear las tablas:
 
 ```bash
 make build       # construye la imagen Docker del backend
 make up-backend  # levanta postgres + backend (detached)
-make db-push     # crea las tablas en la DB local (solo la primera vez)
 ```
 
 Sin Makefile:
 
 ```bash
 docker compose up --build -d
-docker compose exec -w /app/functions backend npx prisma db push --schema=prisma/schema.prisma
 ```
 
 #### Uso cotidiano
@@ -142,13 +150,8 @@ make restart     # reinicia solo el contenedor del backend
 | Swagger / Docs | `http://localhost:8080/docs` |
 | PostgreSQL | `localhost:5432` |
 
-#### Tras cambiar `schema.prisma`
 
-```bash
-make db-push
-```
-
-#### Tras cambiar dependencias o `Dockerfile.dev`
+#### Tras cambiar dependencias o `Dockerfile`
 
 ```bash
 make build && make up-backend
@@ -157,6 +160,8 @@ make build && make up-backend
 ---
 
 ### Opción B — Emulador de Firebase
+
+Esta alternativa tambien requiere de la correcta actualizacion de los archivos de configuracion
 
 ```bash
 # Instalación
@@ -258,5 +263,6 @@ Esto elimina la dependencia de que el frontend envíe el rol/usuario_id como par
 
 ---
 
-## Documentación
-La documentacion del servicio de backend se encuentra publicada en: https://fundacionpadi-docs.web.app
+La documentación del servicio de backend se encuentra publicada en: https://fundacionpadi-docs.web.app
+
+La documentación de la API está disponible en Swagger UI. Si el backend está corriendo con Docker, se puede acceder e interactuar con todos los endpoints directamente desde el navegador a traves de: http://localhost:8080/docs

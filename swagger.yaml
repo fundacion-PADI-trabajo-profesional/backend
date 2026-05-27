@@ -16,6 +16,8 @@ info:
   version: 1.0.0
 
 servers:
+  - url: http://localhost:8080
+    description: Servidor Local (Docker)
   - url: https://{region}-{project}.cloudfunctions.net/api
     description: Firebase Cloud Functions (producción)
     variables:
@@ -47,6 +49,8 @@ tags:
     description: Gestión de zonas geográficas (solo equipo_padi)
   - name: Encargados
     description: Gestión de encargados de zona
+  - name: Estadisticas
+    description: Métricas y reportes analíticos por nivel de acceso (padi, zona, escuela, docente)
 
 # ─────────────────────────────────────────────
 # PATHS
@@ -1729,6 +1733,693 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/CommonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    # ── ESTADÍSTICAS ─────────────────────────────
+
+  /estadisticas/padi/heatmap-zonas:
+    get:
+      tags: [Estadisticas]
+      summary: Heatmap de zonas (PADI)
+      description: Puntaje promedio por zona. Solo `equipo_padi`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: periodo
+          required: true
+          schema:
+            type: integer
+          description: Año de evaluación (ej. 2024)
+        - in: query
+          name: tipo
+          required: true
+          schema:
+            type: string
+            enum: [inicial, final]
+      responses:
+        '200':
+          description: Heatmap de zonas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /estadisticas/zona/heatmap-escuelas:
+    get:
+      tags: [Estadisticas]
+      summary: Heatmap de escuelas de la zona
+      description: Puntaje promedio por escuela dentro de la zona del encargado. Solo `encargado_zona`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: periodo
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: tipo
+          required: true
+          schema:
+            type: string
+            enum: [inicial, final]
+      responses:
+        '200':
+          description: Heatmap de escuelas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /estadisticas/escuela/heatmap-aulas:
+    get:
+      tags: [Estadisticas]
+      summary: Heatmap de aulas de una escuela
+      description: |
+        Puntaje promedio por aula. 
+        - `director`: escuela forzada por token.
+        - `encargado_zona` / `equipo_padi`: requieren `escuela_id` en query.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: periodo
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: tipo
+          required: true
+          schema:
+            type: string
+            enum: [inicial, final]
+        - in: query
+          name: escuela_id
+          schema:
+            type: string
+          description: Requerido para encargado_zona y equipo_padi
+      responses:
+        '200':
+          description: Heatmap de aulas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /estadisticas/padi/evolucion:
+    get:
+      tags: [Estadisticas]
+      summary: Evolución histórica a nivel PADI
+      description: Evolución del puntaje promedio a lo largo del periodo. Solo `equipo_padi`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: periodo
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Evolución PADI
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /estadisticas/zona/evolucion:
+    get:
+      tags: [Estadisticas]
+      summary: Evolución histórica de la zona
+      description: Evolución del puntaje promedio en la zona del encargado. Solo `encargado_zona`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: periodo
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Evolución de la zona
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /estadisticas/escuela/evolucion:
+    get:
+      tags: [Estadisticas]
+      summary: Evolución histórica de una escuela
+      description: |
+        Evolución del puntaje promedio de la escuela.
+        - `director`: escuela forzada por token.
+        - `encargado_zona` / `equipo_padi`: requieren `escuela_id`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: periodo
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: escuela_id
+          schema:
+            type: string
+          description: Requerido para encargado_zona y equipo_padi
+      responses:
+        '200':
+          description: Evolución de la escuela
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /estadisticas/padi/areas-criticas:
+    get:
+      tags: [Estadisticas]
+      summary: Áreas críticas a nivel PADI
+      description: Áreas con menor puntaje promedio en todo el sistema. Solo `equipo_padi`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: periodo
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: tipo
+          required: true
+          schema:
+            type: string
+            enum: [inicial, final]
+      responses:
+        '200':
+          description: Áreas críticas PADI
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /estadisticas/zona/areas-criticas:
+    get:
+      tags: [Estadisticas]
+      summary: Áreas críticas de la zona
+      description: Áreas con menor puntaje en la zona del encargado. Solo `encargado_zona`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: periodo
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: tipo
+          required: true
+          schema:
+            type: string
+            enum: [inicial, final]
+      responses:
+        '200':
+          description: Áreas críticas de la zona
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /estadisticas/escuela/areas-criticas:
+    get:
+      tags: [Estadisticas]
+      summary: Áreas críticas de una escuela
+      description: |
+        Áreas con menor puntaje en la escuela.
+        - `director`: escuela forzada por token.
+        - `encargado_zona` / `equipo_padi`: requieren `escuela_id`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: periodo
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: tipo
+          required: true
+          schema:
+            type: string
+            enum: [inicial, final]
+        - in: query
+          name: escuela_id
+          schema:
+            type: string
+          description: Requerido para encargado_zona y equipo_padi
+      responses:
+        '200':
+          description: Áreas críticas de la escuela
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /estadisticas/zona/estudiantes-en-riesgo:
+    get:
+      tags: [Estadisticas]
+      summary: Estudiantes en riesgo de la zona
+      description: Lista estudiantes cuyo puntaje está por debajo del umbral. Solo `encargado_zona`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: periodo
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: umbral
+          schema:
+            type: number
+            format: float
+            default: 0.5
+          description: Proporción entre 0 y 1 (exclusivo). Por defecto 0.5
+      responses:
+        '200':
+          description: Estudiantes en riesgo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /estadisticas/escuela/estudiantes-en-riesgo:
+    get:
+      tags: [Estadisticas]
+      summary: Estudiantes en riesgo de una escuela
+      description: |
+        Lista estudiantes cuyo puntaje está por debajo del umbral.
+        - `director`: escuela forzada por token.
+        - `encargado_zona` / `equipo_padi`: requieren `escuela_id`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: periodo
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: umbral
+          schema:
+            type: number
+            format: float
+            default: 0.5
+          description: Proporción entre 0 y 1 (exclusivo). Por defecto 0.5
+        - in: query
+          name: escuela_id
+          schema:
+            type: string
+          description: Requerido para encargado_zona y equipo_padi
+      responses:
+        '200':
+          description: Estudiantes en riesgo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /estadisticas/padi/cobertura-por-zona:
+    get:
+      tags: [Estadisticas]
+      summary: Cobertura de evaluaciones por zona (PADI)
+      description: Porcentaje de estudiantes evaluados por zona. Solo `equipo_padi`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: periodo
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Cobertura por zona
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /estadisticas/padi/rendimiento-por-nivel-socioeconomico:
+    get:
+      tags: [Estadisticas]
+      summary: Rendimiento por nivel socioeconómico (PADI)
+      description: Correlación entre nivel socioeconómico de la zona y puntaje. Solo `equipo_padi`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: periodo
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: tipo
+          required: true
+          schema:
+            type: string
+            enum: [inicial, final]
+      responses:
+        '200':
+          description: Rendimiento por nivel socioeconómico
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /estadisticas/zona/actividad-docentes:
+    get:
+      tags: [Estadisticas]
+      summary: Actividad de docentes en la zona
+      description: Cantidad de evaluaciones realizadas por docente en la zona. Solo `encargado_zona`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: periodo
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Actividad de docentes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /estadisticas/escuela/actividad-docentes:
+    get:
+      tags: [Estadisticas]
+      summary: Actividad de docentes en una escuela
+      description: |
+        Cantidad de evaluaciones realizadas por docente en la escuela.
+        - `director`: escuela forzada por token.
+        - `encargado_zona` / `equipo_padi`: requieren `escuela_id`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: periodo
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: escuela_id
+          schema:
+            type: string
+          description: Requerido para encargado_zona y equipo_padi
+      responses:
+        '200':
+          description: Actividad de docentes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /estadisticas/escuela/comparativa:
+    get:
+      tags: [Estadisticas]
+      summary: Comparativa de la escuela vs. promedio de zona
+      description: |
+        Compara el puntaje de la escuela contra el promedio de su zona.
+        - `director`: escuela forzada por token.
+        - `encargado_zona` / `equipo_padi`: requieren `escuela_id`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: periodo
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: tipo
+          required: true
+          schema:
+            type: string
+            enum: [inicial, final]
+        - in: query
+          name: escuela_id
+          schema:
+            type: string
+          description: Requerido para encargado_zona y equipo_padi
+      responses:
+        '200':
+          description: Comparativa de la escuela
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /estadisticas/docente/progresion-estudiante:
+    get:
+      tags: [Estadisticas]
+      summary: Progresión de un estudiante (vista docente)
+      description: |
+        Evolución del puntaje de un estudiante a lo largo del tiempo, filtrada por el aula del docente.
+        Roles: `docente`, `director`, `encargado_zona`, `equipo_padi`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: estudiante_id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: aula_id
+          schema:
+            type: string
+          description: Opcional — filtra por aula específica
+      responses:
+        '200':
+          description: Progresión del estudiante
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /estadisticas/escuela/progresion-estudiante:
+    get:
+      tags: [Estadisticas]
+      summary: Progresión de un estudiante (vista escuela)
+      description: |
+        Evolución del puntaje de un estudiante en el contexto de la escuela.
+        - `director`: escuela forzada por token.
+        - `encargado_zona` / `equipo_padi`: requieren `escuela_id`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: estudiante_id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: escuela_id
+          schema:
+            type: string
+          description: Requerido para encargado_zona y equipo_padi
+      responses:
+        '200':
+          description: Progresión del estudiante
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /estadisticas/docente/aprobacion-preguntas:
+    get:
+      tags: [Estadisticas]
+      summary: Aprobación por pregunta en un aula
+      description: |
+        Porcentaje de respuestas correctas por pregunta en un aula específica.
+        Roles: `docente`, `director`, `encargado_zona`, `equipo_padi`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: periodo
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: aula_id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: area_id
+          schema:
+            type: string
+          description: Opcional — filtra por área específica
+      responses:
+        '200':
+          description: Aprobación por pregunta
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /estadisticas/docente/distribucion-puntajes:
+    get:
+      tags: [Estadisticas]
+      summary: Distribución de puntajes en un aula
+      description: |
+        Distribución de puntajes de los estudiantes de un aula (para histogramas).
+        Roles: `docente`, `director`, `encargado_zona`, `equipo_padi`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: periodo
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: aula_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Distribución de puntajes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
