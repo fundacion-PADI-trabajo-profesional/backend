@@ -87,6 +87,7 @@ export const EstadisticasRepository = {
                 id: true,
                 nombre: true,
                 zona_id: true,
+                desvinculada_at: true,
                 zona: { select: { id: true, nombre: true } },
               },
             },
@@ -100,6 +101,7 @@ export const EstadisticasRepository = {
                 id: true,
                 nombre: true,
                 zona_id: true,
+                desvinculada_at: true,
                 zona: { select: { id: true, nombre: true } },
               },
             },
@@ -166,6 +168,7 @@ export const EstadisticasRepository = {
               select: {
                 id: true,
                 nombre: true,
+                desvinculada_at: true,
                 zona: { select: { nombre: true } },
               },
             },
@@ -178,6 +181,7 @@ export const EstadisticasRepository = {
               select: {
                 id: true,
                 nombre: true,
+                desvinculada_at: true,
                 zona: { select: { nombre: true } },
               },
             },

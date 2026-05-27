@@ -166,16 +166,23 @@ export class AulasService {
    * @param user - Usuario autenticado.
    * @returns Array de aulas con sala, escuela y docentes, filtrado por scope.
    */
-  async list(user: { id: string; rol: string }) {
+  async list(user: { id: string; rol: string }, escuela_id?: string) {
     const userPerms = await this.getUserWithPermissions(user);
 
     if (userPerms.userType === "director") {
       return await this.repo.listByEscuela(userPerms.escuelaId!);
     } else if (userPerms.userType === "encargado") {
-      // Listar aulas de todas las escuelas de su zona
+      if (escuela_id) {
+        if (!(userPerms.allowedEscuelas as string[]).includes(escuela_id)) {
+          throw new Error("No tienes permisos para ver aulas de esta escuela.");
+        }
+        return await this.repo.listByEscuela(escuela_id);
+      }
       return await this.repo.listByEscuelas(userPerms.allowedEscuelas as string[]);
     } else { // PADI
-      // Listar todas las aulas del sistema
+      if (escuela_id) {
+        return await this.repo.listByEscuela(escuela_id);
+      }
       return await this.repo.listAll();
     }
   }
