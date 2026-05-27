@@ -105,6 +105,7 @@ model Estudiantes {
   grado                   Int?                   @db.SmallInt
   sala_id                 Int                    @db.SmallInt
   fecha_creacion          DateTime               @default(now()) @db.Timestamptz(6)
+  fecha_baja              DateTime?              @db.Timestamptz(6)
   escuela_id              String?
   aulas                   EstudiantesAulas[]
   escuela                 Escuelas?              @relation(fields: [escuela_id], references: [id])

@@ -569,35 +569,12 @@ describe("GET /estudiantes - docente with escuela_id param", () => {
 
 // ─── DELETE /estudiantes/:id ──────────────────────────────────────────────────
 describe("DELETE /estudiantes/:id", () => {
-  const makeTxMock = () => ({
-    evaluacionEstudiante: {
-      findMany: vi.fn().mockResolvedValue([{ id: "ev-1" }]),
-      deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
-    },
-    evaluacionesEstudianteArea: {
-      findMany: vi.fn().mockResolvedValue([{ id: "area-1" }]),
-      deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
-    },
-    evaluacionesEstudianteAreaPreguntas: {
-      deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
-    },
-    estudiantesAulas: {
-      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
-    },
-    estudiantes: {
-      delete: vi.fn().mockResolvedValue({ id: "s-1" }),
-    },
-    personas: {
-      delete: vi.fn().mockResolvedValue({ id: "p-1" }),
-    },
-  });
-
-  it("equipo_padi elimina un estudiante con éxito (200)", async () => {
+  it("equipo_padi da de baja un estudiante con éxito (200)", async () => {
     const { prismaMock } = mockAuthAs("equipo_padi");
     prismaMock.estudiantes = {
-      findUnique: vi.fn().mockResolvedValue({ id: "s-1", persona_id: "p-1" }),
+      findUnique: vi.fn().mockResolvedValue({ id: "s-1", fecha_baja: null }),
+      update: vi.fn().mockResolvedValue({ id: "s-1", fecha_baja: new Date() }),
     };
-    prismaMock.$transaction = vi.fn().mockImplementation(async (cb: any) => cb(makeTxMock()));
 
     const res = await request(app)
       .delete("/estudiantes/s-1")
@@ -605,6 +582,26 @@ describe("DELETE /estudiantes/:id", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
+  });
+
+  it("establece fecha_baja en el registro del estudiante", async () => {
+    const { prismaMock } = mockAuthAs("equipo_padi");
+    const updateMock = vi.fn().mockResolvedValue({ id: "s-1", fecha_baja: new Date() });
+    prismaMock.estudiantes = {
+      findUnique: vi.fn().mockResolvedValue({ id: "s-1", fecha_baja: null }),
+      update: updateMock,
+    };
+
+    await request(app)
+      .delete("/estudiantes/s-1")
+      .set("Authorization", "Bearer fake-token");
+
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "s-1" },
+        data: expect.objectContaining({ fecha_baja: expect.any(Date) }),
+      })
+    );
   });
 
   it("devuelve 403 cuando el rol no es equipo_padi", async () => {
@@ -643,28 +640,17 @@ describe("DELETE /estudiantes/:id", () => {
     expect(res.body.error.code).toBe("DELETE_ERROR");
   });
 
-  it("elimina evaluaciones, asignaciones y persona en la transacción", async () => {
+  it("devuelve 400 cuando el estudiante ya fue dado de baja", async () => {
     const { prismaMock } = mockAuthAs("equipo_padi");
-    const txMock = makeTxMock();
     prismaMock.estudiantes = {
-      findUnique: vi.fn().mockResolvedValue({ id: "s-1", persona_id: "p-1" }),
+      findUnique: vi.fn().mockResolvedValue({ id: "s-1", fecha_baja: new Date("2024-01-01") }),
     };
-    prismaMock.$transaction = vi.fn().mockImplementation(async (cb: any) => cb(txMock));
 
-    await request(app)
+    const res = await request(app)
       .delete("/estudiantes/s-1")
       .set("Authorization", "Bearer fake-token");
 
-    expect(txMock.evaluacionesEstudianteAreaPreguntas.deleteMany).toHaveBeenCalled();
-    expect(txMock.evaluacionesEstudianteArea.deleteMany).toHaveBeenCalled();
-    expect(txMock.evaluacionEstudiante.deleteMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { estudiante_id: "s-1" } })
-    );
-    expect(txMock.estudiantesAulas.deleteMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { estudiante_id: "s-1" } })
-    );
-    expect(txMock.personas.delete).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "p-1" } })
-    );
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("DELETE_ERROR");
   });
 });

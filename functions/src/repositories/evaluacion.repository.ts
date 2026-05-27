@@ -38,7 +38,7 @@ export const EvaluacionRepository = {
 
     const txAny = prisma as any;
     return await txAny.estudiantes.findFirst({
-      where: { personas: { dni } },
+      where: { personas: { dni }, fecha_baja: null },
       select: { id: true, sala_id: true }
     });
   },
@@ -514,9 +514,15 @@ export const EvaluacionRepository = {
 
       const evalEst = await txAny.evaluacionEstudiante.findUnique({
         where: { id: evaluacionId },
-        select: { id: true, sala_id: true },
+        select: { id: true, sala_id: true, estudiante_id: true },
       });
       if (!evalEst) throw new Error("Evaluación no encontrada");
+
+      const estudiante = await txAny.estudiantes.findUnique({
+        where: { id: evalEst.estudiante_id },
+        select: { fecha_baja: true },
+      });
+      if (estudiante?.fecha_baja) throw new Error("No se pueden modificar evaluaciones de un estudiante dado de baja.");
 
       const evalArea = await txAny.evaluacionesEstudianteArea.findFirst({
         where: { evaluacion_estudiante_id: evaluacionId, area_id: areaId },

@@ -473,8 +473,8 @@ export class AulasService {
       throw new Error("No tienes permisos para gestionar estudiantes de esta aula.");
     }
 
-    const estudiante = await prismaAny.estudiantes.findUnique({
-      where: { id: estudianteId },
+    const estudiante = await prismaAny.estudiantes.findFirst({
+      where: { id: estudianteId, fecha_baja: null },
       select: { id: true, escuela_id: true },
     });
 
