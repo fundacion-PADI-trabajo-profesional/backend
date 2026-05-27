@@ -206,13 +206,14 @@ model Preguntas {
 }
 
 model Escuelas {
-  id        String   @id @default(uuid())
-  nombre    String
-  direccion String?
-  telefono  String?
-  zona_id String? @db.Uuid
-  zona    Zonas? @relation(fields: [zona_id], references: [id])
-  createdAt DateTime @default(now())
+  id                   String               @id @default(uuid())
+  nombre               String
+  direccion            String?
+  telefono             String?
+  zona_id              String?              @db.Uuid
+  zona                 Zonas?               @relation(fields: [zona_id], references: [id])
+  nivel_socioeconomico NivelSocioeconomico  @default(sin_definir)
+  createdAt            DateTime             @default(now())
 
   // Relación con Personas
   directivos UsuarioPerfil[] // Directores asignados a esta escuela
@@ -346,4 +347,11 @@ enum Rol {
   director
   encargado_zona
   equipo_padi
+}
+
+enum NivelSocioeconomico {
+  alto
+  medio
+  bajo
+  sin_definir
 }

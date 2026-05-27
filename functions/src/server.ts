@@ -73,10 +73,14 @@ export function createApp() {
   app.use(createAuthRouter());
 
   // ── Swagger UI (público, sin auth) ──────────────
-  const swaggerDocument = yaml.load(
-    fs.readFileSync(path.join(__dirname, "../../swagger.yaml"), "utf8")
-  ) as object;
-  app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+  try {
+    const swaggerDocument = yaml.load(
+      fs.readFileSync(path.join(__dirname, "../../swagger.yaml"), "utf8")
+    ) as object;
+    app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+  } catch {
+    // swagger.yaml no disponible en este entorno (Cloud Run); /docs no se monta
+  }
 
   // A partir de acá, TODAS las rutas requieren JWT válido
   app.use(requireAuth as any);

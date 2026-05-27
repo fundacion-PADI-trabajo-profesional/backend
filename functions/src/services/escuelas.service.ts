@@ -35,7 +35,8 @@ export class EscuelasService {
             nombre: data.nombre,
             direccion: data.direccion,
             telefono: data.telefono,
-            zona_id: ""
+            zona_id: "",
+            nivel_socioeconomico: data.nivel_socioeconomico,
         };
 
         if (user.rol === "equipo_padi") {
@@ -129,7 +130,8 @@ export class EscuelasService {
         nombre: string;
         direccion?: string;
         telefono?: string;
-        zona_id: string
+        zona_id: string;
+        nivel_socioeconomico?: string;
     }, user: { id: string, rol: string }) {
         if (user.rol === "encargado_zona") {
             const zonaId = await getEncargadoZonaId(user.id);

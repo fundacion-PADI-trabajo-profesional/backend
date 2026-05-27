@@ -18,4 +18,6 @@ export interface CreateEscuelaDto {
    * Requerido cuando quien crea es un usuario PADI (admin).
    */
   zona_id: string;
+  /** Nivel socioeconómico de la escuela. Opcional; por defecto "sin_definir". */
+  nivel_socioeconomico?: string;
 }

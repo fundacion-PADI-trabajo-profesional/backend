@@ -47,7 +47,7 @@ export async function listEscuelas(req: AuthenticatedRequest, res: Response) {
 export async function updateEscuela(req: AuthenticatedRequest, res: Response) {
     try {
         const { id } = req.params;
-        const { nombre, direccion, telefono, zona_id } = req.body;
+        const { nombre, direccion, telefono, zona_id, nivel_socioeconomico } = req.body;
 
         if (!nombre || !zona_id) {
             return res.status(400).json(commonResponse(false, "Nombre y Zona son obligatorios", null));
@@ -57,7 +57,7 @@ export async function updateEscuela(req: AuthenticatedRequest, res: Response) {
             id: req.user!.id,
             rol: req.user!.rol
         };
-        const result = await service.update(id, { nombre, direccion, telefono, zona_id }, user);
+        const result = await service.update(id, { nombre, direccion, telefono, zona_id, nivel_socioeconomico }, user);
 
         res.status(200).json(commonResponse(true, "Institución actualizada", result));
     } catch (error: any) {
@@ -81,7 +81,7 @@ export async function updateEscuela(req: AuthenticatedRequest, res: Response) {
  */
 export async function createEscuela(req: AuthenticatedRequest, res: Response) {
     try {
-        const { nombre, direccion, telefono, zona_id } = req.body;
+        const { nombre, direccion, telefono, zona_id, nivel_socioeconomico } = req.body;
 
         if (!nombre || !zona_id) {
             return res.status(400).json(
@@ -90,7 +90,7 @@ export async function createEscuela(req: AuthenticatedRequest, res: Response) {
         }
 
         const user = { id: req.user!.id, rol: req.user!.rol };
-        const data = await service.create({ nombre, direccion, telefono, zona_id }, user);
+        const data = await service.create({ nombre, direccion, telefono, zona_id, nivel_socioeconomico }, user);
 
         try {
             const salasPorDefecto = [3, 4, 5];

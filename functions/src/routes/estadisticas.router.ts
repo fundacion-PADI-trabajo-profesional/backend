@@ -19,6 +19,7 @@ import {
   getComparativaEscuela,
   getProgresionEstudianteDocente,
   getProgresionEstudianteEscuela,
+  getRendimientoNivelSocioeconomico,
 } from "../controllers/estadisticas.controller";
 import { requireRole } from "../middlewares/auth.middleware";
 
@@ -58,6 +59,7 @@ export function createEstadisticasRouter() {
   );
 
   router.get("/estadisticas/padi/cobertura-por-zona", requireRole("equipo_padi") as any, getCoberturaPorZona);
+  router.get("/estadisticas/padi/rendimiento-por-nivel-socioeconomico", requireRole("equipo_padi") as any, getRendimientoNivelSocioeconomico);
   router.get("/estadisticas/zona/actividad-docentes", requireRole("encargado_zona") as any, getActividadDocentesZona);
   router.get("/estadisticas/escuela/actividad-docentes", requireRole("director", "encargado_zona", "equipo_padi") as any, getActividadDocentesEscuela);
   router.get("/estadisticas/escuela/comparativa", requireRole("director", "encargado_zona", "equipo_padi") as any, getComparativaEscuela);

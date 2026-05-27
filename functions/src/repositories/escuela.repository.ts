@@ -48,6 +48,7 @@ export const EscuelasRepository = {
                     direccion: data.direccion,
                     telefono: data.telefono,
                     zona_id: data.zona_id,
+                    ...(data.nivel_socioeconomico && { nivel_socioeconomico: data.nivel_socioeconomico as any }),
                 }
             });
         } catch (error: any) {
@@ -141,7 +142,8 @@ export const EscuelasRepository = {
         nombre: string;
         direccion?: string;
         telefono?: string;
-        zona_id: string
+        zona_id: string;
+        nivel_socioeconomico?: string;
     }) {
         const prisma = getPrisma();
         if (!prisma) throw new Error("DB not available");
@@ -153,7 +155,8 @@ export const EscuelasRepository = {
                     nombre: data.nombre,
                     direccion: data.direccion,
                     telefono: data.telefono,
-                    zona_id: data.zona_id
+                    zona_id: data.zona_id,
+                    ...(data.nivel_socioeconomico && { nivel_socioeconomico: data.nivel_socioeconomico as any }),
                 }
             });
         } catch (error: any) {
