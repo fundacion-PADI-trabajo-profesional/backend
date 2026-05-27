@@ -161,7 +161,7 @@ export const EvaluacionRepository = {
     tipoId?: string;
     estadoId?: string;
     escuelaId?: string;
-    escuelaIds?: string[]; 
+    escuelaIds?: string[];
   }) {
     const prisma = getPrisma();
     const txAny = prisma as any;
@@ -174,9 +174,9 @@ export const EvaluacionRepository = {
     if (filters?.estadoId) where.estado_id = filters.estadoId;
     if (filters?.escuelaId) {
       where.estudiantes = { escuela_id: filters.escuelaId };
-    } else if (filters?.escuelaIds && filters.escuelaIds.length > 0) {   
-      where.estudiantes = { escuela_id: { in: filters.escuelaIds } };    
-    } 
+    } else if (filters?.escuelaIds && filters.escuelaIds.length > 0) {
+      where.estudiantes = { escuela_id: { in: filters.escuelaIds } };
+    }
 
     return await txAny.evaluacionEstudiante.findMany({
       where,
@@ -478,7 +478,11 @@ export const EvaluacionRepository = {
       select: { pregunta_id: true, respuesta: true },
     });
 
-    return { preguntas, respuestas };
+    const preguntasMapped = preguntas.map((p: any) => ({
+      ...p,
+      tipoPregunta: p.tipopregunta ?? null,
+    }));
+    return { preguntas: preguntasMapped, respuestas };
   },
 
   /**
