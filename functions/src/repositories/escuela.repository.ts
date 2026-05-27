@@ -169,8 +169,9 @@ export const EscuelasRepository = {
     async findAll() {
         const prisma = getPrisma();
         if (!prisma) throw new Error("DB not available");
+        const prismaAny = prisma as any;
 
-        const rows = await prisma.escuelas.findMany({
+        const rows = await prismaAny.escuelas.findMany({
             where: { desvinculada_at: null },
             include: {
                 zona: true,
@@ -193,6 +194,7 @@ export const EscuelasRepository = {
                     }
                 },
                 estudiantes: {
+                    where: { fecha_baja: null },
                     include: {
                         personas: true
                     }
@@ -214,8 +216,9 @@ export const EscuelasRepository = {
     async findByZonaId(zonaId: string) {
         const prisma = getPrisma();
         if (!prisma) throw new Error("DB not available");
+        const prismaAny = prisma as any;
 
-        const rows = await prisma.escuelas.findMany({
+        const rows = await prismaAny.escuelas.findMany({
             where: { zona_id: zonaId, desvinculada_at: null },
             include: {
                 zona: true,
@@ -238,6 +241,7 @@ export const EscuelasRepository = {
                     },
                 },
                 estudiantes: {
+                    where: { fecha_baja: null },
                     include: {
                         personas: true,
                     },
@@ -259,21 +263,23 @@ export const EscuelasRepository = {
     async findByZona(nombreZona: string) {
         const prisma = getPrisma();
         if (!prisma) throw new Error("DB not available");
+        const prismaAny = prisma as any;
 
-        const rows = await prisma.escuelas.findMany({
+        const rows = await prismaAny.escuelas.findMany({
             where: {
                 desvinculada_at: null,
                 zona: { nombre: nombreZona }
             },
             include: {
-                zona: true, // Incluimos para que el front reciba el objeto
+                zona: true,
                 directivos: {
                     where: { rol: 'director' },
                     select: { id: true, nombre: true, apellido: true },
                 },
                 estudiantes: {
+                    where: { fecha_baja: null },
                     include: {
-                        personas: true // Para traer nombre, apellido y DNI
+                        personas: true
                     }
                 }
             },

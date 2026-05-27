@@ -218,6 +218,7 @@ export const EstudianteRepository = {
         if (!prisma) throw new Error("DB not available")
         const prismaAny = prisma as any
         const estudiantes = await prismaAny.estudiantes.findMany({
+            where: { fecha_baja: null },
             include: {
                 personas: {
                     select: {
@@ -350,7 +351,7 @@ export const EstudianteRepository = {
         const txAny = prisma as any;
         // Filtramos estudiantes que pertenezcan al UUID de la escuela proporcionado [cite: 17, 18]
         const estudiantes = await txAny.estudiantes.findMany({
-            where: { escuela_id: escuelaId }, 
+            where: { escuela_id: escuelaId, fecha_baja: null },
             include: {
                 personas: {
                     select: { nombre: true, primer_apellido: true, dni: true, fecha_nacimiento: true },
@@ -430,7 +431,7 @@ export const EstudianteRepository = {
 
         const txAny = prisma as any;
         const estudiantes = await txAny.estudiantes.findMany({
-            where: { escuela_id: { in: escuelaId } },
+            where: { escuela_id: { in: escuelaId }, fecha_baja: null },
             include: {
                 personas: {
                     select: { nombre: true, primer_apellido: true, dni: true, fecha_nacimiento: true },
