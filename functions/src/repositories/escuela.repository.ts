@@ -73,40 +73,31 @@ export const EscuelasRepository = {
    */
     async delete(id: string) {
         const prisma = getPrisma();
+        const now = new Date();
 
         return await (prisma as any).$transaction(async (tx: any) => {
-            // 1. Dejar a los estudiantes de esta escuela sin escuela
+            // 1. Liberar estudiantes
             await tx.estudiantes.updateMany({
                 where: { escuela_id: id },
                 data: { escuela_id: null }
             });
 
-            // 2. Desasignar directivos de esta escuela
+            // 2. Desasignar directivos
             await tx.usuarioPerfil.updateMany({
-                where: {
-                    escuela_id: id,
-                    rol: "director"
-                },
+                where: { escuela_id: id, rol: "director" },
                 data: { escuela_id: null }
             });
 
-            // 3. Cerrar asignaciones docentes de esta escuela
+            // 3. Cerrar asignaciones docentes
             await tx.profesoresEscuelas.updateMany({
-                where: {
-                    escuela_id: id,
-                    fecha_fin: null,
-                },
-                data: {
-                    fecha_fin: new Date(),
-                },
+                where: { escuela_id: id, fecha_fin: null },
+                data: { fecha_fin: now }
             });
 
-            await tx.aulas.deleteMany({
-                where: { escuela_id: id }
-            });
-
-            return await tx.escuelas.delete({
-                where: { id }
+            // Soft delete: conservar escuela y aulas para métricas históricas
+            return await tx.escuelas.update({
+                where: { id },
+                data: { desvinculada_at: now }
             });
         });
     },
@@ -180,6 +171,7 @@ export const EscuelasRepository = {
         if (!prisma) throw new Error("DB not available");
 
         const rows = await prisma.escuelas.findMany({
+            where: { desvinculada_at: null },
             include: {
                 zona: true,
                 directivos: {
@@ -224,7 +216,7 @@ export const EscuelasRepository = {
         if (!prisma) throw new Error("DB not available");
 
         const rows = await prisma.escuelas.findMany({
-            where: { zona_id: zonaId },
+            where: { zona_id: zonaId, desvinculada_at: null },
             include: {
                 zona: true,
                 directivos: {
@@ -270,9 +262,8 @@ export const EscuelasRepository = {
 
         const rows = await prisma.escuelas.findMany({
             where: {
-                zona: {
-                    nombre: nombreZona
-                }
+                desvinculada_at: null,
+                zona: { nombre: nombreZona }
             },
             include: {
                 zona: true, // Incluimos para que el front reciba el objeto
@@ -427,14 +418,15 @@ export const EscuelasRepository = {
             });
             if (!encargado?.zona_id) return [];
             return prisma.escuelas.findMany({
-                where: { zona_id: encargado.zona_id },
+                where: { zona_id: encargado.zona_id, desvinculada_at: null },
                 select: { id: true, nombre: true },
                 orderBy: { nombre: "asc" },
             });
         }
 
-        // equipo_padi: todas
+        // equipo_padi: todas activas
         return prisma.escuelas.findMany({
+            where: { desvinculada_at: null },
             select: { id: true, nombre: true },
             orderBy: { nombre: "asc" },
         });

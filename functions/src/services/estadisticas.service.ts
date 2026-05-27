@@ -15,6 +15,11 @@ export interface HeatmapResponse {
 
 type Nivel = "zona" | "escuela" | "aula";
 
+function nombreEscuela(escuela: { nombre: string; desvinculada_at?: Date | null } | null): string {
+  if (!escuela) return "";
+  return escuela.desvinculada_at ? `${escuela.nombre} (Desvinculada)` : escuela.nombre;
+}
+
 function getPeriodoRange(anio: number) {
   return {
     periodoStart: new Date(Date.UTC(anio, 0, 1)),
@@ -68,7 +73,7 @@ function armarHeatmap(
     } else if (nivel === "escuela") {
       if (!escuela) continue;
       filaId = escuela.id;
-      filaNombre = escuela.nombre;
+      filaNombre = nombreEscuela(escuela);
       filaMeta = zona ? { zona_nombre: String(zona.nombre) } : undefined;
     } else {
       // nivel === "aula": solo evaluaciones con aula asignada
@@ -286,7 +291,7 @@ function calcularRiesgo(
         estudiante_id: estId,
         nombre: persona?.nombre ?? "",
         primer_apellido: persona?.primer_apellido ?? "",
-        escuela_nombre: escuela?.nombre ?? "",
+        escuela_nombre: nombreEscuela(escuela),
         zona_nombre: zona?.nombre,
         areas: new Map(),
       });
