@@ -1,6 +1,11 @@
 import { getPrisma } from "../config/prismaClient";
 
 export const EstadisticasRepository = {
+  /**
+   * Obtiene todas las áreas de evaluación ordenadas por su campo `orden`.
+   *
+   * @returns Lista de áreas con `id`, `nombre` y `orden`.
+   */
   async findAreas() {
     const prisma = getPrisma() as any;
     return prisma.areas.findMany({
@@ -9,6 +14,12 @@ export const EstadisticasRepository = {
     });
   },
 
+  /**
+   * Obtiene todas las reglas de aprobación definidas para cada combinación
+   * de área y sala, incluyendo el puntaje total máximo posible.
+   *
+   * @returns Lista de reglas con `area_id`, `sala_id` y `puntaje_total`.
+   */
   async findReglasAprobacion() {
     const prisma = getPrisma() as any;
     return prisma.reglasAprobacion.findMany({
@@ -16,6 +27,21 @@ export const EstadisticasRepository = {
     });
   },
 
+  /**
+   * Obtiene evaluaciones de estudiantes con sus puntajes por área, aplicando
+   * filtros de período, tipo de evaluación y opcionalmente por zona o escuela.
+   * Incluye datos relacionados del aula, escuela y zona para poder agrupar
+   * resultados en distintos niveles geográficos.
+   *
+   * Solo se incluyen registros de área con estado `"A"` (aprobado) o `"D"` (desaprobado).
+   *
+   * @param filtros.periodoStart - Fecha de inicio del período (inclusive).
+   * @param filtros.periodoEnd   - Fecha de fin del período (exclusiva).
+   * @param filtros.tipo         - Tipo de evaluación (`"inicial"` o `"final"`).
+   * @param filtros.zonaId       - (Opcional) Filtra evaluaciones de escuelas pertenecientes a esta zona.
+   * @param filtros.escuelaId    - (Opcional) Filtra evaluaciones de esta escuela en particular.
+   * @returns Lista de evaluaciones con sus relaciones de aula, escuela, zona y puntajes por área.
+   */
   async findEvaluacionesParaHeatmap(filtros: {
     periodoStart: Date;
     periodoEnd: Date;
@@ -87,6 +113,20 @@ export const EstadisticasRepository = {
     });
   },
 
+  /**
+   * Obtiene evaluaciones de estudiantes con datos personales y de escuela/zona
+   * para calcular qué estudiantes están en riesgo académico.
+   * A diferencia de `findEvaluacionesParaHeatmap`, no filtra por tipo de
+   * evaluación y trae el nombre y apellido del estudiante.
+   *
+   * Solo se incluyen registros de área con estado `"A"` o `"D"`.
+   *
+   * @param filtros.periodoStart - Fecha de inicio del período (inclusive).
+   * @param filtros.periodoEnd   - Fecha de fin del período (exclusiva).
+   * @param filtros.zonaId       - (Opcional) Filtra por zona.
+   * @param filtros.escuelaId    - (Opcional) Filtra por escuela.
+   * @returns Lista de evaluaciones con datos del estudiante (nombre, escuela, zona) y puntajes por área.
+   */
   async findEvaluacionesParaRiesgo(filtros: {
     periodoStart: Date;
     periodoEnd: Date;
@@ -152,6 +192,17 @@ export const EstadisticasRepository = {
     });
   },
 
+  /**
+   * Obtiene evaluaciones con el nivel socioeconómico de la escuela del estudiante,
+   * para calcular rendimiento segmentado por nivel socioeconómico.
+   *
+   * Solo se incluyen registros de área con estado `"A"` o `"D"`.
+   *
+   * @param filtros.periodoStart - Fecha de inicio del período (inclusive).
+   * @param filtros.periodoEnd   - Fecha de fin del período (exclusiva).
+   * @param filtros.tipo         - Tipo de evaluación (`"inicial"` o `"final"`).
+   * @returns Lista de evaluaciones con el `nivel_socioeconomico` de la escuela y puntajes por área.
+   */
   async findEvaluacionesPorNivelSocioeconomico(filtros: {
     periodoStart: Date;
     periodoEnd: Date;
@@ -195,6 +246,12 @@ export const EstadisticasRepository = {
     });
   },
 
+  /**
+   * Obtiene el ID de la zona asignada a un encargado de zona dado su ID de usuario.
+   *
+   * @param usuarioId - ID del usuario con rol `encargado_zona`.
+   * @returns El `zona_id` del encargado, o `null` si no se encuentra el registro.
+   */
   async findZonaIdDeEncargado(usuarioId: string): Promise<string | null> {
     const prisma = getPrisma() as any;
     const enc = await prisma.encargados.findUnique({
@@ -204,6 +261,14 @@ export const EstadisticasRepository = {
     return enc?.zona_id ?? null;
   },
 
+  /**
+   * Obtiene el ID del perfil de profesor asociado a un usuario.
+   * Busca la persona vinculada al usuario y devuelve el ID de su primer registro
+   * de profesor.
+   *
+   * @param usuarioId - ID del usuario con rol `docente`.
+   * @returns El `id` del profesor, o `null` si el usuario no tiene perfil de profesor.
+   */
   async findProfesorIdDeUsuario(usuarioId: string): Promise<string | null> {
     const prisma = getPrisma() as any;
     const persona = await prisma.personas.findUnique({
@@ -213,6 +278,14 @@ export const EstadisticasRepository = {
     return persona?.profesores?.[0]?.id ?? null;
   },
 
+  /**
+   * Verifica si un profesor tiene asignación activa en un aula específica.
+   * Una asignación se considera activa cuando `fecha_fin` es `null`.
+   *
+   * @param profesorId - ID del profesor.
+   * @param aulaId     - ID del aula a verificar.
+   * @returns `true` si el profesor está actualmente asignado al aula, `false` en caso contrario.
+   */
   async findAulaDelProfesor(profesorId: string, aulaId: string): Promise<boolean> {
     const prisma = getPrisma() as any;
     const entry = await prisma.profesoresAulas.findFirst({
@@ -221,6 +294,20 @@ export const EstadisticasRepository = {
     return entry != null;
   },
 
+  /**
+   * Obtiene las respuestas individuales por pregunta de todas las evaluaciones
+   * de un aula en un período dado. Opcionalmente filtra por área.
+   * Usado para calcular la tasa de aprobación por pregunta.
+   *
+   * Solo se incluyen registros de área con estado `"A"` o `"D"`.
+   *
+   * @param filtros.aulaId       - ID del aula.
+   * @param filtros.periodoStart - Fecha de inicio del período (inclusive).
+   * @param filtros.periodoEnd   - Fecha de fin del período (exclusiva).
+   * @param filtros.areaId       - (Opcional) Filtra por área específica.
+   * @returns Lista de evaluaciones con sus áreas y las respuestas por pregunta
+   *          (incluyendo metadatos de la pregunta: consigna, título, área).
+   */
   async findRespuestasPorAula(filtros: {
     aulaId: string;
     periodoStart: Date;
@@ -255,6 +342,18 @@ export const EstadisticasRepository = {
     });
   },
 
+  /**
+   * Obtiene todas las evaluaciones de los estudiantes de un aula en un período,
+   * con sus puntajes por área. Usado para calcular la distribución de puntajes
+   * dentro de un aula.
+   *
+   * Solo se incluyen registros de área con estado `"A"` o `"D"`.
+   *
+   * @param filtros.aulaId       - ID del aula.
+   * @param filtros.periodoStart - Fecha de inicio del período (inclusive).
+   * @param filtros.periodoEnd   - Fecha de fin del período (exclusiva).
+   * @returns Lista de evaluaciones con `id`, `sala_id`, `estudiante_id` y puntajes por área.
+   */
   async findEvaluacionesParaAula(filtros: {
     aulaId: string;
     periodoStart: Date;
@@ -278,6 +377,17 @@ export const EstadisticasRepository = {
     });
   },
 
+  /**
+   * Obtiene el listado de evaluaciones con el `profesor_id` que las registró
+   * y los datos personales del profesor, para contabilizar la actividad docente.
+   * Aplica filtros opcionales por zona o escuela.
+   *
+   * @param filtros.periodoStart - Fecha de inicio del período (inclusive).
+   * @param filtros.periodoEnd   - Fecha de fin del período (exclusiva).
+   * @param filtros.zonaId       - (Opcional) Filtra por zona.
+   * @param filtros.escuelaId    - (Opcional) Filtra por escuela.
+   * @returns Lista de evaluaciones con `profesor_id` y datos personales del profesor.
+   */
   async findActividadDocentes(filtros: {
     periodoStart: Date;
     periodoEnd: Date;
@@ -313,6 +423,15 @@ export const EstadisticasRepository = {
     });
   },
 
+  /**
+   * Obtiene todas las evaluaciones del período con los datos de zona de cada
+   * estudiante (a través del aula o directamente desde el estudiante).
+   * Usado para calcular la cobertura de evaluaciones por zona.
+   *
+   * @param filtros.periodoStart - Fecha de inicio del período (inclusive).
+   * @param filtros.periodoEnd   - Fecha de fin del período (exclusiva).
+   * @returns Lista de evaluaciones con `estudiante_id` y datos de zona del estudiante.
+   */
   async findEvaluacionesPorZona(filtros: {
     periodoStart: Date;
     periodoEnd: Date;
@@ -346,6 +465,12 @@ export const EstadisticasRepository = {
     });
   },
 
+  /**
+   * Obtiene el ID de la zona a la que pertenece una escuela.
+   *
+   * @param escuelaId - ID de la escuela.
+   * @returns El `zona_id` de la escuela, o `null` si la escuela no existe o no tiene zona asignada.
+   */
   async findZonaIdDeEscuela(escuelaId: string): Promise<string | null> {
     const prisma = getPrisma() as any;
     const esc = await prisma.escuelas.findUnique({
@@ -355,6 +480,18 @@ export const EstadisticasRepository = {
     return esc?.zona_id ?? null;
   },
 
+  /**
+   * Obtiene las últimas N evaluaciones de un estudiante ordenadas cronológicamente
+   * (de más antigua a más reciente), con sus puntajes por área.
+   * Usado para construir la progresión histórica del estudiante.
+   *
+   * Solo se incluyen registros de área con estado `"A"` o `"D"`.
+   *
+   * @param filtros.estudianteId - ID del estudiante.
+   * @param filtros.limit        - Cantidad máxima de evaluaciones a retornar.
+   * @returns Lista de evaluaciones en orden cronológico ascendente con `id`, `sala_id`,
+   *          `tipo_id`, `fecha_creacion` y puntajes por área.
+   */
   async findUltimasEvaluaciones(filtros: {
     estudianteId: string;
     limit: number;
@@ -379,6 +516,16 @@ export const EstadisticasRepository = {
     return rows.reverse();
   },
 
+  /**
+   * Verifica que un estudiante pertenece a una escuela específica y retorna
+   * sus datos personales. Usado para validar el acceso en la vista de director
+   * o encargado de zona.
+   *
+   * @param estudianteId - ID del estudiante a verificar.
+   * @param escuelaId    - ID de la escuela en la que se busca al estudiante.
+   * @returns Objeto con `nombre` y `primer_apellido` del estudiante, o `null` si
+   *          el estudiante no pertenece a esa escuela.
+   */
   async findEstudianteEnEscuela(
     estudianteId: string,
     escuelaId: string
@@ -393,6 +540,16 @@ export const EstadisticasRepository = {
       : null;
   },
 
+  /**
+   * Verifica que un estudiante está matriculado en alguna de las aulas asignadas
+   * a un profesor específico y retorna sus datos personales.
+   * Usado para validar que un docente puede consultar la progresión de ese estudiante.
+   *
+   * @param estudianteId - ID del estudiante a verificar.
+   * @param profesorId   - ID del profesor que realiza la consulta.
+   * @returns Objeto con `nombre` y `primer_apellido` del estudiante, o `null` si
+   *          el estudiante no está en ninguna aula del profesor.
+   */
   async findEstudianteEnAulasDeProfesor(
     estudianteId: string,
     profesorId: string
@@ -414,6 +571,16 @@ export const EstadisticasRepository = {
       : null;
   },
 
+  /**
+   * Verifica que un estudiante está matriculado en un aula específica y retorna
+   * sus datos personales. Usado como control de acceso cuando el consultante
+   * no es el docente asignado al aula (ej. director o encargado de zona).
+   *
+   * @param estudianteId - ID del estudiante a verificar.
+   * @param aulaId       - ID del aula en la que se busca al estudiante.
+   * @returns Objeto con `nombre` y `primer_apellido` del estudiante, o `null` si
+   *          el estudiante no está matriculado en esa aula.
+   */
   async findEstudianteEnAula(
     estudianteId: string,
     aulaId: string
