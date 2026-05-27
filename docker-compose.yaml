@@ -1,18 +1,6 @@
 version: '3.9'
 
 services:
-  postgres:
-    image: postgres:16
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: padi
-      POSTGRES_PASSWORD: padi_dev
-      POSTGRES_DB: padi_dev
-    volumes:
-      - padi_postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
-
   backend:
     build:
       context: .
@@ -21,12 +9,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      DATABASE_URL: postgresql://padi:padi_dev@postgres:5432/padi_dev
+      DATABASE_URL: ${DATABASE_URL}
       SUPABASE_URL: ${SUPABASE_URL}
       SUPABASE_KEY: ${SUPABASE_KEY}
       PORT: "8080"
-    depends_on:
-      - postgres
-
-volumes:
-  padi_postgres_data:
