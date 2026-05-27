@@ -337,6 +337,23 @@ export async function getDistribucionPuntajes(req: AuthenticatedRequest, res: Re
   }
 }
 
+export async function getRendimientoNivelSocioeconomico(req: AuthenticatedRequest, res: Response) {
+  try {
+    const periodo = parsePeriodo(req.query.periodo);
+    const tipo = String(req.query.tipo ?? "");
+    if (!periodo || !TIPOS_VALIDOS.includes(tipo)) return badParams(res);
+
+    const data = await service.rendimientoPorNivelSocioeconomico({
+      periodo,
+      tipo,
+      rol: String(req.user!.rol),
+    });
+    return res.status(200).json(commonResponse(true, "ok", data));
+  } catch (error: any) {
+    return res.status(403).json(commonResponse(false, error.message, null));
+  }
+}
+
 export async function getHeatmapAulas(req: AuthenticatedRequest, res: Response) {
   try {
     const periodo = parsePeriodo(req.query.periodo);

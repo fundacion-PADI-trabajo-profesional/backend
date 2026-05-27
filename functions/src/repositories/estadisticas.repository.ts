@@ -152,6 +152,49 @@ export const EstadisticasRepository = {
     });
   },
 
+  async findEvaluacionesPorNivelSocioeconomico(filtros: {
+    periodoStart: Date;
+    periodoEnd: Date;
+    tipo: string;
+  }) {
+    const prisma = getPrisma() as any;
+    return prisma.evaluacionEstudiante.findMany({
+      where: {
+        tipo_id: filtros.tipo,
+        fecha_creacion: { gte: filtros.periodoStart, lt: filtros.periodoEnd },
+      },
+      select: {
+        id: true,
+        aula_id: true,
+        sala_id: true,
+        aulas: {
+          select: {
+            escuela: {
+              select: {
+                id: true,
+                nivel_socioeconomico: true,
+              },
+            },
+          },
+        },
+        estudiantes: {
+          select: {
+            escuela: {
+              select: {
+                id: true,
+                nivel_socioeconomico: true,
+              },
+            },
+          },
+        },
+        evaluaciones_estudiante_area: {
+          where: { estado_id: { in: ["A", "D"] } },
+          select: { area_id: true, puntaje: true },
+        },
+      },
+    });
+  },
+
   async findZonaIdDeEncargado(usuarioId: string): Promise<string | null> {
     const prisma = getPrisma() as any;
     const enc = await prisma.encargados.findUnique({

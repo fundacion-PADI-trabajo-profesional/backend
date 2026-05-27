@@ -176,8 +176,8 @@ class AulasService {
      */
     async update(id, data, user) {
         const userPerms = await this.getUserWithPermissions(user);
-        if (userPerms.userType !== "director" && userPerms.userType !== "padi") {
-            throw new Error("Solo directores y equipo PADI pueden gestionar aulas.");
+        if (userPerms.userType !== "director" && userPerms.userType !== "encargado" && userPerms.userType !== "padi") {
+            throw new Error("Solo directores, encargados de zona y equipo PADI pueden gestionar aulas.");
         }
         const { prismaAny } = userPerms;
         const aula = await prismaAny.aulas.findUnique({
@@ -188,6 +188,9 @@ class AulasService {
             throw new Error("Aula no encontrada.");
         }
         if (userPerms.userType === "director" && aula.escuela_id !== userPerms.escuelaId) {
+            throw new Error("No tienes permisos para modificar esta aula.");
+        }
+        if (userPerms.userType === "encargado" && !userPerms.allowedEscuelas.includes(aula.escuela_id)) {
             throw new Error("No tienes permisos para modificar esta aula.");
         }
         return await this.repo.update(id, data);

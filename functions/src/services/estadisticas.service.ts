@@ -435,6 +435,80 @@ export interface ProgresionResponse {
   areas: ProgresoArea[];
 }
 
+const NIVELES_NSE = ["alto", "medio", "bajo", "sin_definir"] as const;
+type NivelNSE = typeof NIVELES_NSE[number];
+
+export interface PorcentajeNivel {
+  porcentaje: number | null;
+  evaluaciones: number;
+}
+
+export interface AreaPorNivel {
+  area_id: string;
+  area_nombre: string;
+  area_orden: number;
+  por_nivel: Record<NivelNSE, PorcentajeNivel>;
+}
+
+export interface RendimientoNivelResponse {
+  periodo: number;
+  tipo: string;
+  areas: AreaPorNivel[];
+  total_evaluaciones: number;
+}
+
+function calcularRendimientoNivel(
+  evaluaciones: any[],
+  reglasMap: Map<string, number>,
+  areas: Array<{ id: string; nombre: string; orden: number }>,
+  tipo: string,
+  periodo: number
+): RendimientoNivelResponse {
+  const sumas: Record<NivelNSE, Map<string, { suma: number; count: number }>> = {
+    alto: new Map(),
+    medio: new Map(),
+    bajo: new Map(),
+    sin_definir: new Map(),
+  };
+
+  let totalEvaluaciones = 0;
+
+  for (const ev of evaluaciones) {
+    const escuela = ev.aulas?.escuela ?? ev.estudiantes?.escuela ?? null;
+    if (!escuela) continue;
+
+    const nivelRaw: string = escuela.nivel_socioeconomico ?? "sin_definir";
+    const nivel = (NIVELES_NSE as readonly string[]).includes(nivelRaw)
+      ? (nivelRaw as NivelNSE)
+      : "sin_definir";
+
+    for (const ea of ev.evaluaciones_estudiante_area) {
+      const max = reglasMap.get(`${ea.area_id}__${ev.sala_id}`) ?? null;
+      if (max === null || max === 0 || ea.puntaje === null || ea.puntaje === undefined) continue;
+      const pct = Math.min(1, Math.max(0, ea.puntaje / max));
+      const existing = sumas[nivel].get(ea.area_id) ?? { suma: 0, count: 0 };
+      existing.suma += pct;
+      existing.count += 1;
+      sumas[nivel].set(ea.area_id, existing);
+    }
+
+    totalEvaluaciones += 1;
+  }
+
+  const areasResult: AreaPorNivel[] = areas.map((area) => {
+    const por_nivel = {} as Record<NivelNSE, PorcentajeNivel>;
+    for (const n of NIVELES_NSE) {
+      const s = sumas[n].get(area.id);
+      por_nivel[n] = s
+        ? { porcentaje: s.suma / s.count, evaluaciones: s.count }
+        : { porcentaje: null, evaluaciones: 0 };
+    }
+    return { area_id: area.id, area_nombre: area.nombre, area_orden: area.orden, por_nivel };
+  });
+
+  return { periodo, tipo, areas: areasResult, total_evaluaciones: totalEvaluaciones };
+}
+
 const RANGOS_DIST = [
   { rango: "0–20%", min: 0, max: 0.2 },
   { rango: "21–40%", min: 0.21, max: 0.4 },
@@ -903,6 +977,21 @@ export class EstadisticasService {
       total_estudiantes: estudianteEvals.size,
       rangos: RANGOS_DIST.map((r, i) => ({ ...r, cantidad: counts[i] })),
     };
+  }
+
+  async rendimientoPorNivelSocioeconomico(params: {
+    periodo: number;
+    tipo: string;
+    rol: string;
+  }): Promise<RendimientoNivelResponse> {
+    this.validateRol(params.rol, "equipo_padi");
+    const { periodoStart, periodoEnd } = getPeriodoRange(params.periodo);
+    const [areas, reglasMap, evaluaciones] = await Promise.all([
+      this.repo.findAreas(),
+      this.getReglasMap(),
+      this.repo.findEvaluacionesPorNivelSocioeconomico({ periodoStart, periodoEnd, tipo: params.tipo }),
+    ]);
+    return calcularRendimientoNivel(evaluaciones, reglasMap, areas, params.tipo, params.periodo);
   }
 
   async heatmapZonas(params: {
