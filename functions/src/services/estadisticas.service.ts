@@ -15,6 +15,13 @@ export interface HeatmapResponse {
 
 type Nivel = "zona" | "escuela" | "aula";
 
+/**
+ * Calcula las fechas de inicio y fin de un año calendario completo en UTC.
+ *
+ * @param anio - Año a calcular (ej. 2024).
+ * @returns Objeto con `periodoStart` (1 de enero 00:00 UTC) y `periodoEnd`
+ *          (1 de enero del año siguiente 00:00 UTC, exclusivo).
+ */
 function getPeriodoRange(anio: number) {
   return {
     periodoStart: new Date(Date.UTC(anio, 0, 1)),
@@ -22,6 +29,14 @@ function getPeriodoRange(anio: number) {
   };
 }
 
+/**
+ * Construye un mapa de clave compuesta `"area_id__sala_id"` al puntaje máximo
+ * posible según las reglas de aprobación. Solo incluye entradas donde todos
+ * los campos (area_id, sala_id, puntaje_total) son no nulos.
+ *
+ * @param reglas - Array de reglas de aprobación obtenido del repositorio.
+ * @returns Mapa donde la clave es `"<area_id>__<sala_id>"` y el valor es `puntaje_total`.
+ */
 function buildReglasMap(
   reglas: Array<{ area_id: string | null; sala_id: number | null; puntaje_total: number | null }>
 ): Map<string, number> {
@@ -34,6 +49,23 @@ function buildReglasMap(
   return map;
 }
 
+/**
+ * Construye la estructura de heatmap agrupando evaluaciones por zona, escuela o aula.
+ * Para cada fila (zona/escuela/aula) y cada área calcula el porcentaje promedio
+ * de puntaje relativo al máximo definido en las reglas de aprobación.
+ *
+ * Las filas se ordenan alfabéticamente por nombre.
+ * Se descartan evaluaciones sin la entidad requerida según el `nivel` solicitado
+ * (ej. si `nivel === "aula"` se ignoran evaluaciones sin aula asignada).
+ *
+ * @param evaluaciones - Lista de evaluaciones obtenida del repositorio.
+ * @param reglasMap    - Mapa de puntajes máximos por `"area_id__sala_id"`.
+ * @param areas        - Lista de áreas con `id`, `nombre` y `orden`.
+ * @param nivel        - Nivel de agrupación: `"zona"`, `"escuela"` o `"aula"`.
+ * @param periodo      - Año del período evaluado.
+ * @param tipo         - Tipo de evaluación (`"inicial"` o `"final"`).
+ * @returns Objeto `HeatmapResponse` con filas, áreas y totales.
+ */
 function armarHeatmap(
   evaluaciones: any[],
   reglasMap: Map<string, number>,
@@ -174,6 +206,15 @@ export interface RiesgoResponse {
   total: number;
 }
 
+/**
+ * Recorre las evaluaciones y calcula el porcentaje promedio obtenido en cada
+ * área, normalizando cada puntaje contra el máximo definido en `reglasMap`.
+ * Se ignoran las evaluaciones sin regla definida o con puntaje nulo.
+ *
+ * @param evaluaciones - Lista de evaluaciones con sus puntajes por área.
+ * @param reglasMap    - Mapa de puntajes máximos por `"area_id__sala_id"`.
+ * @returns Mapa de `area_id` a acumulador `{suma, count}` de porcentajes (0–1).
+ */
 function promediarPorArea(
   evaluaciones: any[],
   reglasMap: Map<string, number>
@@ -193,6 +234,19 @@ function promediarPorArea(
   return map;
 }
 
+/**
+ * Calcula la evolución del desempeño entre la evaluación inicial y la final
+ * para cada área, incluyendo el delta de porcentaje.
+ *
+ * @param evInicial  - Evaluaciones de tipo `"inicial"`.
+ * @param evFinal    - Evaluaciones de tipo `"final"`.
+ * @param reglasMap  - Mapa de puntajes máximos por `"area_id__sala_id"`.
+ * @param areas      - Lista completa de áreas.
+ * @param periodo    - Año del período evaluado.
+ * @returns `EvolucionResponse` con el porcentaje inicial, final y delta por área.
+ *          Si un tipo no tiene evaluaciones para un área, su porcentaje es `null`
+ *          y el delta también es `null`.
+ */
 function calcularEvolucion(
   evInicial: any[],
   evFinal: any[],
@@ -225,6 +279,17 @@ function calcularEvolucion(
   return { periodo, areas: areasResult };
 }
 
+/**
+ * Calcula el rendimiento promedio por área y ordena las áreas de peor a mejor
+ * desempeño (las más críticas al inicio). Áreas sin evaluaciones quedan al final.
+ *
+ * @param evaluaciones - Lista de evaluaciones con puntajes por área.
+ * @param reglasMap    - Mapa de puntajes máximos por `"area_id__sala_id"`.
+ * @param areas        - Lista completa de áreas.
+ * @param tipo         - Tipo de evaluación (`"inicial"` o `"final"`).
+ * @param periodo      - Año del período evaluado.
+ * @returns `AreasCriticasResponse` con las áreas ordenadas ascendentemente por porcentaje promedio.
+ */
 function calcularAreasCriticas(
   evaluaciones: any[],
   reglasMap: Map<string, number>,
@@ -257,6 +322,23 @@ function calcularAreasCriticas(
 const UMBRAL_DEFAULT = 0.5;
 const AREAS_RIESGO_MIN = 2;
 
+/**
+ * Identifica estudiantes en riesgo académico: aquellos cuyo promedio de puntaje
+ * en al menos `AREAS_RIESGO_MIN` (2) áreas esté por debajo del umbral dado.
+ *
+ * Agrega todas las evaluaciones del período por estudiante, calcula el promedio
+ * de porcentaje en cada área, y filtra los estudiantes con suficientes áreas
+ * por debajo del umbral.
+ *
+ * El resultado está ordenado de mayor a menor cantidad de áreas en riesgo.
+ *
+ * @param evaluaciones - Lista de evaluaciones con datos del estudiante y puntajes por área.
+ * @param reglasMap    - Mapa de puntajes máximos por `"area_id__sala_id"`.
+ * @param areasMap     - Mapa de `area_id` a nombre de área (para enriquecer la respuesta).
+ * @param umbral       - Porcentaje (0–1) por debajo del cual un área se considera en riesgo.
+ * @param periodo      - Año del período evaluado.
+ * @returns `RiesgoResponse` con los estudiantes en riesgo y el total.
+ */
 function calcularRiesgo(
   evaluaciones: any[],
   reglasMap: Map<string, number>,
@@ -457,6 +539,18 @@ export interface RendimientoNivelResponse {
   total_evaluaciones: number;
 }
 
+/**
+ * Calcula el rendimiento promedio por área segmentado en cuatro niveles
+ * socioeconómicos: `"alto"`, `"medio"`, `"bajo"` y `"sin_definir"`.
+ * Valores de `nivel_socioeconomico` no reconocidos se tratan como `"sin_definir"`.
+ *
+ * @param evaluaciones - Lista de evaluaciones con el nivel socioeconómico de la escuela.
+ * @param reglasMap    - Mapa de puntajes máximos por `"area_id__sala_id"`.
+ * @param areas        - Lista completa de áreas.
+ * @param tipo         - Tipo de evaluación (`"inicial"` o `"final"`).
+ * @param periodo      - Año del período evaluado.
+ * @returns `RendimientoNivelResponse` con el porcentaje promedio por área y nivel NSE.
+ */
 function calcularRendimientoNivel(
   evaluaciones: any[],
   reglasMap: Map<string, number>,
@@ -517,6 +611,14 @@ const RANGOS_DIST = [
   { rango: "81–100%", min: 0.81, max: 1 },
 ];
 
+/**
+ * Cuenta cuántas evaluaciones realizó cada docente en el conjunto de evaluaciones
+ * dado y ordena el resultado de mayor a menor actividad.
+ *
+ * @param evaluaciones - Lista de evaluaciones con `profesor_id` y datos de la persona.
+ * @param periodo      - Año del período evaluado.
+ * @returns `ActividadResponse` con los docentes y su cantidad de evaluaciones registradas.
+ */
 function calcularActividad(evaluaciones: any[], periodo: number): ActividadResponse {
   const map = new Map<string, { nombre: string; primer_apellido: string; count: number }>();
   for (const ev of evaluaciones) {
@@ -541,6 +643,18 @@ function calcularActividad(evaluaciones: any[], periodo: number): ActividadRespo
   return { periodo, docentes };
 }
 
+/**
+ * Agrega las evaluaciones por zona y calcula el total de evaluaciones y de
+ * estudiantes distintos evaluados en cada zona. Las zonas se ordenan
+ * alfabéticamente por nombre.
+ *
+ * Resuelve la zona del estudiante primero desde `aulas.escuela.zona` y, si el
+ * estudiante no tiene aula asignada, desde `estudiantes.escuela.zona`.
+ *
+ * @param evaluaciones - Lista de evaluaciones con datos de zona del estudiante.
+ * @param periodo      - Año del período evaluado.
+ * @returns `CoberturaResponse` con las zonas, sus totales y los totales globales.
+ */
 function calcularCobertura(evaluaciones: any[], periodo: number): CoberturaResponse {
   const zonaMap = new Map<string, { nombre: string; evals: number; estudiantes: Set<string> }>();
   for (const ev of evaluaciones) {
@@ -567,11 +681,32 @@ function calcularCobertura(evaluaciones: any[], periodo: number): CoberturaRespo
   return { periodo, zonas, total_evaluaciones, total_estudiantes_evaluados };
 }
 
+/**
+ * Extrae el porcentaje promedio de un área desde un mapa de acumuladores.
+ *
+ * @param m      - Mapa de `area_id` a acumulador `{suma, count}`.
+ * @param areaId - ID del área a consultar.
+ * @returns El promedio como valor entre 0 y 1, o `null` si el área no existe en el mapa.
+ */
 function pctFromMap(m: Map<string, { suma: number; count: number }>, areaId: string): number | null {
   const v = m.get(areaId);
   return v ? v.suma / v.count : null;
 }
 
+/**
+ * Construye el historial de progresión de un estudiante a través de sus
+ * evaluaciones, mostrando el porcentaje obtenido en cada área por evaluación.
+ * Solo incluye áreas que aparecen en al menos una evaluación del estudiante.
+ *
+ * @param evaluaciones     - Lista de evaluaciones del estudiante en orden cronológico.
+ * @param reglasMap        - Mapa de puntajes máximos por `"area_id__sala_id"`.
+ * @param areas            - Lista completa de áreas.
+ * @param estudiante_id    - ID del estudiante.
+ * @param nombre           - Nombre del estudiante.
+ * @param primer_apellido  - Primer apellido del estudiante.
+ * @param periodo          - Año del período, o `null` si la consulta no está acotada a un período.
+ * @returns `ProgresionResponse` con la progresión del estudiante por área.
+ */
 function calcularProgresion(
   evaluaciones: any[],
   reglasMap: Map<string, number>,
@@ -610,6 +745,13 @@ function calcularProgresion(
   return { estudiante_id, nombre, primer_apellido, periodo, areas: areasResult };
 }
 
+/**
+ * Asigna un índice de rango (bucket) de distribución a un porcentaje dado.
+ * Los rangos son: 0–20% (0), 21–40% (1), 41–60% (2), 61–80% (3), 81–100% (4).
+ *
+ * @param pct - Porcentaje normalizado entre 0 y 1.
+ * @returns Índice de rango de 0 a 4.
+ */
 function bucketPct(pct: number): number {
   if (pct <= 0.2) return 0;
   if (pct <= 0.4) return 1;
@@ -621,20 +763,49 @@ function bucketPct(pct: number): number {
 export class EstadisticasService {
   private repo = EstadisticasRepository;
 
+  /**
+   * Verifica que el rol del usuario sea uno de los roles permitidos.
+   * Lanza un error si el rol no está autorizado.
+   *
+   * @param rol              - Rol del usuario autenticado.
+   * @param rolesPermitidos  - Roles que tienen permiso para ejecutar la operación.
+   * @throws Error con mensaje `"Acceso denegado"` si el rol no está permitido.
+   */
   private validateRol(rol: string, ...rolesPermitidos: string[]) {
     if (!rolesPermitidos.includes(rol)) throw new Error("Acceso denegado");
   }
 
+  /**
+   * Obtiene las reglas de aprobación desde el repositorio y las convierte en
+   * un mapa de clave `"area_id__sala_id"` a puntaje máximo.
+   *
+   * @returns Mapa de reglas de aprobación listo para normalizar puntajes.
+   */
   private async getReglasMap() {
     const reglas = await this.repo.findReglasAprobacion();
     return buildReglasMap(reglas);
   }
 
+  /**
+   * Obtiene todas las áreas desde el repositorio y las convierte en un mapa
+   * de `area_id` a nombre de área.
+   *
+   * @returns Mapa de `area_id` → `nombre` de área.
+   */
   private async getAreasMap(): Promise<Map<string, string>> {
     const areas = await this.repo.findAreas();
     return new Map(areas.map((a: any) => [a.id, a.nombre as string]));
   }
 
+  /**
+   * Calcula la evolución del desempeño por área a nivel nacional para el
+   * equipo PADI, comparando evaluaciones iniciales y finales del período.
+   *
+   * @param params.periodo - Año del período a consultar.
+   * @param params.rol     - Rol del usuario; debe ser `"equipo_padi"`.
+   * @returns `EvolucionResponse` con el delta de porcentaje por área.
+   * @throws Error si el rol no es `"equipo_padi"`.
+   */
   async evolucionPadi(params: { periodo: number; rol: string }): Promise<EvolucionResponse> {
     this.validateRol(params.rol, "equipo_padi");
     const { periodoStart, periodoEnd } = getPeriodoRange(params.periodo);
@@ -647,6 +818,16 @@ export class EstadisticasService {
     return calcularEvolucion(evIni, evFin, reglasMap, areas, params.periodo);
   }
 
+  /**
+   * Calcula la evolución del desempeño por área para la zona a cargo del
+   * encargado de zona autenticado.
+   *
+   * @param params.periodo    - Año del período a consultar.
+   * @param params.rol        - Rol del usuario; debe ser `"encargado_zona"`.
+   * @param params.usuarioId  - ID del usuario para resolver la zona asignada.
+   * @returns `EvolucionResponse` con el delta de porcentaje por área en la zona.
+   * @throws Error si el rol no es `"encargado_zona"` o si el encargado no tiene zona asignada.
+   */
   async evolucionZona(params: { periodo: number; rol: string; usuarioId: string }): Promise<EvolucionResponse> {
     this.validateRol(params.rol, "encargado_zona");
     const zonaId = await this.repo.findZonaIdDeEncargado(params.usuarioId);
@@ -661,6 +842,16 @@ export class EstadisticasService {
     return calcularEvolucion(evIni, evFin, reglasMap, areas, params.periodo);
   }
 
+  /**
+   * Calcula la evolución del desempeño por área para una escuela específica.
+   * Accesible por directores, encargados de zona y equipo PADI.
+   *
+   * @param params.periodo    - Año del período a consultar.
+   * @param params.rol        - Rol del usuario; debe ser `"director"`, `"encargado_zona"` o `"equipo_padi"`.
+   * @param params.escuelaId  - ID de la escuela a consultar. No puede ser nulo.
+   * @returns `EvolucionResponse` con el delta de porcentaje por área en la escuela.
+   * @throws Error si el rol no tiene acceso, o si `escuelaId` es nulo.
+   */
   async evolucionEscuela(params: { periodo: number; rol: string; escuelaId: string | null }): Promise<EvolucionResponse> {
     this.validateRol(params.rol, "director", "encargado_zona", "equipo_padi");
     if (!params.escuelaId) throw new Error("Director sin escuela asignada");
@@ -674,6 +865,17 @@ export class EstadisticasService {
     return calcularEvolucion(evIni, evFin, reglasMap, areas, params.periodo);
   }
 
+  /**
+   * Obtiene las áreas críticas a nivel nacional ordenadas de peor a mejor
+   * desempeño promedio, para un tipo de evaluación dado.
+   * Exclusivo para el equipo PADI.
+   *
+   * @param params.periodo - Año del período a consultar.
+   * @param params.tipo    - Tipo de evaluación (`"inicial"` o `"final"`).
+   * @param params.rol     - Rol del usuario; debe ser `"equipo_padi"`.
+   * @returns `AreasCriticasResponse` con áreas ordenadas ascendentemente por porcentaje.
+   * @throws Error si el rol no es `"equipo_padi"`.
+   */
   async areasCriticasPadi(params: { periodo: number; tipo: string; rol: string }): Promise<AreasCriticasResponse> {
     this.validateRol(params.rol, "equipo_padi");
     const { periodoStart, periodoEnd } = getPeriodoRange(params.periodo);
@@ -685,6 +887,17 @@ export class EstadisticasService {
     return calcularAreasCriticas(evaluaciones, reglasMap, areas, params.tipo, params.periodo);
   }
 
+  /**
+   * Obtiene las áreas críticas de la zona del encargado autenticado,
+   * ordenadas de peor a mejor desempeño promedio.
+   *
+   * @param params.periodo    - Año del período a consultar.
+   * @param params.tipo       - Tipo de evaluación (`"inicial"` o `"final"`).
+   * @param params.rol        - Rol del usuario; debe ser `"encargado_zona"`.
+   * @param params.usuarioId  - ID del usuario para resolver la zona asignada.
+   * @returns `AreasCriticasResponse` con áreas de la zona ordenadas por porcentaje.
+   * @throws Error si el rol no es `"encargado_zona"` o si no tiene zona asignada.
+   */
   async areasCriticasZona(params: { periodo: number; tipo: string; rol: string; usuarioId: string }): Promise<AreasCriticasResponse> {
     this.validateRol(params.rol, "encargado_zona");
     const zonaId = await this.repo.findZonaIdDeEncargado(params.usuarioId);
@@ -698,6 +911,18 @@ export class EstadisticasService {
     return calcularAreasCriticas(evaluaciones, reglasMap, areas, params.tipo, params.periodo);
   }
 
+  /**
+   * Obtiene las áreas críticas de una escuela específica, ordenadas de peor
+   * a mejor desempeño promedio. Accesible por directores, encargados de zona
+   * y equipo PADI.
+   *
+   * @param params.periodo    - Año del período a consultar.
+   * @param params.tipo       - Tipo de evaluación (`"inicial"` o `"final"`).
+   * @param params.rol        - Rol del usuario.
+   * @param params.escuelaId  - ID de la escuela. No puede ser nulo.
+   * @returns `AreasCriticasResponse` con áreas de la escuela ordenadas por porcentaje.
+   * @throws Error si el rol no tiene acceso o si `escuelaId` es nulo.
+   */
   async areasCriticasEscuela(params: { periodo: number; tipo: string; rol: string; escuelaId: string | null }): Promise<AreasCriticasResponse> {
     this.validateRol(params.rol, "director", "encargado_zona", "equipo_padi");
     if (!params.escuelaId) throw new Error("Director sin escuela asignada");
@@ -710,6 +935,18 @@ export class EstadisticasService {
     return calcularAreasCriticas(evaluaciones, reglasMap, areas, params.tipo, params.periodo);
   }
 
+  /**
+   * Identifica los estudiantes en riesgo académico dentro de la zona del
+   * encargado autenticado. Un estudiante se considera en riesgo si su promedio
+   * de puntaje en al menos 2 áreas es inferior al umbral indicado.
+   *
+   * @param params.periodo    - Año del período a consultar.
+   * @param params.umbral     - Umbral de riesgo entre 0 y 1 (por defecto 0.5).
+   * @param params.rol        - Rol del usuario; debe ser `"encargado_zona"`.
+   * @param params.usuarioId  - ID del usuario para resolver la zona asignada.
+   * @returns `RiesgoResponse` con los estudiantes en riesgo y el total.
+   * @throws Error si el rol no es `"encargado_zona"` o si no tiene zona asignada.
+   */
   async estudiantesEnRiesgoZona(params: {
     periodo: number;
     umbral: number;
@@ -728,6 +965,17 @@ export class EstadisticasService {
     return calcularRiesgo(evaluaciones, reglasMap, areasMap, params.umbral, params.periodo);
   }
 
+  /**
+   * Identifica los estudiantes en riesgo académico dentro de una escuela
+   * específica. Accesible por directores, encargados de zona y equipo PADI.
+   *
+   * @param params.periodo    - Año del período a consultar.
+   * @param params.umbral     - Umbral de riesgo entre 0 y 1 (por defecto 0.5).
+   * @param params.rol        - Rol del usuario.
+   * @param params.escuelaId  - ID de la escuela. No puede ser nulo.
+   * @returns `RiesgoResponse` con los estudiantes en riesgo y el total.
+   * @throws Error si el rol no tiene acceso o si `escuelaId` es nulo.
+   */
   async estudiantesEnRiesgoEscuela(params: {
     periodo: number;
     umbral: number;
@@ -749,6 +997,16 @@ export class EstadisticasService {
     return calcularRiesgo(evaluaciones, reglasMap, areasMap, params.umbral, params.periodo);
   }
 
+  /**
+   * Obtiene el ranking de actividad docente (cantidad de evaluaciones registradas)
+   * en la zona del encargado autenticado.
+   *
+   * @param params.periodo    - Año del período a consultar.
+   * @param params.rol        - Rol del usuario; debe ser `"encargado_zona"`.
+   * @param params.usuarioId  - ID del usuario para resolver la zona asignada.
+   * @returns `ActividadResponse` con los docentes ordenados por total de evaluaciones.
+   * @throws Error si el rol no es `"encargado_zona"` o si no tiene zona asignada.
+   */
   async actividadDocentesZona(params: {
     periodo: number;
     rol: string;
@@ -762,6 +1020,16 @@ export class EstadisticasService {
     return calcularActividad(evals, params.periodo);
   }
 
+  /**
+   * Obtiene el ranking de actividad docente en una escuela específica.
+   * Accesible por directores, encargados de zona y equipo PADI.
+   *
+   * @param params.periodo    - Año del período a consultar.
+   * @param params.rol        - Rol del usuario.
+   * @param params.escuelaId  - ID de la escuela. No puede ser nulo.
+   * @returns `ActividadResponse` con los docentes ordenados por total de evaluaciones.
+   * @throws Error si el rol no tiene acceso o si `escuelaId` es nulo.
+   */
   async actividadDocentesEscuela(params: {
     periodo: number;
     rol: string;
@@ -778,6 +1046,17 @@ export class EstadisticasService {
     return calcularActividad(evals, params.periodo);
   }
 
+  /**
+   * Calcula la cobertura de evaluaciones a nivel nacional, desglosada por zona.
+   * Muestra cuántas evaluaciones y cuántos estudiantes distintos fueron evaluados
+   * en cada zona durante el período.
+   * Exclusivo para el equipo PADI.
+   *
+   * @param params.periodo - Año del período a consultar.
+   * @param params.rol     - Rol del usuario; debe ser `"equipo_padi"`.
+   * @returns `CoberturaResponse` con zonas, evaluaciones y estudiantes evaluados.
+   * @throws Error si el rol no es `"equipo_padi"`.
+   */
   async coberturaPorZona(params: { periodo: number; rol: string }): Promise<CoberturaResponse> {
     this.validateRol(params.rol, "equipo_padi");
     const { periodoStart, periodoEnd } = getPeriodoRange(params.periodo);
@@ -785,6 +1064,18 @@ export class EstadisticasService {
     return calcularCobertura(evals, params.periodo);
   }
 
+  /**
+   * Genera una comparativa del rendimiento por área entre tres niveles:
+   * la escuela consultada, su zona y el nivel nacional. Útil para contextualizar
+   * el desempeño de una escuela con respecto a su entorno.
+   *
+   * @param params.periodo    - Año del período a consultar.
+   * @param params.tipo       - Tipo de evaluación (`"inicial"` o `"final"`).
+   * @param params.rol        - Rol del usuario.
+   * @param params.escuelaId  - ID de la escuela. No puede ser nulo.
+   * @returns `ComparativaResponse` con porcentaje promedio por área en cada nivel.
+   * @throws Error si el rol no tiene acceso o si `escuelaId` es nulo.
+   */
   async comparativaEscuela(params: {
     periodo: number;
     tipo: string;
@@ -820,6 +1111,20 @@ export class EstadisticasService {
     return { periodo: params.periodo, tipo: params.tipo, areas: areasResult };
   }
 
+  /**
+   * Retorna la progresión histórica de un estudiante a través de sus últimas
+   * evaluaciones, vista desde la perspectiva de un docente. Si el usuario es
+   * docente, se verifica que el estudiante pertenezca a una de sus aulas.
+   * Para otros roles se requiere indicar el `aula_id` explícitamente.
+   *
+   * @param params.estudianteId - ID del estudiante.
+   * @param params.rol          - Rol del usuario.
+   * @param params.usuarioId    - ID del usuario para verificar el acceso del docente.
+   * @param params.aulaId       - (Requerido para roles distintos a `"docente"`) ID del aula.
+   * @returns `ProgresionResponse` con el historial de puntajes por área.
+   * @throws Error si el rol no tiene acceso, si el estudiante no pertenece al aula
+   *         del docente o si no se provee `aula_id` para roles no docentes.
+   */
   async progresionEstudianteDocente(params: {
     estudianteId: string;
     rol: string;
@@ -850,6 +1155,18 @@ export class EstadisticasService {
     );
   }
 
+  /**
+   * Retorna la progresión histórica de un estudiante visto desde la escuela.
+   * Verifica que el estudiante pertenezca a la escuela indicada antes de
+   * construir la progresión.
+   *
+   * @param params.estudianteId - ID del estudiante.
+   * @param params.rol          - Rol del usuario; puede ser `"director"`, `"encargado_zona"` o `"equipo_padi"`.
+   * @param params.escuelaId    - ID de la escuela. No puede ser nulo.
+   * @returns `ProgresionResponse` con el historial de puntajes por área.
+   * @throws Error si el rol no tiene acceso, si `escuelaId` es nulo, o si el
+   *         estudiante no pertenece a esa escuela.
+   */
   async progresionEstudianteEscuela(params: {
     estudianteId: string;
     rol: string;
@@ -871,6 +1188,23 @@ export class EstadisticasService {
     );
   }
 
+  /**
+   * Calcula la tasa de aprobación por pregunta en un aula específica durante
+   * un período. Opcionalmente filtra por área. Las preguntas se ordenan de
+   * menor a mayor tasa de aprobación (las más difíciles primero).
+   * Si el usuario es docente, se valida que el aula le pertenezca.
+   *
+   * Una respuesta se considera correcta si su valor es distinto de `0`, `null`
+   * o `undefined`.
+   *
+   * @param params.periodo    - Año del período a consultar.
+   * @param params.aulaId     - ID del aula.
+   * @param params.areaId     - (Opcional) Filtra las preguntas de un área específica.
+   * @param params.rol        - Rol del usuario.
+   * @param params.usuarioId  - ID del usuario (usado para validar acceso si es docente).
+   * @returns `AprobacionPreguntasResponse` con los ítems ordenados por tasa de aprobación.
+   * @throws Error si el docente no tiene acceso al aula.
+   */
   async aprobacionPorPregunta(params: {
     periodo: number;
     aulaId: string;
@@ -927,6 +1261,20 @@ export class EstadisticasService {
     return { periodo: params.periodo, aula_id: params.aulaId, area_id: params.areaId, items };
   }
 
+  /**
+   * Calcula la distribución de puntajes promedio de los estudiantes de un aula
+   * en cinco rangos percentuales: 0–20%, 21–40%, 41–60%, 61–80% y 81–100%.
+   * El puntaje de cada estudiante se calcula como el promedio de sus porcentajes
+   * a través de todas las evaluaciones del período.
+   * Si el usuario es docente, se valida que el aula le pertenezca.
+   *
+   * @param params.periodo    - Año del período a consultar.
+   * @param params.aulaId     - ID del aula.
+   * @param params.rol        - Rol del usuario.
+   * @param params.usuarioId  - ID del usuario (usado para validar acceso si es docente).
+   * @returns `DistribucionResponse` con los rangos y la cantidad de estudiantes en cada uno.
+   * @throws Error si el docente no tiene acceso al aula.
+   */
   async distribucionPuntajesDocente(params: {
     periodo: number;
     aulaId: string;
@@ -979,6 +1327,16 @@ export class EstadisticasService {
     };
   }
 
+  /**
+   * Calcula el rendimiento promedio por área segmentado por nivel socioeconómico
+   * de la escuela del estudiante. Exclusivo para el equipo PADI.
+   *
+   * @param params.periodo - Año del período a consultar.
+   * @param params.tipo    - Tipo de evaluación (`"inicial"` o `"final"`).
+   * @param params.rol     - Rol del usuario; debe ser `"equipo_padi"`.
+   * @returns `RendimientoNivelResponse` con el desglose por área y nivel NSE.
+   * @throws Error si el rol no es `"equipo_padi"`.
+   */
   async rendimientoPorNivelSocioeconomico(params: {
     periodo: number;
     tipo: string;
@@ -994,6 +1352,17 @@ export class EstadisticasService {
     return calcularRendimientoNivel(evaluaciones, reglasMap, areas, params.tipo, params.periodo);
   }
 
+  /**
+   * Genera el heatmap de rendimiento por área a nivel de zonas nacionales.
+   * Cada fila representa una zona y cada columna un área de evaluación.
+   * Exclusivo para el equipo PADI.
+   *
+   * @param params.periodo - Año del período a consultar.
+   * @param params.tipo    - Tipo de evaluación (`"inicial"` o `"final"`).
+   * @param params.rol     - Rol del usuario; debe ser `"equipo_padi"`.
+   * @returns `HeatmapResponse` con filas de zonas y porcentajes por área.
+   * @throws Error si el rol no es `"equipo_padi"`.
+   */
   async heatmapZonas(params: {
     periodo: number;
     tipo: string;
@@ -1009,6 +1378,17 @@ export class EstadisticasService {
     return armarHeatmap(evaluaciones, reglasMap, areas, "zona", params.periodo, params.tipo);
   }
 
+  /**
+   * Genera el heatmap de rendimiento por área a nivel de escuelas dentro de
+   * la zona del encargado autenticado. Cada fila representa una escuela.
+   *
+   * @param params.periodo    - Año del período a consultar.
+   * @param params.tipo       - Tipo de evaluación (`"inicial"` o `"final"`).
+   * @param params.rol        - Rol del usuario; debe ser `"encargado_zona"`.
+   * @param params.usuarioId  - ID del usuario para resolver la zona asignada.
+   * @returns `HeatmapResponse` con filas de escuelas y porcentajes por área.
+   * @throws Error si el rol no es `"encargado_zona"` o si no tiene zona asignada.
+   */
   async heatmapEscuelas(params: {
     periodo: number;
     tipo: string;
@@ -1027,6 +1407,18 @@ export class EstadisticasService {
     return armarHeatmap(evaluaciones, reglasMap, areas, "escuela", params.periodo, params.tipo);
   }
 
+  /**
+   * Genera el heatmap de rendimiento por área a nivel de aulas dentro de una
+   * escuela específica. Cada fila representa un aula (comisión + turno).
+   * Accesible por directores, encargados de zona y equipo PADI.
+   *
+   * @param params.periodo    - Año del período a consultar.
+   * @param params.tipo       - Tipo de evaluación (`"inicial"` o `"final"`).
+   * @param params.rol        - Rol del usuario.
+   * @param params.escuelaId  - ID de la escuela. No puede ser nulo.
+   * @returns `HeatmapResponse` con filas de aulas y porcentajes por área.
+   * @throws Error si el rol no tiene acceso o si `escuelaId` es nulo.
+   */
   async heatmapAulas(params: {
     periodo: number;
     tipo: string;
