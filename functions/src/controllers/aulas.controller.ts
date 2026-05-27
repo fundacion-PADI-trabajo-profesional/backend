@@ -1,4 +1,4 @@
-import type { Request, Response } from "express";
+import type { Response } from "express";
 import { AulasService } from "../services/aulas.service";
 import { commonResponse } from "../interfaces/common-response.interface";
 import { AuthenticatedRequest } from "../middlewares/auth.middleware";
@@ -72,8 +72,9 @@ export async function createAula(req: AuthenticatedRequest, res: Response) {
 export async function listAulas(req: AuthenticatedRequest, res: Response) {
   try {
     const user = { id: req.user!.id, rol: req.user!.rol };
+    const escuela_id = req.query.escuela_id ? String(req.query.escuela_id) : undefined;
 
-    const data = await service.list(user);
+    const data = await service.list(user, escuela_id);
     return res.status(200).json(commonResponse(true, "ok", data));
 
   } catch (error: any) {

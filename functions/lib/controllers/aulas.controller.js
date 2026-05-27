@@ -70,7 +70,8 @@ async function createAula(req, res) {
 async function listAulas(req, res) {
     try {
         const user = { id: req.user.id, rol: req.user.rol };
-        const data = await service.list(user);
+        const escuela_id = req.query.escuela_id ? String(req.query.escuela_id) : undefined;
+        const data = await service.list(user, escuela_id);
         return res.status(200).json((0, common_response_interface_1.commonResponse)(true, "ok", data));
     }
     catch (error) {
