@@ -1,17 +1,19 @@
-FROM node:18
+FROM node:22
 
-# Crear directorio de trabajo
-WORKDIR /usr/src/app
+WORKDIR /app
 
-# Instalar dependencias
-COPY package*.json ./
-RUN npm install --only=production
-
-# Copiar el resto del código
+# Copiar todo el source (necesario para resolver la dependencia file:.. del workspace)
 COPY . .
 
-# Exponer el puerto que usa Cloud Run (8080 por defecto)
+# Instalar dependencias raíz
+RUN npm install
+
+# Instalar dependencias de functions (el postinstall ya corre prisma generate con una URL dummy)
+RUN npm install --prefix functions
+
+# Compilar TypeScript (src/ → lib/)
+RUN npm run build --prefix functions
+
 EXPOSE 8080
 
-# Comando para arrancar la app
-CMD [ "npm", "start" ]
+CMD ["node", "functions/lib/server.local.js"]

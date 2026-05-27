@@ -91,32 +91,90 @@ Ambos comandos toman la `DATABASE_URL` desde `functions/prisma/.env`.
 ### Prerrequisitos
 
 - Node.js 22.x
-- Firebase CLI: `npm install -g firebase-tools`
-- Credenciales de Supabase y URL de Postgres (ver sección anterior)
+- Docker Desktop
+- GNU Make (`winget install ezwinports.make`) — opcional pero recomendado
+- Firebase CLI: `npm install -g firebase-tools` (solo si usás el emulador)
 
-### Instalación
+---
 
-```bash
-# Desde la raíz del repo backend/
-npm install
-npm --prefix functions install
+### Opción A — Docker (recomendado)
+
+Este modo levanta la API Express directamente junto con una instancia local de PostgreSQL. No requiere Firebase CLI ni conexión a Supabase para la base de datos.
+
+#### Configuración inicial (una sola vez)
+
+Crear el archivo `.env` en la raíz del repositorio:
+
+```env
+SUPABASE_URL=https://<proyecto>.supabase.co
+SUPABASE_KEY=<anon_key_o_service_role_key>
 ```
 
-### Levantar el emulador
+> La autenticación JWT sigue validando contra Supabase. Solo la base de datos corre localmente.
+
+Construir la imagen y crear las tablas:
 
 ```bash
-# Desde backend/
+make build       # construye la imagen Docker del backend
+make up-backend  # levanta postgres + backend (detached)
+make db-push     # crea las tablas en la DB local (solo la primera vez)
+```
+
+Sin Makefile:
+
+```bash
+docker compose up --build -d
+docker compose exec -w /app/functions backend npx prisma db push --schema=prisma/schema.prisma
+```
+
+#### Uso cotidiano
+
+```bash
+make up-backend  # levanta postgres + backend en segundo plano
+make down        # para los contenedores (el volumen de DB se preserva)
+make logs        # tail de logs del backend en tiempo real
+make restart     # reinicia solo el contenedor del backend
+```
+
+| Servicio | URL |
+|---|---|
+| API | `http://localhost:8080` |
+| Swagger / Docs | `http://localhost:8080/docs` |
+| PostgreSQL | `localhost:5432` |
+
+#### Tras cambiar `schema.prisma`
+
+```bash
+make db-push
+```
+
+#### Tras cambiar dependencias o `Dockerfile.dev`
+
+```bash
+make build && make up-backend
+```
+
+---
+
+### Opción B — Emulador de Firebase
+
+```bash
+# Instalación
+npm install
+npm --prefix functions install
+
+# Levantar
 npm run dev
 ```
 
 Esto lanza en paralelo el compilador TypeScript en modo watch y el emulador de Firebase Functions.
 
 | Servicio | URL |
-|----------|-----|
+|---|---|
 | API | `http://127.0.0.1:5001/fundacionpadi-41cb2/us-central1/api` |
 | UI del emulador | `http://127.0.0.1:4000/functions` |
 
-El servidor se recompila automáticamente ante cambios en el código fuente, sin necesidad de reiniciarlo.
+El servidor se recompila automáticamente ante cambios en el código fuente.
 
 ---
 
