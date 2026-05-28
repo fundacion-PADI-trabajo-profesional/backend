@@ -159,7 +159,7 @@ describe("PUT /auth/profile - edición de perfil", () => {
             .set("Content-Type", "application/json");
 
         expect(res.status).toBe(400);
-        expect(res.body.message).toContain("no disponible");
+        expect(res.body.message).toContain("No se pudo actualizar el perfil.");
     });
 });
 

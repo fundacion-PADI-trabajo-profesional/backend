@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/server";
-import * as prismaClient from "../src/config/prismaClient";
 import { mockAuthAs } from "./helpers/auth-mock"; // Importar el helper
 
 const app = createApp();
@@ -227,7 +226,7 @@ it("POST /aulas/:id/asignar-estudiante allows equipo_padi", async () => {
     findUnique: vi.fn().mockResolvedValue({ id: aulaId, escuela_id: "esc1" }),
   };
   prismaMock.estudiantes = {
-    findUnique: vi.fn().mockResolvedValue({ id: estudianteId, escuela_id: "esc1" }),
+    findFirst: vi.fn().mockResolvedValue({ id: estudianteId, escuela_id: "esc1" }),
   };
   prismaMock.estudiantesAulas = {
     findFirst: vi.fn().mockResolvedValue(null),

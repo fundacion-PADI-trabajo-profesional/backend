@@ -2,7 +2,6 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/server";
 import { DocenteRepository } from "../src/repositories/docente.repository";
-import * as prismaClient from "../src/config/prismaClient";
 import { mockAuthAs } from "./helpers/auth-mock";
 
 const app = createApp();
@@ -98,18 +97,13 @@ describe("docentes endpoints", () => {
       findUnique: vi.fn().mockResolvedValue({ zona_id: "zona-1" }),
     };
 
-    // Mock del transaction
-    prismaMock.$transaction = vi.fn().mockImplementation(async (cb: any) =>
-      cb({
-        profesoresEscuelas: {
-          findFirst: vi.fn().mockResolvedValue({ id: "pe-1" }),
-          update: vi.fn().mockResolvedValue({ id: "pe-1" }),
-        },
-        profesoresAulas: {
-          updateMany: vi.fn().mockResolvedValue({ count: 2 }),
-        },
-      })
-    );
+    prismaMock.profesoresEscuelas = {
+      findFirst: vi.fn().mockResolvedValue({ id: "pe-1" }),
+      update: vi.fn().mockResolvedValue({ id: "pe-1" }),
+    };
+    prismaMock.profesoresAulas = {
+      updateMany: vi.fn().mockResolvedValue({ count: 2 }),
+    };
 
     const res = await request(app)
       .post("/docentes/doc-1/desasignar-escuela")
@@ -117,13 +111,13 @@ describe("docentes endpoints", () => {
       .send({ escuela_id: "esc-1" });
 
     expect(res.status).toBe(200);
-    expect(prismaMock.$transaction).toHaveBeenCalled();
+    expect(prismaMock.profesoresEscuelas.update).toHaveBeenCalled();
   });
 });
 
 describe("docentes - error branches", () => {
   it("GET /docentes returns 403 when service throws", async () => {
-    const { prismaMock } = mockAuthAs("docente");
+    mockAuthAs("docente");
     // docente role causes service to throw "No tienes permisos para listar docentes"
     const res = await request(app)
       .get("/docentes")

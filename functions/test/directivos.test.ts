@@ -70,25 +70,12 @@ describe("POST /directivos/:id/asignar-escuela", () => {
       if (where.id === "test-user-id") return { id: "test-user-id", rol: "equipo_padi", escuela_id: null };
       return { id: where.id, rol: "director" };
     });
-    // Mock: transaction
-    prismaMock.$transaction = vi.fn().mockImplementation(async (cb: any) =>
-      cb({
-        usuarioPerfil: {
-          updateMany: vi.fn().mockResolvedValue({ count: 0 }),
-          update: vi.fn().mockResolvedValue({
-            id: "dir-1", nombre: "Juan", apellido: "Perez",
-            escuela: { id: "esc-1", nombre: "Escuela Norte" },
-          }),
-        },
-      })
-    );
-
     const res = await request(app)
       .post("/directivos/dir-1/asignar-escuela")
       .set("Authorization", "Bearer fake-token")
       .send({ escuela_id: "esc-1" });
     expect(res.status).toBe(200);
-    expect(prismaMock.$transaction).toHaveBeenCalled();
+    expect(prismaMock.usuarioPerfil.update).toHaveBeenCalled();
   });
 
   it("returns 400 when escuela not found", async () => {
