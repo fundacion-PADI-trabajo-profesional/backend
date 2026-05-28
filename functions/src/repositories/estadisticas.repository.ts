@@ -1,5 +1,9 @@
 import { withRLSContext } from "../config/prismaClient";
 
+// Límite de seguridad para queries de estadísticas sin paginación.
+// Si se supera, se lanza error en lugar de calcular sobre datos incompletos.
+const MAX_EVALUACIONES_POR_QUERY = 50_000;
+
 export const EstadisticasRepository = {
   /**
    * Obtiene todas las áreas de evaluación ordenadas por su campo `orden`.
@@ -85,7 +89,7 @@ export const EstadisticasRepository = {
         where.AND = geoConditions;
       }
 
-      return tx.evaluacionEstudiante.findMany({
+      const rows = await tx.evaluacionEstudiante.findMany({
         where,
         select: {
           id: true,
@@ -127,7 +131,16 @@ export const EstadisticasRepository = {
             select: { area_id: true, puntaje: true },
           },
         },
+        take: MAX_EVALUACIONES_POR_QUERY + 1,
       });
+
+      if (rows.length > MAX_EVALUACIONES_POR_QUERY) {
+        throw new Error(
+          `La consulta supera el límite de ${MAX_EVALUACIONES_POR_QUERY} evaluaciones. Aplicá un filtro de zona o escuela.`
+        );
+      }
+
+      return rows;
     });
   },
 
@@ -183,7 +196,7 @@ export const EstadisticasRepository = {
         where.AND = geoConditions;
       }
 
-      return tx.evaluacionEstudiante.findMany({
+      const rows = await tx.evaluacionEstudiante.findMany({
         where,
         select: {
           id: true,
@@ -221,7 +234,16 @@ export const EstadisticasRepository = {
             select: { area_id: true, puntaje: true },
           },
         },
+        take: MAX_EVALUACIONES_POR_QUERY + 1,
       });
+
+      if (rows.length > MAX_EVALUACIONES_POR_QUERY) {
+        throw new Error(
+          `La consulta supera el límite de ${MAX_EVALUACIONES_POR_QUERY} evaluaciones. Aplicá un filtro de zona o escuela.`
+        );
+      }
+
+      return rows;
     });
   },
 
@@ -463,7 +485,7 @@ export const EstadisticasRepository = {
         where.AND = geoConditions;
       }
 
-      return tx.evaluacionEstudiante.findMany({
+      const rows = await tx.evaluacionEstudiante.findMany({
         where,
         select: {
           profesor_id: true,
@@ -473,7 +495,16 @@ export const EstadisticasRepository = {
             },
           },
         },
+        take: MAX_EVALUACIONES_POR_QUERY + 1,
       });
+
+      if (rows.length > MAX_EVALUACIONES_POR_QUERY) {
+        throw new Error(
+          `La consulta supera el límite de ${MAX_EVALUACIONES_POR_QUERY} evaluaciones. Aplicá un filtro de zona o escuela.`
+        );
+      }
+
+      return rows;
     });
   },
 
@@ -491,7 +522,7 @@ export const EstadisticasRepository = {
     periodoEnd: Date;
   }) {
     return withRLSContext(async (tx) => {
-      return tx.evaluacionEstudiante.findMany({
+      const rows = await tx.evaluacionEstudiante.findMany({
         where: { fecha_creacion: { gte: filtros.periodoStart, lt: filtros.periodoEnd } },
         select: {
           estudiante_id: true,
@@ -516,7 +547,16 @@ export const EstadisticasRepository = {
             },
           },
         },
+        take: MAX_EVALUACIONES_POR_QUERY + 1,
       });
+
+      if (rows.length > MAX_EVALUACIONES_POR_QUERY) {
+        throw new Error(
+          `La consulta supera el límite de ${MAX_EVALUACIONES_POR_QUERY} evaluaciones. El período seleccionado contiene demasiados datos.`
+        );
+      }
+
+      return rows;
     });
   },
 
