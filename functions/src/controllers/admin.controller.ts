@@ -143,6 +143,34 @@ export class AdminController {
   }
 
   /**
+   * Cambia el rol de un usuario existente.
+   *
+   * `PATCH /admin/users/:id/rol`
+   *
+   * @param req - Request autenticado. Param: `id` del usuario. Body: `{ rol }`.
+   * @param res - `200` con el usuario actualizado, `400` si hay error de validación.
+   */
+  static async updateUserRol(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { id } = req.params;
+      const { rol } = req.body;
+
+      if (!id) return res.status(400).json({ message: "Se requiere el ID del usuario." });
+      if (!rol) return res.status(400).json({ message: "Se requiere el nuevo rol." });
+
+      if (req.user?.id === id) {
+        return res.status(400).json({ message: "No podés cambiar tu propio rol." });
+      }
+
+      const result = await AdminService.updateUserRol(id, rol);
+      return res.status(200).json({ success: true, message: "Rol actualizado correctamente.", data: result });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return res.status(400).json({ message });
+    }
+  }
+
+  /**
    * Elimina un usuario del sistema.
    *
    * @remarks

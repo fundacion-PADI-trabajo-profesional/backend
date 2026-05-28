@@ -26,6 +26,7 @@ export function createAdminRouter() {
   router.get("/admin/users", requireRole("equipo_padi") as any, AdminController.listUsers as any);
   router.post("/admin/users/bulk", requireRole("equipo_padi") as any, AdminController.createUsersBulk as any);
   router.post("/admin/users/:id/resend-invite", requireRole("equipo_padi") as any, AdminController.resendInvite as any);
+  router.patch("/admin/users/:id/rol", requireRole("equipo_padi") as any, AdminController.updateUserRol as any);
   router.delete("/admin/users/:id", requireRole("equipo_padi") as any, AdminController.deleteUser as any);
 
   // equipo_padi y encargado_zona pueden crear usuarios (encargado solo docentes, según matriz)
