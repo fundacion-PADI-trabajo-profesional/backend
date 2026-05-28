@@ -1,4 +1,4 @@
-import { getPrisma } from "../config/prismaClient";
+import { withRLSContext } from "../config/prismaClient";
 
 /**
  * Retorna el zona_id del encargado de zona autenticado.
@@ -7,14 +7,14 @@ import { getPrisma } from "../config/prismaClient";
  * @throws Error si DB no está disponible o el encargado no tiene zona asignada.
  */
 export async function getEncargadoZonaId(userId: string): Promise<string> {
-  const prisma = getPrisma();
-  if (!prisma) throw new Error("DB no disponible");
-  const encargado = await (prisma as any).encargados.findUnique({
-    where: { usuario_id: userId },
-    select: { zona_id: true },
+  return withRLSContext(async (tx) => {
+    const encargado = await (tx as any).encargados.findUnique({
+      where: { usuario_id: userId },
+      select: { zona_id: true },
+    });
+    if (!encargado?.zona_id) throw new Error("Encargado sin zona asignada");
+    return encargado.zona_id;
   });
-  if (!encargado?.zona_id) throw new Error("Encargado sin zona asignada");
-  return encargado.zona_id;
 }
 
 /**
@@ -25,25 +25,25 @@ export async function getEncargadoZonaId(userId: string): Promise<string> {
  *          Array vacío si no tiene asignaciones activas.
  */
 export async function getDocenteEscuelas(userId: string): Promise<string[]> {
-  const prisma = getPrisma();
-  if (!prisma) throw new Error("DB no disponible");
-  const persona = await (prisma as any).personas.findUnique({
-    where: { usuario_id: userId },
-    select: {
-      profesores: {
-        take: 1,
-        select: {
-          profesores_escuelas: {
-            where: { fecha_fin: null },
-            select: { escuela_id: true },
+  return withRLSContext(async (tx) => {
+    const persona = await (tx as any).personas.findUnique({
+      where: { usuario_id: userId },
+      select: {
+        profesores: {
+          take: 1,
+          select: {
+            profesores_escuelas: {
+              where: { fecha_fin: null },
+              select: { escuela_id: true },
+            },
           },
         },
       },
-    },
+    });
+    const profesor = persona?.profesores?.[0];
+    if (!profesor) return [];
+    return profesor.profesores_escuelas.map((pe: any) => pe.escuela_id);
   });
-  const profesor = persona?.profesores?.[0];
-  if (!profesor) return [];
-  return profesor.profesores_escuelas.map((pe: any) => pe.escuela_id);
 }
 
 /**
@@ -57,11 +57,11 @@ export async function escuelaPerteneceAZona(
   escuelaId: string,
   zonaId: string,
 ): Promise<boolean> {
-  const prisma = getPrisma();
-  if (!prisma) throw new Error("DB no disponible");
-  const escuela = await (prisma as any).escuelas.findUnique({
-    where: { id: escuelaId },
-    select: { zona_id: true },
+  return withRLSContext(async (tx) => {
+    const escuela = await (tx as any).escuelas.findUnique({
+      where: { id: escuelaId },
+      select: { zona_id: true },
+    });
+    return escuela?.zona_id === zonaId;
   });
-  return escuela?.zona_id === zonaId;
 }

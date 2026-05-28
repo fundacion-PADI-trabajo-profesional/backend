@@ -1,5 +1,5 @@
 import { getSupabase } from "../config/supabaseClient";
-import { getPrisma } from "../config/prismaClient";
+import { withRLSContext } from "../config/prismaClient";
 
 const UNIQUE_VIOLATION = "23505";
 const PRISMA_ERROR = "P2002";
@@ -115,9 +115,8 @@ export class AuthService {
     zona?: string;
   }) {
     const supabase = getSupabase();
-    const prisma = getPrisma();
 
-    if (!supabase || !prisma) throw new Error("Clientes de DB no disponibles.");
+    if (!supabase) throw new Error("Clientes de DB no disponibles.");
 
     // ---------------------------------------------------------
     // PASO 1: Crear la CUENTA (Supabase Auth)
@@ -155,33 +154,35 @@ export class AuthService {
 
       // --- CASO A: ENCARGADO DE ZONA ---
       if (userData.rol === "encargado_zona") {
-        await (prisma as any).encargados.create({
-          data: {
-            usuario_id: userId, // Vinculamos con la cuenta creada
-            zona_id: userData.zona || "A definir" // Guardamos la zona que vino del front
-          }
+        await withRLSContext(async (tx) => {
+          await (tx as any).encargados.create({
+            data: {
+              usuario_id: userId,
+              zona_id: userData.zona || "A definir",
+            },
+          });
         });
       }
 
       // --- CASO B: DOCENTE (Opcionalmente Directivos) ---
       else if (userData.rol === "docente") {
+        await withRLSContext(async (tx) => {
+          // 1. Crear la Persona (Entidad Humana) vinculada al Usuario
+          const nuevaPersona = await (tx as any).personas.create({
+            data: {
+              usuario_id: userId,
+              nombre: userData.nombre,
+              primer_apellido: userData.apellido,
+            },
+          });
 
-        // 1. Crear la Persona (Entidad Humana) vinculada al Usuario
-        const nuevaPersona = await (prisma as any).personas.create({
-          data: {
-            usuario_id: userId, // Vinculamos Persona con Usuario
-            nombre: userData.nombre,
-            primer_apellido: userData.apellido,
-
-          }
-        });
-
-        // 2. Crear el registro Profesional (Profesor) vinculado a la Persona
-        await (prisma as any).profesores.create({
-          data: {
-            id: userId, // Mantenemos ID consistente si es útil para tu lógica vieja
-            persona_id: nuevaPersona.id // Vinculamos con la persona física
-          }
+          // 2. Crear el registro Profesional (Profesor) vinculado a la Persona
+          await (tx as any).profesores.create({
+            data: {
+              id: userId,
+              persona_id: nuevaPersona.id,
+            },
+          });
         });
       }
 
@@ -258,26 +259,25 @@ export class AuthService {
    * @throws Error si el cliente Prisma no está disponible o si la actualización falla.
    */
   static async updateProfile(userId: string, nombre: string, apellido: string) {
-    const prisma = getPrisma();
-    if (!prisma) throw new Error("Cliente de DB no disponible.");
-
     try {
-      const updatedUser = await (prisma as any).usuarioPerfil.update({
-        where: { id: userId },
-        data: { nombre, apellido }
-      });
-
-      try {
-        await (prisma as any).personas.update({
-          where: { usuario_id: userId },
-          data: {
-            nombre: nombre,
-            primer_apellido: apellido
-          }
+      return await withRLSContext(async (tx) => {
+        const updatedUser = await (tx as any).usuarioPerfil.update({
+          where: { id: userId },
+          data: { nombre, apellido },
         });
-      } catch (e) { }
 
-      return updatedUser;
+        try {
+          await (tx as any).personas.update({
+            where: { usuario_id: userId },
+            data: {
+              nombre: nombre,
+              primer_apellido: apellido,
+            },
+          });
+        } catch (e) { }
+
+        return updatedUser;
+      });
     } catch (error) {
       console.error("Error al actualizar perfil:", error);
       throw new Error("No se pudo actualizar el perfil.");

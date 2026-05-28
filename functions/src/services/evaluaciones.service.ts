@@ -1,6 +1,6 @@
 import { EvaluacionRepository } from "../repositories/evaluacion.repository";
 import type { CreateEvaluacionDTO } from "../interfaces/evaluacion.interface";
-import { getPrisma } from "../config/prismaClient";
+import { withRLSContext } from "../config/prismaClient";
 
 /**
  * Servicio de gestión de evaluaciones infantiles.
@@ -23,35 +23,35 @@ export class EvaluacionService {
    * @throws Error si la base de datos no está disponible o el rol del usuario no es apto.
    */
   private async ensureProfesorRecord(userId: string) {
-    const prisma = getPrisma();
-    if (!prisma) throw new Error("DB no disponible");
-    const prismaAny = prisma as any;
+    await withRLSContext(async (tx) => {
+      const prismaAny = tx as any;
 
-    const existing = await prismaAny.profesores.findUnique({ where: { id: userId } });
-    if (existing) return;
+      const existing = await prismaAny.profesores.findUnique({ where: { id: userId } });
+      if (existing) return;
 
-    const user = await prismaAny.usuarioPerfil.findUnique({
-      where: { id: userId },
-      select: { id: true, nombre: true, apellido: true, rol: true },
-    });
-    if (!user) throw new Error("Usuario no encontrado.");
-    if (user.rol !== "director" && user.rol !== "docente" && user.rol !== "encargado_zona" && user.rol !== "equipo_padi") {
-      throw new Error("Solo docentes, directores, encargados de zona y equipo PADI pueden realizar evaluaciones.");
-    }
-
-    let persona = await prismaAny.personas.findFirst({ where: { usuario_id: userId } });
-    if (!persona) {
-      persona = await prismaAny.personas.create({
-        data: {
-          usuario_id: userId,
-          nombre: user.nombre,
-          primer_apellido: user.apellido,
-        },
+      const user = await prismaAny.usuarioPerfil.findUnique({
+        where: { id: userId },
+        select: { id: true, nombre: true, apellido: true, rol: true },
       });
-    }
+      if (!user) throw new Error("Usuario no encontrado.");
+      if (user.rol !== "director" && user.rol !== "docente" && user.rol !== "encargado_zona" && user.rol !== "equipo_padi") {
+        throw new Error("Solo docentes, directores, encargados de zona y equipo PADI pueden realizar evaluaciones.");
+      }
 
-    await prismaAny.profesores.create({
-      data: { id: userId, persona_id: persona.id },
+      let persona = await prismaAny.personas.findFirst({ where: { usuario_id: userId } });
+      if (!persona) {
+        persona = await prismaAny.personas.create({
+          data: {
+            usuario_id: userId,
+            nombre: user.nombre,
+            primer_apellido: user.apellido,
+          },
+        });
+      }
+
+      await prismaAny.profesores.create({
+        data: { id: userId, persona_id: persona.id },
+      });
     });
   }
 

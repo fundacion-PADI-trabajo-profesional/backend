@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { getSupabase } from "../config/supabaseClient";
 import { getPrisma } from "../config/prismaClient";
+import { rlsContext } from "../config/rlsContext";
 
 /**
  * Extensión de Express `Request` que incluye el perfil del usuario autenticado.
@@ -103,7 +104,10 @@ export async function requireAuth(
         }
 
         req.user = profile;
-        next();
+        rlsContext.run(
+          { sub: user.id, email: profile.email, role: profile.rol },
+          () => next()
+        );
     } catch (err) {
         console.error("Error en middleware de autenticación:", err);
         return res.status(500).json({ message: "Error interno de autenticación." });

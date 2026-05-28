@@ -29,7 +29,7 @@ export function createAdminRouter() {
   router.patch("/admin/users/:id/rol", requireRole("equipo_padi") as any, AdminController.updateUserRol as any);
   router.delete("/admin/users/:id", requireRole("equipo_padi") as any, AdminController.deleteUser as any);
 
-  // equipo_padi y encargado_zona pueden crear usuarios (encargado solo docentes, según matriz)
-  router.post("/admin/users", requireRole("equipo_padi", "encargado_zona") as any, AdminController.createUser as any);
+  // equipo_padi, encargado_zona y director pueden crear usuarios (solo docentes para los dos últimos, según matriz)
+  router.post("/admin/users", requireRole("equipo_padi", "encargado_zona", "director") as any, AdminController.createUser as any);
   return router;
 }

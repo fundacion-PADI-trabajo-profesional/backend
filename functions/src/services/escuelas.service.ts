@@ -1,6 +1,6 @@
 import { EscuelasRepository } from "../repositories/escuela.repository";
 import { CreateEscuelaDto } from "../interfaces/escuela.interface";
-import { getPrisma } from "../config/prismaClient";
+import { withRLSContext } from "../config/prismaClient";
 import { getEncargadoZonaId, escuelaPerteneceAZona } from "../utils/scope";
 
 /**
@@ -92,26 +92,27 @@ export class EscuelasService {
     }
 
         if (user.rol === "director") {
-            const prisma = getPrisma() as any;
-            if (!prisma) throw new Error("DB not available");
-            const perfil = await prisma.usuarioPerfil.findUnique({
-                where: { id: user.id },
-                select: { escuela_id: true },
-            });
-            if (!perfil?.escuela_id) throw new Error("El director no tiene una escuela asignada.");
-            const escuela = await prisma.escuelas.findUnique({
-                where: { id: perfil.escuela_id },
-                include: {
-                    zona: true,
-                    directivos: { where: { rol: "director" }, select: { id: true, nombre: true, apellido: true } },
-                    profesores_escuelas: {
-                        where: { fecha_fin: null },
-                        include: { profesor: { include: { personas: { select: { nombre: true, primer_apellido: true } } } } },
+            return withRLSContext(async (tx) => {
+                const prismaAny = tx as any;
+                const perfil = await prismaAny.usuarioPerfil.findUnique({
+                    where: { id: user.id },
+                    select: { escuela_id: true },
+                });
+                if (!perfil?.escuela_id) throw new Error("El director no tiene una escuela asignada.");
+                const escuela = await prismaAny.escuelas.findUnique({
+                    where: { id: perfil.escuela_id },
+                    include: {
+                        zona: true,
+                        directivos: { where: { rol: "director" }, select: { id: true, nombre: true, apellido: true } },
+                        profesores_escuelas: {
+                            where: { fecha_fin: null },
+                            include: { profesor: { include: { personas: { select: { nombre: true, primer_apellido: true } } } } },
+                        },
+                        estudiantes: { include: { personas: true } },
                     },
-                    estudiantes: { include: { personas: true } },
-                },
+                });
+                return escuela ? this.repo.mapEscuelaDocentes([escuela]) : [];
             });
-            return escuela ? this.repo.mapEscuelaDocentes([escuela]) : [];
         }
 
         throw new Error("No tienes permisos para ver el listado de escuelas.");
@@ -198,11 +199,11 @@ export class EscuelasService {
      */
     async removeDirectivo(usuarioId: string, user: { id: string, rol: string }) {
         if (user.rol === "encargado_zona") {
-            const prismaAny = getPrisma() as any;
-            if (!prismaAny) throw new Error("DB no disponible");
-            const directivo = await prismaAny.usuarioPerfil.findUnique({
-                where: { id: usuarioId },
-                select: { escuela_id: true },
+            const directivo = await withRLSContext(async (tx) => {
+                return (tx as any).usuarioPerfil.findUnique({
+                    where: { id: usuarioId },
+                    select: { escuela_id: true },
+                });
             });
             if (directivo?.escuela_id) {
                 const zonaId = await getEncargadoZonaId(user.id);
