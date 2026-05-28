@@ -59,18 +59,30 @@ export const EstadisticasRepository = {
         fecha_creacion: { gte: filtros.periodoStart, lt: filtros.periodoEnd },
       };
 
+      const geoConditions: any[] = [];
+
       if (filtros.zonaId) {
-        where.OR = [
-          { aulas: { escuela: { zona_id: filtros.zonaId } } },
-          { aula_id: null, estudiantes: { escuela: { zona_id: filtros.zonaId } } },
-        ];
+        geoConditions.push({
+          OR: [
+            { aulas: { escuela: { zona_id: filtros.zonaId } } },
+            { aula_id: null, estudiantes: { escuela: { zona_id: filtros.zonaId } } },
+          ],
+        });
       }
 
       if (filtros.escuelaId) {
-        where.OR = [
-          { aulas: { escuela_id: filtros.escuelaId } },
-          { aula_id: null, estudiantes: { escuela_id: filtros.escuelaId } },
-        ];
+        geoConditions.push({
+          OR: [
+            { aulas: { escuela_id: filtros.escuelaId } },
+            { aula_id: null, estudiantes: { escuela_id: filtros.escuelaId } },
+          ],
+        });
+      }
+
+      if (geoConditions.length === 1) {
+        where.OR = geoConditions[0].OR;
+      } else if (geoConditions.length > 1) {
+        where.AND = geoConditions;
       }
 
       return tx.evaluacionEstudiante.findMany({
@@ -145,18 +157,30 @@ export const EstadisticasRepository = {
         fecha_creacion: { gte: filtros.periodoStart, lt: filtros.periodoEnd },
       };
 
+      const geoConditions: any[] = [];
+
       if (filtros.zonaId) {
-        where.OR = [
-          { aulas: { escuela: { zona_id: filtros.zonaId } } },
-          { aula_id: null, estudiantes: { escuela: { zona_id: filtros.zonaId } } },
-        ];
+        geoConditions.push({
+          OR: [
+            { aulas: { escuela: { zona_id: filtros.zonaId } } },
+            { aula_id: null, estudiantes: { escuela: { zona_id: filtros.zonaId } } },
+          ],
+        });
       }
 
       if (filtros.escuelaId) {
-        where.OR = [
-          { aulas: { escuela_id: filtros.escuelaId } },
-          { aula_id: null, estudiantes: { escuela_id: filtros.escuelaId } },
-        ];
+        geoConditions.push({
+          OR: [
+            { aulas: { escuela_id: filtros.escuelaId } },
+            { aula_id: null, estudiantes: { escuela_id: filtros.escuelaId } },
+          ],
+        });
+      }
+
+      if (geoConditions.length === 1) {
+        where.OR = geoConditions[0].OR;
+      } else if (geoConditions.length > 1) {
+        where.AND = geoConditions;
       }
 
       return tx.evaluacionEstudiante.findMany({
@@ -413,18 +437,32 @@ export const EstadisticasRepository = {
       const where: any = {
         fecha_creacion: { gte: filtros.periodoStart, lt: filtros.periodoEnd },
       };
+      const geoConditions: any[] = [];
+
       if (filtros.zonaId) {
-        where.OR = [
-          { aulas: { escuela: { zona_id: filtros.zonaId } } },
-          { aula_id: null, estudiantes: { escuela: { zona_id: filtros.zonaId } } },
-        ];
+        geoConditions.push({
+          OR: [
+            { aulas: { escuela: { zona_id: filtros.zonaId } } },
+            { aula_id: null, estudiantes: { escuela: { zona_id: filtros.zonaId } } },
+          ],
+        });
       }
+
       if (filtros.escuelaId) {
-        where.OR = [
-          { aulas: { escuela_id: filtros.escuelaId } },
-          { aula_id: null, estudiantes: { escuela_id: filtros.escuelaId } },
-        ];
+        geoConditions.push({
+          OR: [
+            { aulas: { escuela_id: filtros.escuelaId } },
+            { aula_id: null, estudiantes: { escuela_id: filtros.escuelaId } },
+          ],
+        });
       }
+
+      if (geoConditions.length === 1) {
+        where.OR = geoConditions[0].OR;
+      } else if (geoConditions.length > 1) {
+        where.AND = geoConditions;
+      }
+
       return tx.evaluacionEstudiante.findMany({
         where,
         select: {
