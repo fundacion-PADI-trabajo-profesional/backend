@@ -42,7 +42,7 @@ export async function createEstudiante(req: AuthenticatedRequest, res: Response)
             }
         }
 
-        const data = await service.create({
+        const result = await service.create({
             dni,
             nombre,
             apellido,
@@ -53,7 +53,9 @@ export async function createEstudiante(req: AuthenticatedRequest, res: Response)
             aula_id: typeof aula_id === "string" ? aula_id : undefined,
         }, user);
 
-        res.status(201).json(commonResponse(true, "Estudiante creado con éxito", data));
+        const { estudiante, reactivado } = result as any;
+        const message = reactivado ? "Estudiante reactivado con éxito" : "Estudiante creado con éxito";
+        res.status(201).json(commonResponse(true, message, { ...estudiante, reactivado }));
 
     } catch (error: any) {
         const message = error.message || "Error interno al crear estudiante"

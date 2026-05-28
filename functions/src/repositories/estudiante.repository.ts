@@ -121,78 +121,88 @@ export const EstudianteRepository = {
         const prisma = getPrisma()
         if (!prisma) throw new Error("DB not available to create Estudiante")
 
+        const includeEstudiante = {
+            personas: true,
+            salas: true,
+            escuela: true,
+            aulas: {
+                where: { fecha_fin: null },
+                include: { aula: { include: { sala: true } } }
+            }
+        }
+
         try {
-            // Esta función ya usaba transacción y nombres plurales,
-            // por eso probablemente siempre funcionó.
             const result = await prisma.$transaction(async (tx) => {
                 const txAny = tx as any
 
-                // Crear la persona (plural)
-                const nuevaPersona = await txAny.personas.create({
-                    data: {
-                        dni,
-                        nombre,
-                        primer_apellido: apellido,
-                        fecha_nacimiento: new Date(fecha_nacimiento),
-                    },
+                const personaExistente = await txAny.personas.findUnique({
+                    where: { dni },
+                    include: { estudiantes: true }
                 })
 
-                // obtener la sala (plural)
+                if (personaExistente) {
+                    const estudianteExistente = personaExistente.estudiantes[0]
+
+                    if (!estudianteExistente || estudianteExistente.fecha_baja === null) {
+                        throw new Error("Ya existe un estudiante activo con ese DNI.")
+                    }
+
+                    // Reactivar alumno dado de baja
+                    const sala = await txAny.salas.findUnique({
+                        where: { id: sala_id },
+                        select: { grado: true },
+                    })
+                    if (!sala) throw new Error("La sala seleccionada no existe")
+
+                    await txAny.personas.update({
+                        where: { id: personaExistente.id },
+                        data: { nombre, primer_apellido: apellido, fecha_nacimiento: new Date(fecha_nacimiento) }
+                    })
+
+                    await txAny.estudiantes.update({
+                        where: { id: estudianteExistente.id },
+                        data: { fecha_baja: null, genero_id, sala_id, grado: sala.grado, escuela_id }
+                    })
+
+                    if (aula_id) {
+                        await txAny.estudiantesAulas.create({
+                            data: { id: uuidv4(), estudiante_id: estudianteExistente.id, aula_id, fecha_inicio: new Date() }
+                        })
+                    }
+
+                    const estudianteReactivado = await txAny.estudiantes.findUnique({
+                        where: { id: estudianteExistente.id },
+                        include: includeEstudiante
+                    })
+                    return { estudiante: estudianteReactivado, reactivado: true }
+                }
+
+                // Persona no existe → creación normal
+                const nuevaPersona = await txAny.personas.create({
+                    data: { dni, nombre, primer_apellido: apellido, fecha_nacimiento: new Date(fecha_nacimiento) },
+                })
+
                 const sala = await txAny.salas.findUnique({
                     where: { id: sala_id },
                     select: { grado: true },
                 })
+                if (!sala) throw new Error("La sala seleccionada no existe")
 
-                if (!sala) {
-                    throw new Error("La sala seleccionada no existe")
-                }
-
-                // crear el estudiante (plural)
                 const nuevoEstudiante = await txAny.estudiantes.create({
-                    data: {
-                        persona_id: nuevaPersona.id,
-                        genero_id,
-                        sala_id,
-                        escuela_id,
-                        grado: sala.grado,
-                    },
+                    data: { persona_id: nuevaPersona.id, genero_id, sala_id, escuela_id, grado: sala.grado },
                 })
 
                 if (aula_id) {
-                    console.log("Insertando relación aula para aula_id:", aula_id);
                     await txAny.estudiantesAulas.create({
-                        data: {
-                            id: uuidv4(),
-                            estudiante_id: nuevoEstudiante.id,
-                            aula_id: aula_id,
-                            fecha_inicio: new Date()
-                        }
-                    });
+                        data: { id: uuidv4(), estudiante_id: nuevoEstudiante.id, aula_id, fecha_inicio: new Date() }
+                    })
                 }
 
-                return await txAny.estudiantes.findUnique({
-                    where: {
-                        id: nuevoEstudiante.id
-                    },
-                    include: {
-                        personas: true,
-                        salas: true, // Prisma dice que 'salas' existe
-                        escuela: true, // Prisma dice que 'escuela' existe
-                        // CAMBIO AQUÍ: Según el log de error, el campo se llama 'aulas'
-                        aulas: { 
-                            where: {
-                                fecha_fin: null
-                            },
-                            include: {
-                                aula: {
-                                    include: {
-                                        sala: true // O 'salas' según tu modelo de Aulas
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
+                const estudianteCreado = await txAny.estudiantes.findUnique({
+                    where: { id: nuevoEstudiante.id },
+                    include: includeEstudiante
+                })
+                return { estudiante: estudianteCreado, reactivado: false }
             })
             return result
         } catch (error) {
@@ -201,6 +211,7 @@ export const EstudianteRepository = {
                     throw new Error("Ya existe un estudiante con ese DNI.")
                 }
             }
+            if (error instanceof Error) throw error
             console.error("Error en transacción createEstudiante:", error)
             throw new Error("Error al crear el estudiante.")
         }
@@ -610,8 +621,8 @@ export const EstudianteRepository = {
 
         // Si es dryRun, solo clasificamos sin abrir transacción de escritura
         if (dryRun) {
-            const resultados = { nuevos: [] as any[], promovidos: [] as any[], repitentes: [] as any[], retrocesos: [] as any[] };
-            
+            const resultados = { nuevos: [] as any[], promovidos: [] as any[], repitentes: [] as any[], retrocesos: [] as any[], reactivados: [] as any[] };
+
             for (const est of estudiantesData) {
                 const personaExistente = await (prisma as any).personas.findUnique({
                     where: { dni: String(est.dni) },
@@ -620,6 +631,12 @@ export const EstudianteRepository = {
 
                 if (personaExistente && personaExistente.estudiantes.length > 0) {
                     const estudianteExistente = personaExistente.estudiantes[0];
+
+                    if (estudianteExistente.fecha_baja !== null) {
+                        resultados.reactivados.push(est);
+                        continue;
+                    }
+
                     const oldSala = estudianteExistente.sala_id;
                     const newSala = Number(est.sala_id);
 
@@ -654,17 +671,32 @@ export const EstudianteRepository = {
                     let estudianteId;
 
                     if (personaExistente) {
-                        // ACTUALIZACIÓN (Pase de año / Repetición)
+                        // ACTUALIZACIÓN (Pase de año / Repetición / Reactivación)
                         const estudianteExistente = personaExistente.estudiantes[0];
                         estudianteId = estudianteExistente.id;
 
+                        const updateData: any = {
+                            sala_id: Number(est.sala_id),
+                            grado: Number(est.sala_id),
+                            escuela_id: est.escuela_id || commonData.escuela_id,
+                        };
+
+                        if (estudianteExistente.fecha_baja !== null) {
+                            // Reactivar alumno dado de baja y actualizar datos personales
+                            updateData.fecha_baja = null;
+                            await tx.personas.update({
+                                where: { id: personaExistente.id },
+                                data: {
+                                    nombre: est.nombre,
+                                    primer_apellido: est.apellido,
+                                    fecha_nacimiento: fechaNac,
+                                }
+                            });
+                        }
+
                         await tx.estudiantes.update({
                             where: { id: estudianteId },
-                            data: {
-                                sala_id: Number(est.sala_id),
-                                grado: Number(est.sala_id),
-                                escuela_id: est.escuela_id || commonData.escuela_id,
-                            }
+                            data: updateData,
                         });
                     } else {
                         // CREACIÓN (Alumno nuevo)
