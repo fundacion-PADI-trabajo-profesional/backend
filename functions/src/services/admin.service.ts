@@ -294,10 +294,36 @@ export class AdminService {
   }
 
   /**
+   * Cambia el rol de un usuario existente.
+   *
+   * @param targetUserId - UUID del usuario a modificar.
+   * @param newRol - Nuevo rol a asignar.
+   * @throws Error si el rol es inválido o el usuario no existe.
+   */
+  static async updateUserRol(targetUserId: string, newRol: string): Promise<{ id: string; rol: string }> {
+    if (!ROLES_VALIDOS.includes(newRol as RolValido)) {
+      throw new Error(`Rol inválido. Los valores permitidos son: ${ROLES_VALIDOS.join(", ")}.`);
+    }
+
+    const prisma = getPrisma();
+    if (!prisma) throw new Error("DB not available");
+
+    const usuario = await (prisma as any).usuarioPerfil.findUnique({ where: { id: targetUserId } });
+    if (!usuario) throw new Error("Usuario no encontrado.");
+
+    await (prisma as any).usuarioPerfil.update({
+      where: { id: targetUserId },
+      data: { rol: newRol as RolValido },
+    });
+
+    return { id: targetUserId, rol: newRol };
+  }
+
+  /**
    * Revoca el acceso de un usuario al sistema preservando su historial.
    *
    * @remarks
-   * En lugar de hacer un "Hard Delete" que podría romper o eliminar en cascada 
+   * En lugar de hacer un "Hard Delete" que podría romper o eliminar en cascada
    * las evaluaciones históricas del docente, hacemos una baja lógica/revocación.
    * Destruimos su cuenta en Supabase Auth (imposibilitando el login) y lo quitamos
    * de la tabla de visualización del panel, pero preservamos sus tablas core.
