@@ -24,6 +24,8 @@ model UsuarioPerfil {
   persona_data   Personas?
   escuela        Escuelas?   @relation(fields: [escuela_id], references: [id])
 
+  @@index([rol])
+  @@index([escuela_id])
   @@map("usuarios")
 }
 
@@ -34,6 +36,7 @@ model Encargados {
   usuario    UsuarioPerfil @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
   zona       Zonas?        @relation(fields: [zona_id], references: [id])
 
+  @@index([zona_id])
   @@map("encargados")
 }
 
@@ -55,6 +58,11 @@ model EvaluacionEstudiante {
   tipos_evaluacion             TiposEvaluacion              @relation(fields: [tipo_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "evaluaciones_estudiante_tipo_fkey")
   evaluaciones_estudiante_area EvaluacionesEstudianteArea[]
 
+  @@index([profesor_id])
+  @@index([estudiante_id])
+  @@index([aula_id])
+  @@index([estudiante_id, tipo_id])
+  @@index([fecha_creacion])
   @@map("evaluaciones_estudiante")
 }
 
@@ -79,6 +87,8 @@ model EstudiantesAulas {
   aula          Aulas       @relation(fields: [aula_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   estudiante    Estudiantes @relation(fields: [estudiante_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
+  @@index([estudiante_id, fecha_fin])
+  @@index([aula_id, fecha_fin])
   @@map("_EstudiantesToAulas")
 }
 
@@ -114,6 +124,8 @@ model Estudiantes {
   salas                   Salas                  @relation(fields: [sala_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "estudiantes_sala_fkey")
   evaluaciones_estudiante EvaluacionEstudiante[]
 
+  @@index([escuela_id, fecha_baja])
+  @@index([sala_id])
   @@map("estudiantes")
 }
 
@@ -131,6 +143,8 @@ model EvaluacionesEstudianteArea {
   evaluaciones_estudiante                EvaluacionEstudiante                  @relation(fields: [evaluacion_estudiante_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "evaluaciones_estudiante_area_evaluacion_fkey")
   evaluaciones_estudiante_area_preguntas EvaluacionesEstudianteAreaPreguntas[]
 
+  @@index([evaluacion_estudiante_id])
+  @@index([area_id])
   @@map("evaluaciones_estudiante_area")
 }
 
@@ -144,6 +158,7 @@ model EvaluacionesEstudianteAreaPreguntas {
   evaluaciones_estudiante_area EvaluacionesEstudianteArea @relation(fields: [evaluaciones_area_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "evaluaciones_estudiante_area_preguntas_area_fkey")
   preguntas                    Preguntas                  @relation(fields: [pregunta_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
+  @@index([evaluaciones_area_id])
   @@map("evaluaciones_estudiante_area_preguntas")
 }
 
@@ -190,6 +205,7 @@ model Preguntas {
   areas                                  Areas?                                @relation(fields: [area_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "preguntas_area_id_fkey1")
   salas                                  Salas?                                @relation(fields: [sala_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
+  @@index([sala_id, area_id])
   @@map("preguntas")
 }
 
@@ -208,6 +224,7 @@ model Escuelas {
   estudiantes          Estudiantes[]
   directivos           UsuarioPerfil[]
 
+  @@index([zona_id])
   @@map("escuelas")
 }
 
@@ -224,6 +241,7 @@ model Aulas {
   sala                    Salas                  @relation(fields: [sala_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   evaluaciones_estudiante EvaluacionEstudiante[]
 
+  @@index([escuela_id])
   @@map("aulas")
 }
 
@@ -247,6 +265,8 @@ model ProfesoresAulas {
   aula         Aulas      @relation(fields: [aula_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   profesor     Profesores @relation(fields: [profesor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
+  @@index([profesor_id, fecha_fin])
+  @@index([aula_id, fecha_fin])
   @@map("_ProfesoresToAulas")
 }
 
@@ -259,6 +279,8 @@ model ProfesoresEscuelas {
   escuela      Escuelas   @relation(fields: [escuela_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   profesor     Profesores @relation(fields: [profesor_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
+  @@index([profesor_id, fecha_fin])
+  @@index([escuela_id, fecha_fin])
   @@map("_ProfesoresToEscuelas")
 }
 
@@ -271,6 +293,7 @@ model ReglasAprobacion {
   areas         Areas?  @relation(fields: [area_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   salas         Salas?  @relation(fields: [sala_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
+  @@index([sala_id, area_id])
   @@map("reglas_aprobacion")
 }
 
