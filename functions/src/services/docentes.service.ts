@@ -22,7 +22,7 @@ export class DocentesService {
    */
   private async getDirectorEscuelaId(usuarioId: string): Promise<string> {
     return withRLSContext(async (tx) => {
-      const director = await (tx as any).usuarioPerfil.findUnique({
+      const director = await tx.usuarioPerfil.findUnique({
         where: { id: usuarioId },
         select: { rol: true, escuela_id: true },
       });
@@ -121,8 +121,8 @@ export class DocentesService {
 
     const [profesor, escuela] = await withRLSContext(async (tx) => {
       return Promise.all([
-        (tx as any).profesores.findUnique({ where: { id: profesorId }, select: { id: true } }),
-        (tx as any).escuelas.findUnique({ where: { id: escuelaId }, select: { id: true } }),
+        tx.profesores.findUnique({ where: { id: profesorId }, select: { id: true } }),
+        tx.escuelas.findUnique({ where: { id: escuelaId }, select: { id: true } }),
       ]);
     });
 

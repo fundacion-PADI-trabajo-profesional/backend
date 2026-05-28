@@ -10,7 +10,7 @@ export const DocenteRepository = {
    */
   async list(): Promise<DocenteItem[]> {
     return withRLSContext(async (tx) => {
-      const rows = await (tx as any).profesores.findMany({
+      const rows = await tx.profesores.findMany({
         where: {
           personas: {
             usuario: {
@@ -74,7 +74,7 @@ export const DocenteRepository = {
    */
   async listByEscuela(escuelaId: string): Promise<DocenteItem[]> {
     return withRLSContextAsAdmin(async (tx) => {
-      const rows = await (tx as any).profesores.findMany({
+      const rows = await tx.profesores.findMany({
         where: {
           personas: {
             usuario: {
@@ -144,7 +144,7 @@ export const DocenteRepository = {
    */
   async listByZona(zonaId: string): Promise<DocenteItem[]> {
     return withRLSContext(async (tx) => {
-      const rows = await (tx as any).profesores.findMany({
+      const rows = await tx.profesores.findMany({
         where: {
           personas: { usuario: { rol: "docente" } },
           profesores_escuelas: {
@@ -188,9 +188,8 @@ export const DocenteRepository = {
    */
   async addEscuela(profesorId: string, escuelaId: string) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
 
-      const existing = await prismaAny.profesoresEscuelas.findFirst({
+      const existing = await tx.profesoresEscuelas.findFirst({
         where: {
           profesor_id: profesorId,
           escuela_id: escuelaId,
@@ -203,7 +202,7 @@ export const DocenteRepository = {
         throw new Error("El docente ya está asignado a este colegio.");
       }
 
-      return prismaAny.profesoresEscuelas.create({
+      return tx.profesoresEscuelas.create({
         data: {
           profesor_id: profesorId,
           escuela_id: escuelaId,
@@ -225,10 +224,9 @@ export const DocenteRepository = {
    */
   async removeEscuela(profesorId: string, escuelaId: string) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
       const now = new Date();
 
-      const assignment = await prismaAny.profesoresEscuelas.findFirst({
+      const assignment = await tx.profesoresEscuelas.findFirst({
         where: {
           profesor_id: profesorId,
           escuela_id: escuelaId,
@@ -241,12 +239,12 @@ export const DocenteRepository = {
         throw new Error("El docente no está asignado a ese colegio.");
       }
 
-      await prismaAny.profesoresEscuelas.update({
+      await tx.profesoresEscuelas.update({
         where: { id: assignment.id },
         data: { fecha_fin: now },
       });
 
-      await prismaAny.profesoresAulas.updateMany({
+      await tx.profesoresAulas.updateMany({
         where: {
           profesor_id: profesorId,
           fecha_fin: null,
@@ -266,7 +264,7 @@ export const DocenteRepository = {
    */
   async hasActiveEscuelaAssignment(profesorId: string, escuelaId: string): Promise<boolean> {
     return withRLSContext(async (tx) => {
-      const row = await (tx as any).profesoresEscuelas.findFirst({
+      const row = await tx.profesoresEscuelas.findFirst({
         where: {
           profesor_id: profesorId,
           escuela_id: escuelaId,

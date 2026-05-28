@@ -39,8 +39,7 @@ export const AulasRepository = {
    */
   async create(data: CreateAulaData) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
-      return prismaAny.aulas.create({
+      return tx.aulas.create({
         data: {
           sala_id: data.sala_id,
           escuela_id: data.escuela_id,
@@ -56,8 +55,7 @@ export const AulasRepository = {
    */
   async listByEscuela(escuela_id: string) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
-      return prismaAny.aulas.findMany({
+      return tx.aulas.findMany({
         where: { escuela_id },
         include: {
           sala: {
@@ -84,8 +82,7 @@ export const AulasRepository = {
    */
   async update(id: string, data: UpdateAulaData) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
-      return prismaAny.aulas.update({
+      return tx.aulas.update({
         where: { id },
         data: {
           ...(data.sala_id !== undefined ? { sala_id: data.sala_id } : {}),
@@ -101,8 +98,7 @@ export const AulasRepository = {
    */
   async listByEscuelas(escuela_ids: string[]) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
-      return prismaAny.aulas.findMany({
+      return tx.aulas.findMany({
         where: { escuela_id: { in: escuela_ids } },
         include: {
           sala: {
@@ -140,8 +136,7 @@ export const AulasRepository = {
    */
   async listAll() {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
-      return prismaAny.aulas.findMany({
+      return tx.aulas.findMany({
         include: {
           sala: {
             select: {
@@ -178,8 +173,7 @@ export const AulasRepository = {
    */
   async delete(id: string) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
-      await prismaAny.aulas.delete({ where: { id } });
+      await tx.aulas.delete({ where: { id } });
     });
   },
 
@@ -189,9 +183,8 @@ export const AulasRepository = {
    */
   async listByProfesor(profesor_id: string) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
 
-      const asignaciones = await prismaAny.profesoresAulas.findMany({
+      const asignaciones = await tx.profesoresAulas.findMany({
         where: {
           profesor_id,
           fecha_fin: null,
@@ -278,7 +271,7 @@ export const AulasRepository = {
 
       const resumenPorEstudiante = new Map<string, { inicial: string | null; cierre: string | null }>();
       if (estudianteIds.length > 0) {
-        const evalRows = await prismaAny.evaluacionEstudiante.findMany({
+        const evalRows = await tx.evaluacionEstudiante.findMany({
           where: {
             estudiante_id: { in: estudianteIds },
             tipo_id: { in: ["inicial", "cierre"] },
@@ -316,9 +309,8 @@ export const AulasRepository = {
    */
   async listEstudiantesByAula(aula_id: string) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
 
-      const asignaciones = await prismaAny.estudiantesAulas.findMany({
+      const asignaciones = await tx.estudiantesAulas.findMany({
         where: {
           aula_id,
           fecha_fin: null,
@@ -370,16 +362,15 @@ export const AulasRepository = {
    */
   async addEstudiante(estudianteId: string, aulaId: string) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
 
-      const existing = await prismaAny.estudiantesAulas.findFirst({
+      const existing = await tx.estudiantesAulas.findFirst({
         where: { estudiante_id: estudianteId, aula_id: aulaId, fecha_fin: null },
       });
       if (existing) {
         throw new Error("El estudiante ya está asignado a esta aula.");
       }
 
-      return prismaAny.estudiantesAulas.create({
+      return tx.estudiantesAulas.create({
         data: { estudiante_id: estudianteId, aula_id: aulaId },
       });
     });
@@ -390,16 +381,15 @@ export const AulasRepository = {
    */
   async removeEstudiante(estudianteId: string, aulaId: string) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
 
-      const assignment = await prismaAny.estudiantesAulas.findFirst({
+      const assignment = await tx.estudiantesAulas.findFirst({
         where: { estudiante_id: estudianteId, aula_id: aulaId, fecha_fin: null },
       });
       if (!assignment) {
         throw new Error("El estudiante no está asignado a esta aula.");
       }
 
-      return prismaAny.estudiantesAulas.update({
+      return tx.estudiantesAulas.update({
         where: { id: assignment.id },
         data: { fecha_fin: new Date() },
       });

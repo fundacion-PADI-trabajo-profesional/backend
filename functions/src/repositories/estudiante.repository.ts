@@ -17,11 +17,11 @@ type EvaluacionAño = {
 /**
  * Construye un mapa de historial de evaluaciones por estudiante.
  */
-async function getEvaluacionesHistorialPorEstudiantes(prismaAny: any, estudianteIds: string[]) {
+async function getEvaluacionesHistorialPorEstudiantes(tx: any, estudianteIds: string[]) {
     const historial = new Map<string, EvaluacionAño[]>()
     if (estudianteIds.length === 0) return historial
 
-    const rows = await prismaAny.evaluacionEstudiante.findMany({
+    const rows = await tx.evaluacionEstudiante.findMany({
         where: {
             estudiante_id: { in: estudianteIds },
             tipo_id: { in: ["inicial", "cierre"] },
@@ -91,9 +91,8 @@ export const EstudianteRepository = {
 
         try {
             return await withRLSContext(async (tx) => {
-                const txAny = tx as any
 
-                const personaExistente = await txAny.personas.findUnique({
+                const personaExistente = await tx.personas.findUnique({
                     where: { dni },
                     include: { estudiantes: true }
                 })
@@ -106,29 +105,29 @@ export const EstudianteRepository = {
                     }
 
                     // Reactivar alumno dado de baja
-                    const sala = await txAny.salas.findUnique({
+                    const sala = await tx.salas.findUnique({
                         where: { id: sala_id },
                         select: { grado: true },
                     })
                     if (!sala) throw new Error("La sala seleccionada no existe")
 
-                    await txAny.personas.update({
+                    await tx.personas.update({
                         where: { id: personaExistente.id },
                         data: { nombre, primer_apellido: apellido, fecha_nacimiento: new Date(fecha_nacimiento) }
                     })
 
-                    await txAny.estudiantes.update({
+                    await tx.estudiantes.update({
                         where: { id: estudianteExistente.id },
                         data: { fecha_baja: null, genero_id, sala_id, grado: sala.grado, escuela_id }
                     })
 
                     if (aula_id) {
-                        await txAny.estudiantesAulas.create({
+                        await tx.estudiantesAulas.create({
                             data: { id: uuidv4(), estudiante_id: estudianteExistente.id, aula_id, fecha_inicio: new Date() }
                         })
                     }
 
-                    const estudianteReactivado = await txAny.estudiantes.findUnique({
+                    const estudianteReactivado = await tx.estudiantes.findUnique({
                         where: { id: estudianteExistente.id },
                         include: includeEstudiante
                     })
@@ -136,27 +135,27 @@ export const EstudianteRepository = {
                 }
 
                 // Persona no existe → creación normal
-                const nuevaPersona = await txAny.personas.create({
+                const nuevaPersona = await tx.personas.create({
                     data: { dni, nombre, primer_apellido: apellido, fecha_nacimiento: new Date(fecha_nacimiento) },
                 })
 
-                const sala = await txAny.salas.findUnique({
+                const sala = await tx.salas.findUnique({
                     where: { id: sala_id },
                     select: { grado: true },
                 })
                 if (!sala) throw new Error("La sala seleccionada no existe")
 
-                const nuevoEstudiante = await txAny.estudiantes.create({
+                const nuevoEstudiante = await tx.estudiantes.create({
                     data: { persona_id: nuevaPersona.id, genero_id, sala_id, escuela_id, grado: sala.grado },
                 })
 
                 if (aula_id) {
-                    await txAny.estudiantesAulas.create({
+                    await tx.estudiantesAulas.create({
                         data: { id: uuidv4(), estudiante_id: nuevoEstudiante.id, aula_id, fecha_inicio: new Date() }
                     })
                 }
 
-                const estudianteCreado = await txAny.estudiantes.findUnique({
+                const estudianteCreado = await tx.estudiantes.findUnique({
                     where: { id: nuevoEstudiante.id },
                     include: includeEstudiante
                 })
@@ -180,8 +179,7 @@ export const EstudianteRepository = {
    */
     async list() {
         return withRLSContext(async (tx) => {
-            const prismaAny = tx as any
-            const estudiantes = await prismaAny.estudiantes.findMany({
+            const estudiantes = await tx.estudiantes.findMany({
                 where: { fecha_baja: null },
                 include: {
                     personas: {
@@ -204,9 +202,9 @@ export const EstudianteRepository = {
 
             const estudianteIds = estudiantes.map((e: any) => e.id)
             if (estudianteIds.length === 0) return estudiantes
-            const historialPorEstudiante = await getEvaluacionesHistorialPorEstudiantes(prismaAny, estudianteIds)
+            const historialPorEstudiante = await getEvaluacionesHistorialPorEstudiantes(tx, estudianteIds)
 
-            const asignacionesActivas = await prismaAny.estudiantesAulas.findMany({
+            const asignacionesActivas = await tx.estudiantesAulas.findMany({
                 where: {
                     estudiante_id: { in: estudianteIds },
                     fecha_fin: null,
@@ -256,7 +254,7 @@ export const EstudianteRepository = {
    */
     async getGeneros() {
         return withRLSContext(async (tx) => {
-            return (tx as any).generos.findMany()
+            return tx.generos.findMany()
         })
     },
 
@@ -265,7 +263,7 @@ export const EstudianteRepository = {
    */
     async getSalas() {
         return withRLSContext(async (tx) => {
-            return (tx as any).salas.findMany({
+            return tx.salas.findMany({
                 select: {
                     id: true,
                     nombre: true,
@@ -280,8 +278,7 @@ export const EstudianteRepository = {
    */
     async listByEscuela(escuelaId: string) {
         return withRLSContext(async (tx) => {
-            const txAny = tx as any
-            const estudiantes = await txAny.estudiantes.findMany({
+            const estudiantes = await tx.estudiantes.findMany({
                 where: { escuela_id: escuelaId, fecha_baja: null },
                 include: {
                     personas: {
@@ -299,9 +296,9 @@ export const EstudianteRepository = {
 
             const estudianteIds = estudiantes.map((e: any) => e.id)
             if (estudianteIds.length === 0) return estudiantes
-            const historialPorEstudiante = await getEvaluacionesHistorialPorEstudiantes(txAny, estudianteIds)
+            const historialPorEstudiante = await getEvaluacionesHistorialPorEstudiantes(tx, estudianteIds)
 
-            const asignacionesActivas = await txAny.estudiantesAulas.findMany({
+            const asignacionesActivas = await tx.estudiantesAulas.findMany({
                 where: {
                     estudiante_id: { in: estudianteIds },
                     fecha_fin: null,
@@ -349,11 +346,10 @@ export const EstudianteRepository = {
   /**
    * Lista estudiantes de múltiples escuelas (para encargados de zona).
    */
-    async listByEscuelas(escuelaId: string) {
+    async listByEscuelas(escuelaIds: string[]) {
         return withRLSContext(async (tx) => {
-            const txAny = tx as any
-            const estudiantes = await txAny.estudiantes.findMany({
-                where: { escuela_id: { in: escuelaId }, fecha_baja: null },
+            const estudiantes = await tx.estudiantes.findMany({
+                where: { escuela_id: { in: escuelaIds }, fecha_baja: null },
                 include: {
                     personas: {
                         select: { nombre: true, primer_apellido: true, dni: true, fecha_nacimiento: true },
@@ -370,9 +366,9 @@ export const EstudianteRepository = {
 
             const estudianteIds = estudiantes.map((e: any) => e.id)
             if (estudianteIds.length === 0) return estudiantes
-            const historialPorEstudiante = await getEvaluacionesHistorialPorEstudiantes(txAny, estudianteIds)
+            const historialPorEstudiante = await getEvaluacionesHistorialPorEstudiantes(tx, estudianteIds)
 
-            const asignacionesActivas = await txAny.estudiantesAulas.findMany({
+            const asignacionesActivas = await tx.estudiantesAulas.findMany({
                 where: {
                     estudiante_id: { in: estudianteIds },
                     fecha_fin: null,
@@ -423,7 +419,7 @@ export const EstudianteRepository = {
     async update(id: string, data: Partial<CreateEstudianteData>) {
         return withRLSContext(async (tx) => {
             // 1. Buscar el estudiante con su persona asociada
-            const estudiante = await (tx as any).estudiantes.findUnique({
+            const estudiante = await tx.estudiantes.findUnique({
                 where: { id },
                 include: { personas: true },
             })
@@ -431,7 +427,7 @@ export const EstudianteRepository = {
             if (!estudiante) throw new Error("Estudiante no encontrado.")
 
             // 2. Actualizar datos de la persona
-            await (tx as any).personas.update({
+            await tx.personas.update({
                 where: { id: estudiante.persona_id },
                 data: {
                     ...(data.dni && { dni: data.dni }),
@@ -446,7 +442,7 @@ export const EstudianteRepository = {
             // 3. Si cambia sala_id, recalcular el grado
             let nuevoGrado = estudiante.grado
             if (data.sala_id && data.sala_id !== estudiante.sala_id) {
-                const sala = await (tx as any).salas.findUnique({
+                const sala = await tx.salas.findUnique({
                     where: { id: data.sala_id },
                     select: { grado: true },
                 })
@@ -455,7 +451,7 @@ export const EstudianteRepository = {
             }
 
             // 4. Actualizar el estudiante
-            const actualizado = await (tx as any).estudiantes.update({
+            const actualizado = await tx.estudiantes.update({
                 where: { id },
                 data: {
                     ...(data.genero_id && { genero_id: data.genero_id }),
@@ -470,7 +466,7 @@ export const EstudianteRepository = {
             })
 
             if (data.aula_id) {
-                await (tx as any).estudiantesAulas.updateMany({
+                await tx.estudiantesAulas.updateMany({
                     where: {
                         estudiante_id: id,
                         fecha_fin: null,
@@ -480,7 +476,7 @@ export const EstudianteRepository = {
                     },
                 })
 
-                await (tx as any).estudiantesAulas.create({
+                await tx.estudiantesAulas.create({
                     data: {
                         estudiante_id: id,
                         aula_id: data.aula_id,
@@ -503,7 +499,7 @@ export const EstudianteRepository = {
                 const resultados = { nuevos: [] as any[], promovidos: [] as any[], repitentes: [] as any[], retrocesos: [] as any[], reactivados: [] as any[] }
 
                 for (const est of estudiantesData) {
-                    const personaExistente = await (tx as any).personas.findUnique({
+                    const personaExistente = await tx.personas.findUnique({
                         where: { dni: String(est.dni) },
                         include: { estudiantes: true }
                     })
@@ -543,7 +539,7 @@ export const EstudianteRepository = {
                     }
 
                     // 1. Buscamos si la persona ya existe
-                    const personaExistente = await (tx as any).personas.findUnique({
+                    const personaExistente = await tx.personas.findUnique({
                         where: { dni: String(est.dni) },
                         include: { estudiantes: true }
                     })
@@ -564,7 +560,7 @@ export const EstudianteRepository = {
                         if (estudianteExistente.fecha_baja !== null) {
                             // Reactivar alumno dado de baja y actualizar datos personales
                             updateData.fecha_baja = null
-                            await (tx as any).personas.update({
+                            await tx.personas.update({
                                 where: { id: personaExistente.id },
                                 data: {
                                     nombre: est.nombre,
@@ -574,13 +570,13 @@ export const EstudianteRepository = {
                             })
                         }
 
-                        await (tx as any).estudiantes.update({
+                        await tx.estudiantes.update({
                             where: { id: estudianteId },
                             data: updateData,
                         })
                     } else {
                         // CREACIÓN (Alumno nuevo)
-                        const persona = await (tx as any).personas.create({
+                        const persona = await tx.personas.create({
                             data: {
                                 dni: String(est.dni),
                                 nombre: est.nombre,
@@ -589,7 +585,7 @@ export const EstudianteRepository = {
                             }
                         })
 
-                        const nuevoEstudiante = await (tx as any).estudiantes.create({
+                        const nuevoEstudiante = await tx.estudiantes.create({
                             data: {
                                 persona_id: persona.id,
                                 genero_id: est.genero_id,
@@ -604,7 +600,7 @@ export const EstudianteRepository = {
                     // 3. Vincular a la nueva Aula para mantener el historial
                     const aulaId = est.aula_id || commonData.aula_id
                     if (aulaId) {
-                        await (tx as any).estudiantesAulas.create({
+                        await tx.estudiantesAulas.create({
                             data: {
                                 id: crypto.randomUUID(),
                                 estudiante_id: estudianteId,

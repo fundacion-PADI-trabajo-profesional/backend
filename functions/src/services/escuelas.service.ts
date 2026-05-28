@@ -93,13 +93,12 @@ export class EscuelasService {
 
         if (user.rol === "director") {
             return withRLSContext(async (tx) => {
-                const prismaAny = tx as any;
-                const perfil = await prismaAny.usuarioPerfil.findUnique({
+                const perfil = await tx.usuarioPerfil.findUnique({
                     where: { id: user.id },
                     select: { escuela_id: true },
                 });
                 if (!perfil?.escuela_id) throw new Error("El director no tiene una escuela asignada.");
-                const escuela = await prismaAny.escuelas.findUnique({
+                const escuela = await tx.escuelas.findUnique({
                     where: { id: perfil.escuela_id },
                     include: {
                         zona: true,
@@ -200,7 +199,7 @@ export class EscuelasService {
     async removeDirectivo(usuarioId: string, user: { id: string, rol: string }) {
         if (user.rol === "encargado_zona") {
             const directivo = await withRLSContext(async (tx) => {
-                return (tx as any).usuarioPerfil.findUnique({
+                return tx.usuarioPerfil.findUnique({
                     where: { id: usuarioId },
                     select: { escuela_id: true },
                 });

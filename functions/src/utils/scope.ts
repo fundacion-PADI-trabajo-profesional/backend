@@ -8,7 +8,7 @@ import { withRLSContext } from "../config/prismaClient";
  */
 export async function getEncargadoZonaId(userId: string): Promise<string> {
   return withRLSContext(async (tx) => {
-    const encargado = await (tx as any).encargados.findUnique({
+    const encargado = await tx.encargados.findUnique({
       where: { usuario_id: userId },
       select: { zona_id: true },
     });
@@ -26,7 +26,7 @@ export async function getEncargadoZonaId(userId: string): Promise<string> {
  */
 export async function getDocenteEscuelas(userId: string): Promise<string[]> {
   return withRLSContext(async (tx) => {
-    const persona = await (tx as any).personas.findUnique({
+    const persona = await tx.personas.findUnique({
       where: { usuario_id: userId },
       select: {
         profesores: {
@@ -58,7 +58,7 @@ export async function escuelaPerteneceAZona(
   zonaId: string,
 ): Promise<boolean> {
   return withRLSContext(async (tx) => {
-    const escuela = await (tx as any).escuelas.findUnique({
+    const escuela = await tx.escuelas.findUnique({
       where: { id: escuelaId },
       select: { zona_id: true },
     });

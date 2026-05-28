@@ -24,12 +24,11 @@ export class EvaluacionService {
    */
   private async ensureProfesorRecord(userId: string) {
     await withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
 
-      const existing = await prismaAny.profesores.findUnique({ where: { id: userId } });
+      const existing = await tx.profesores.findUnique({ where: { id: userId } });
       if (existing) return;
 
-      const user = await prismaAny.usuarioPerfil.findUnique({
+      const user = await tx.usuarioPerfil.findUnique({
         where: { id: userId },
         select: { id: true, nombre: true, apellido: true, rol: true },
       });
@@ -38,9 +37,9 @@ export class EvaluacionService {
         throw new Error("Solo docentes, directores, encargados de zona y equipo PADI pueden realizar evaluaciones.");
       }
 
-      let persona = await prismaAny.personas.findFirst({ where: { usuario_id: userId } });
+      let persona = await tx.personas.findFirst({ where: { usuario_id: userId } });
       if (!persona) {
-        persona = await prismaAny.personas.create({
+        persona = await tx.personas.create({
           data: {
             usuario_id: userId,
             nombre: user.nombre,
@@ -49,7 +48,7 @@ export class EvaluacionService {
         });
       }
 
-      await prismaAny.profesores.create({
+      await tx.profesores.create({
         data: { id: userId, persona_id: persona.id },
       });
     });

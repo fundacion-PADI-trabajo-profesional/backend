@@ -126,14 +126,14 @@ export class AdminService {
     try {
       if (data.rol === "encargado_zona") {
         await withRLSContextAsAdmin(async (tx) => {
-          await (tx as any).encargados.create({
+          await tx.encargados.create({
             data: { usuario_id: userId },
           });
         });
       } else if (data.rol === "docente") {
         await withRLSContextAsAdmin(async (tx) => {
           // 1. Crear Persona
-          const nuevaPersona = await (tx as any).personas.create({
+          const nuevaPersona = await tx.personas.create({
             data: {
               usuario_id: userId,
               nombre: data.nombre.trim(),
@@ -142,7 +142,7 @@ export class AdminService {
           });
 
           // 2. Crear Profesor vinculado a la Persona
-          await (tx as any).profesores.create({
+          await tx.profesores.create({
             data: {
               id: userId,
               persona_id: nuevaPersona.id,
@@ -152,7 +152,7 @@ export class AdminService {
           // 3. Si se provee escuela_id (ej: director creando desde su escuela),
           //    asignar el docente automáticamente a esa escuela.
           if (data.escuela_id) {
-            await (tx as any).profesoresEscuelas.create({
+            await tx.profesoresEscuelas.create({
               data: {
                 profesor_id: userId,
                 escuela_id: data.escuela_id,
@@ -324,10 +324,10 @@ export class AdminService {
     }
 
     await withRLSContext(async (tx) => {
-      const usuario = await (tx as any).usuarioPerfil.findUnique({ where: { id: targetUserId } });
+      const usuario = await tx.usuarioPerfil.findUnique({ where: { id: targetUserId } });
       if (!usuario) throw new Error("Usuario no encontrado.");
 
-      await (tx as any).usuarioPerfil.update({
+      await tx.usuarioPerfil.update({
         where: { id: targetUserId },
         data: { rol: newRol as RolValido },
       });

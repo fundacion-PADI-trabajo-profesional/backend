@@ -10,7 +10,7 @@ export const EncargadoRepository = {
    */
   async list(): Promise<EncargadoItem[]> {
     return withRLSContext(async (tx) => {
-      const rows = await (tx as any).usuarioPerfil.findMany({
+      const rows = await tx.usuarioPerfil.findMany({
         where: { rol: "encargado_zona" },
         select: {
           id: true,
@@ -43,9 +43,8 @@ export const EncargadoRepository = {
    */
   async update(id: string, data: { nombre: string; apellido: string; zona_id: string }) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
 
-      await prismaAny.usuarioPerfil.update({
+      await tx.usuarioPerfil.update({
         where: { id },
         data: {
           nombre: data.nombre,
@@ -53,7 +52,7 @@ export const EncargadoRepository = {
         },
       });
 
-      return prismaAny.encargados.update({
+      return tx.encargados.update({
         where: { usuario_id: id },
         data: {
           zona_id: data.zona_id,
@@ -67,7 +66,7 @@ export const EncargadoRepository = {
    */
   async getByUserId(userId: string) {
     return withRLSContext(async (tx) => {
-      const encargado = await (tx as any).usuarioPerfil.findUnique({
+      const encargado = await tx.usuarioPerfil.findUnique({
         where: { id: userId, rol: "encargado_zona" },
         select: {
           id: true,
@@ -103,7 +102,7 @@ export const EncargadoRepository = {
    */
   async delete(id: string): Promise<void> {
     return withRLSContext(async (tx) => {
-      await (tx as any).usuarioPerfil.delete({
+      await tx.usuarioPerfil.delete({
         where: { id },
       });
     });

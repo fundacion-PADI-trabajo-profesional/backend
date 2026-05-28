@@ -10,7 +10,7 @@ export const DirectivoRepository = {
    */
   async list(): Promise<DirectivoItem[]> {
     return withRLSContext(async (tx) => {
-      const rows = await (tx as any).usuarioPerfil.findMany({
+      const rows = await tx.usuarioPerfil.findMany({
         where: { rol: "director" },
         select: {
           id: true,
@@ -34,7 +34,7 @@ export const DirectivoRepository = {
    */
   async listAvailable(): Promise<DirectivoItem[]> {
     return withRLSContext(async (tx) => {
-      const rows = await (tx as any).usuarioPerfil.findMany({
+      const rows = await tx.usuarioPerfil.findMany({
         where: {
           rol: "director",
           escuela_id: null,

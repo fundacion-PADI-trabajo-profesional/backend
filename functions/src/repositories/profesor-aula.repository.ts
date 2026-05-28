@@ -9,7 +9,7 @@ export const ProfesoresAulasRepository = {
    */
   async add(profesorId: string, aulaId: string) {
     return withRLSContext(async (tx) => {
-      return (tx as any).profesoresAulas.create({
+      return tx.profesoresAulas.create({
         data: {
           profesor_id: profesorId,
           aula_id: aulaId,
@@ -23,7 +23,7 @@ export const ProfesoresAulasRepository = {
    */
   async remove(profesorId: string, aulaId: string) {
     return withRLSContext(async (tx) => {
-      return (tx as any).profesoresAulas.deleteMany({
+      return tx.profesoresAulas.deleteMany({
         where: {
           profesor_id: profesorId,
           aula_id: aulaId,
@@ -37,7 +37,7 @@ export const ProfesoresAulasRepository = {
    */
   async listByAula(aulaId: string) {
     return withRLSContext(async (tx) => {
-      return (tx as any).profesoresAulas.findMany({
+      return tx.profesoresAulas.findMany({
         where: { aula_id: aulaId },
         include: {
           profesor: {

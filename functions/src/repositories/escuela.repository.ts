@@ -10,7 +10,7 @@ export const EscuelasRepository = {
    */
   async findEncargadoProfile(usuarioId: string) {
     return withRLSContext(async (tx) => {
-      return (tx as any).encargados.findUnique({
+      return tx.encargados.findUnique({
         where: { usuario_id: usuarioId },
         include: {
           zona: true,
@@ -25,7 +25,7 @@ export const EscuelasRepository = {
   async create(data: CreateEscuelaDto) {
     return withRLSContext(async (tx) => {
       try {
-        return await (tx as any).escuelas.create({
+        return await tx.escuelas.create({
           data: {
             nombre: data.nombre,
             direccion: data.direccion,
@@ -46,29 +46,28 @@ export const EscuelasRepository = {
    */
   async delete(id: string) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
       const now = new Date();
 
       // 1. Liberar estudiantes
-      await prismaAny.estudiantes.updateMany({
+      await tx.estudiantes.updateMany({
         where: { escuela_id: id },
         data: { escuela_id: null },
       });
 
       // 2. Desasignar directivos
-      await prismaAny.usuarioPerfil.updateMany({
+      await tx.usuarioPerfil.updateMany({
         where: { escuela_id: id, rol: "director" },
         data: { escuela_id: null },
       });
 
       // 3. Cerrar asignaciones docentes
-      await prismaAny.profesoresEscuelas.updateMany({
+      await tx.profesoresEscuelas.updateMany({
         where: { escuela_id: id, fecha_fin: null },
         data: { fecha_fin: now },
       });
 
       // Soft delete: conservar escuela y aulas para métricas históricas
-      return prismaAny.escuelas.update({
+      return tx.escuelas.update({
         where: { id },
         data: { desvinculada_at: now },
       });
@@ -103,7 +102,7 @@ export const EscuelasRepository = {
   }) {
     return withRLSContext(async (tx) => {
       try {
-        return await (tx as any).escuelas.update({
+        return await tx.escuelas.update({
           where: { id },
           data: {
             nombre: data.nombre,
@@ -125,9 +124,8 @@ export const EscuelasRepository = {
    */
   async findAll() {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
 
-      const rows = await prismaAny.escuelas.findMany({
+      const rows = await tx.escuelas.findMany({
         where: { desvinculada_at: null },
         include: {
           zona: true,
@@ -168,9 +166,8 @@ export const EscuelasRepository = {
    */
   async findByZonaId(zonaId: string) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
 
-      const rows = await prismaAny.escuelas.findMany({
+      const rows = await tx.escuelas.findMany({
         where: { zona_id: zonaId, desvinculada_at: null },
         include: {
           zona: true,
@@ -211,9 +208,8 @@ export const EscuelasRepository = {
    */
   async findByZona(nombreZona: string) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
 
-      const rows = await prismaAny.escuelas.findMany({
+      const rows = await tx.escuelas.findMany({
         where: {
           desvinculada_at: null,
           zona: { nombre: nombreZona },
@@ -243,9 +239,8 @@ export const EscuelasRepository = {
    */
   async addDocenteRelation(escuelaId: string, profesorId: string) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
 
-      const existing = await prismaAny.profesoresEscuelas.findFirst({
+      const existing = await tx.profesoresEscuelas.findFirst({
         where: {
           profesor_id: profesorId,
           escuela_id: escuelaId,
@@ -254,7 +249,7 @@ export const EscuelasRepository = {
       });
 
       if (!existing) {
-        await prismaAny.profesoresEscuelas.create({
+        await tx.profesoresEscuelas.create({
           data: {
             profesor_id: profesorId,
             escuela_id: escuelaId,
@@ -270,10 +265,9 @@ export const EscuelasRepository = {
    */
   async removeDocenteRelation(escuelaId: string, profesorId: string) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
       const now = new Date();
 
-      await prismaAny.profesoresEscuelas.updateMany({
+      await tx.profesoresEscuelas.updateMany({
         where: {
           profesor_id: profesorId,
           escuela_id: escuelaId,
@@ -284,7 +278,7 @@ export const EscuelasRepository = {
         },
       });
 
-      await prismaAny.profesoresAulas.updateMany({
+      await tx.profesoresAulas.updateMany({
         where: {
           profesor_id: profesorId,
           fecha_fin: null,
@@ -302,7 +296,7 @@ export const EscuelasRepository = {
    */
   async addDirectivoRelation(escuelaId: string, usuarioId: string) {
     return withRLSContext(async (tx) => {
-      return (tx as any).usuarioPerfil.update({
+      return tx.usuarioPerfil.update({
         where: { id: usuarioId },
         data: { escuela_id: escuelaId },
       });
@@ -314,7 +308,7 @@ export const EscuelasRepository = {
    */
   async removeDirectivoRelation(usuarioId: string) {
     return withRLSContext(async (tx) => {
-      return (tx as any).usuarioPerfil.update({
+      return tx.usuarioPerfil.update({
         where: { id: usuarioId },
         data: { escuela_id: null },
       });
@@ -330,11 +324,10 @@ export const EscuelasRepository = {
     escuela_id: string | null;
   }): Promise<{ id: string; nombre: string }[]> {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
 
       if (user.rol === "director") {
         if (!user.escuela_id) return [];
-        const escuela = await prismaAny.escuelas.findUnique({
+        const escuela = await tx.escuelas.findUnique({
           where: { id: user.escuela_id },
           select: { id: true, nombre: true },
         });
@@ -342,12 +335,12 @@ export const EscuelasRepository = {
       }
 
       if (user.rol === "encargado_zona") {
-        const encargado = await prismaAny.encargados.findUnique({
+        const encargado = await tx.encargados.findUnique({
           where: { usuario_id: user.id },
           select: { zona_id: true },
         });
         if (!encargado?.zona_id) return [];
-        return prismaAny.escuelas.findMany({
+        return tx.escuelas.findMany({
           where: { zona_id: encargado.zona_id, desvinculada_at: null },
           select: { id: true, nombre: true },
           orderBy: { nombre: "asc" },
@@ -355,7 +348,7 @@ export const EscuelasRepository = {
       }
 
       // equipo_padi: todas activas
-      return prismaAny.escuelas.findMany({
+      return tx.escuelas.findMany({
         where: { desvinculada_at: null },
         select: { id: true, nombre: true },
         orderBy: { nombre: "asc" },

@@ -9,7 +9,7 @@ export const ZonasRepository = {
    */
   async create(nombre: string) {
     return withRLSContext(async (tx) => {
-      return (tx as any).zonas.create({
+      return tx.zonas.create({
         data: { nombre },
       });
     });
@@ -20,7 +20,7 @@ export const ZonasRepository = {
    */
   async listAll() {
     return withRLSContext(async (tx) => {
-      return (tx as any).zonas.findMany({
+      return tx.zonas.findMany({
         include: {
           encargados: {
             include: {
@@ -48,7 +48,7 @@ export const ZonasRepository = {
    */
   async findById(id: string) {
     return withRLSContext(async (tx) => {
-      return (tx as any).zonas.findUnique({
+      return tx.zonas.findUnique({
         where: { id },
         include: {
           escuelas: true,
@@ -65,7 +65,7 @@ export const ZonasRepository = {
    */
   async findByName(nombre: string) {
     return withRLSContext(async (tx) => {
-      return (tx as any).zonas.findUnique({
+      return tx.zonas.findUnique({
         where: { nombre },
       });
     });
@@ -76,7 +76,7 @@ export const ZonasRepository = {
    */
   async assignEscuela(zonaId: string, escuelaId: string) {
     return withRLSContext(async (tx) => {
-      return (tx as any).escuelas.update({
+      return tx.escuelas.update({
         where: { id: escuelaId },
         data: { zona_id: zonaId },
       });
@@ -88,7 +88,7 @@ export const ZonasRepository = {
    */
   async unassignEscuela(escuelaId: string) {
     return withRLSContext(async (tx) => {
-      return (tx as any).escuelas.update({
+      return tx.escuelas.update({
         where: { id: escuelaId },
         data: { zona_id: null },
       });
@@ -100,7 +100,7 @@ export const ZonasRepository = {
    */
   async listEscuelasSinZona() {
     return withRLSContext(async (tx) => {
-      return (tx as any).escuelas.findMany({
+      return tx.escuelas.findMany({
         where: { zona_id: null },
         orderBy: { nombre: "asc" },
       });
@@ -112,7 +112,7 @@ export const ZonasRepository = {
    */
   async update(id: string, nombre: string) {
     return withRLSContext(async (tx) => {
-      return (tx as any).zonas.update({
+      return tx.zonas.update({
         where: { id },
         data: { nombre },
       });
@@ -124,7 +124,7 @@ export const ZonasRepository = {
    */
   async listEncargadosDisponibles() {
     return withRLSContext(async (tx) => {
-      return (tx as any).encargados.findMany({
+      return tx.encargados.findMany({
         where: { zona_id: null },
         include: { usuario: true },
       });
@@ -136,7 +136,7 @@ export const ZonasRepository = {
    */
   async listEncargados() {
     return withRLSContext(async (tx) => {
-      return (tx as any).encargados.findMany({
+      return tx.encargados.findMany({
         include: {
           usuario: {
             select: {
@@ -166,7 +166,7 @@ export const ZonasRepository = {
    */
   async assignEncargado(zonaId: string, encargadoId: string) {
     return withRLSContext(async (tx) => {
-      return (tx as any).encargados.update({
+      return tx.encargados.update({
         where: { id: encargadoId },
         data: { zona_id: zonaId },
       });
@@ -178,7 +178,7 @@ export const ZonasRepository = {
    */
   async unassignEncargado(encargadoId: string) {
     return withRLSContext(async (tx) => {
-      return (tx as any).encargados.update({
+      return tx.encargados.update({
         where: { id: encargadoId },
         data: { zona_id: null },
       });
