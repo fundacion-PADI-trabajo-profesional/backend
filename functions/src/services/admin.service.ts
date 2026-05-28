@@ -15,6 +15,11 @@ export interface CreateUserData {
   email: string;
   /** Rol a asignar al usuario en el sistema. */
   rol: RolValido;
+  /**
+   * ID de escuela del solicitante. Si se provee y el rol a crear es `"docente"`,
+   * el docente queda asignado automáticamente a esa escuela.
+   */
+  escuela_id?: string;
 }
 
 /** Resultado de una operación de creación masiva de usuarios. */
@@ -143,6 +148,17 @@ export class AdminService {
               persona_id: nuevaPersona.id,
             },
           });
+
+          // 3. Si se provee escuela_id (ej: director creando desde su escuela),
+          //    asignar el docente automáticamente a esa escuela.
+          if (data.escuela_id) {
+            await (tx as any).profesoresEscuelas.create({
+              data: {
+                profesor_id: userId,
+                escuela_id: data.escuela_id,
+              },
+            });
+          }
         });
       }
     } catch (error: any) {
@@ -271,7 +287,7 @@ export class AdminService {
     // Verificar que el usuario esté realmente en estado pendiente
     const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(userId);
     if (authError || !authUser.user) {
-      throw new Error("Usuario de Auth no encontrado.");
+      throw new Error("Este usuario no tiene cuenta activa en el sistema de autenticación. Eliminá el registro y creá el usuario nuevamente.");
     }
     if (authUser.user.last_sign_in_at) {
       throw new Error("El usuario ya activó su cuenta. No es necesario reenviar la invitación.");
@@ -339,7 +355,15 @@ export class AdminService {
     // Eliminar de Supabase Auth (Destruye el acceso real al sistema inmediatamente)
     const { error: authError } = await supabase.auth.admin.deleteUser(userId);
     if (authError) {
-      throw new Error(`Error al revocar acceso de autenticación: ${authError.message}`);
+      // Si el usuario no existe en Auth (registro fantasma por rollback parcial),
+      // igual continuamos para limpiar el registro en la tabla usuarios.
+      const isNotFound =
+        authError.message?.toLowerCase().includes("not found") ||
+        (authError as any).status === 404 ||
+        (authError as any).code === "user_not_found";
+      if (!isNotFound) {
+        throw new Error(`Error al revocar acceso de autenticación: ${authError.message}`);
+      }
     }
 
     // Eliminar el perfil en la tabla de aplicación 'usuarios'.

@@ -43,7 +43,10 @@ export class AdminController {
         return res.status(403).json({ message: "Solo tenés permisos para crear cuentas de docentes." });
       }
 
-      const newUser = await AdminService.createUser({ nombre, apellido, email, rol });
+      // Si el solicitante es director, asignar el nuevo docente a su escuela automáticamente.
+      const escuela_id = solicitanteRol === "director" ? req.user?.escuela_id : undefined;
+
+      const newUser = await AdminService.createUser({ nombre, apellido, email, rol, escuela_id });
 
       return res.status(201).json({
         message: `Usuario creado exitosamente. Se envió un correo con la contraseña temporal a ${email}.`,

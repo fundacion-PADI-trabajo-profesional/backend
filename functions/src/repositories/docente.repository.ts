@@ -1,4 +1,4 @@
-import { withRLSContext } from "../config/prismaClient";
+import { withRLSContext, withRLSContextAsAdmin } from "../config/prismaClient";
 import { DocenteItem } from "../interfaces/docente.interface";
 
 /**
@@ -73,7 +73,7 @@ export const DocenteRepository = {
    * Lista los docentes asignados a una escuela específica.
    */
   async listByEscuela(escuelaId: string): Promise<DocenteItem[]> {
-    return withRLSContext(async (tx) => {
+    return withRLSContextAsAdmin(async (tx) => {
       const rows = await (tx as any).profesores.findMany({
         where: {
           personas: {

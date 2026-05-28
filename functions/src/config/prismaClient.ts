@@ -87,16 +87,7 @@ export async function withRLSContextAsAdmin<T>(
   const prisma = getPrisma();
   if (!prisma) throw new Error("DB not available");
 
-  const currentClaims = rlsContext.get();
-  const adminClaims = {
-    sub: currentClaims?.sub || "admin-system",
-    email: currentClaims?.email || "admin@system",
-    role: "equipo_padi",
-  };
-
-  return prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT set_config('request.jwt.claims', ${JSON.stringify(adminClaims)}, true)`;
-    await tx.$executeRaw`SET LOCAL ROLE authenticated`;
-    return fn(tx);
-  });
+  // Corre como el usuario de la conexión (postgres/superuser), que bypasea RLS.
+  // La autorización ya fue validada por requireRole en la capa de rutas.
+  return prisma.$transaction(fn);
 }
