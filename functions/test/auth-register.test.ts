@@ -33,13 +33,11 @@ describe("auth register flow", () => {
     const personasCreate = vi.fn().mockResolvedValue({ id: "per-1" });
     const profesoresCreate = vi.fn().mockResolvedValue({ id: "doc-1", persona_id: "per-1" });
 
-    vi.spyOn(prismaClient, "getPrisma").mockReturnValue({
-      // Solo los métodos que usa el servicio para rol=docente
-      // @ts-ignore
+    const prismaMock = {
       personas: { create: personasCreate },
-      // @ts-ignore
       profesores: { create: profesoresCreate },
-    } as any);
+    };
+    vi.spyOn(prismaClient, "withRLSContext").mockImplementation(async (fn: any) => fn(prismaMock));
 
     const res = await request(app)
       .post("/auth/register")

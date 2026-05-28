@@ -2,7 +2,6 @@ import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/server";
 import { EstudianteRepository } from "../src/repositories/estudiante.repository";
-import * as prismaClient from "../src/config/prismaClient";
 import { mockAuthAs } from "./helpers/auth-mock"; //
 
 const app = createApp();
@@ -315,7 +314,7 @@ describe("PUT /estudiantes/:id", () => {
 
     // Estudiante pertenece a escuela-b (fuera de la zona del encargado)
     prismaMock.estudiantes = {
-      findUnique: vi.fn().mockResolvedValue({ escuela_id: "escuela-b" }),
+      findFirst: vi.fn().mockResolvedValue({ escuela_id: "escuela-b" }),
     };
     // Zona del encargado solo tiene escuela-a
     prismaMock.encargados = {

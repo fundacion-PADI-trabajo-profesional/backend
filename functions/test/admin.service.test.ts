@@ -18,7 +18,7 @@ import * as prismaClient from "../src/config/prismaClient"
 
 /** Mock de Prisma que cubre create y deleteMany para todos los modelos usados por AdminService */
 function buildPrismaMock() {
-  return {
+  const mock: any = {
     profesores: {
       deleteMany: vi.fn().mockResolvedValue({}),
       create: vi.fn().mockResolvedValue({ id: "new-uid" }),
@@ -31,7 +31,13 @@ function buildPrismaMock() {
       deleteMany: vi.fn().mockResolvedValue({}),
       create: vi.fn().mockResolvedValue({}),
     },
+    profesoresEscuelas: {
+      create: vi.fn().mockResolvedValue({}),
+    },
   };
+  // withRLSContextAsAdmin usa prisma.$transaction directamente
+  mock.$transaction = vi.fn().mockImplementation(async (cb: any) => cb(mock));
+  return mock;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -84,7 +90,7 @@ describe("AdminService.createUser", () => {
   it("caso feliz: crea usuario en Auth y perfil, devuelve {id, email}", async () => {
     const mock = buildSupabaseMock();
     vi.spyOn(supabaseClient, "getSupabase").mockReturnValue(mock as any);
-    vi.spyOn(prismaClient, "getPrisma").mockReturnValue(buildPrismaMock() as any);
+    vi.spyOn(prismaClient, "withRLSContextAsAdmin").mockImplementation(async (fn: any) => fn(buildPrismaMock()));
 
     const result = await AdminService.createUser(VALID_USER);
 
@@ -99,7 +105,7 @@ describe("AdminService.createUser", () => {
   it("pasa el metadata (nombre, apellido, rol) al invite", async () => {
     const mock = buildSupabaseMock();
     vi.spyOn(supabaseClient, "getSupabase").mockReturnValue(mock as any);
-    vi.spyOn(prismaClient, "getPrisma").mockReturnValue(buildPrismaMock() as any);
+    vi.spyOn(prismaClient, "withRLSContextAsAdmin").mockImplementation(async (fn: any) => fn(buildPrismaMock()));
 
     await AdminService.createUser(VALID_USER);
 
@@ -221,7 +227,7 @@ describe("AdminService.createUser", () => {
     for (const rol of roles) {
       const mock = buildSupabaseMock();
       vi.spyOn(supabaseClient, "getSupabase").mockReturnValue(mock as any);
-      vi.spyOn(prismaClient, "getPrisma").mockReturnValue(buildPrismaMock() as any);
+      vi.spyOn(prismaClient, "withRLSContextAsAdmin").mockImplementation(async (fn: any) => fn(buildPrismaMock()));
       await expect(AdminService.createUser({ ...VALID_USER, rol })).resolves.not.toThrow();
       vi.restoreAllMocks();
     }
@@ -236,7 +242,7 @@ describe("AdminService.createUsersBulk", () => {
   it("caso feliz: crea todos los usuarios y los devuelve en 'creados'", async () => {
     const mock = buildSupabaseMock();
     vi.spyOn(supabaseClient, "getSupabase").mockReturnValue(mock as any);
-    vi.spyOn(prismaClient, "getPrisma").mockReturnValue(buildPrismaMock() as any);
+    vi.spyOn(prismaClient, "withRLSContextAsAdmin").mockImplementation(async (fn: any) => fn(buildPrismaMock()));
 
     const users: CreateUserData[] = [
       { nombre: "Ana", apellido: "G", email: "ana@t.com", rol: "docente" },
@@ -254,7 +260,7 @@ describe("AdminService.createUsersBulk", () => {
   it("reporte mixto: usuarios creados y con errores, no interrumpe el proceso", async () => {
     let callCount = 0;
     const mock = buildSupabaseMock();
-    vi.spyOn(prismaClient, "getPrisma").mockReturnValue(buildPrismaMock() as any);
+    vi.spyOn(prismaClient, "withRLSContextAsAdmin").mockImplementation(async (fn: any) => fn(buildPrismaMock()));
     mock.auth.admin.inviteUserByEmail.mockImplementation(async () => {
       callCount++;
       if (callCount === 2) {
@@ -484,7 +490,7 @@ describe("AdminService.resendInvite", () => {
     vi.spyOn(supabaseClient, "getSupabase").mockReturnValue(mock as any);
 
     await expect(AdminService.resendInvite("u1")).rejects.toThrow(
-      "Usuario de Auth no encontrado."
+      "no tiene cuenta activa"
     );
   });
 
@@ -493,7 +499,7 @@ describe("AdminService.resendInvite", () => {
     vi.spyOn(supabaseClient, "getSupabase").mockReturnValue(mock as any);
 
     await expect(AdminService.resendInvite("u1")).rejects.toThrow(
-      "Usuario de Auth no encontrado."
+      "no tiene cuenta activa"
     );
   });
 
@@ -544,16 +550,28 @@ describe("AdminService.deleteUser", () => {
     expect(mock.from).toHaveBeenCalledWith("usuarios");
   });
 
-  it("lanza error si Auth.admin.deleteUser falla", async () => {
+  it("no lanza error si Auth no encuentra al usuario (registro fantasma): limpia la tabla igual", async () => {
     const mock = buildSupabaseMock();
     mock.auth.admin.deleteUser.mockResolvedValue({
       error: { message: "user not found" },
     });
-    
+
+    vi.spyOn(supabaseClient, "getSupabase").mockReturnValue(mock as any);
+
+    // Ya no lanza: limpia el registro de usuarios aunque Auth no encuentre al usuario
+    await expect(AdminService.deleteUser("u-ghost")).resolves.toBeUndefined();
+  });
+
+  it("lanza error si Auth.admin.deleteUser falla con error distinto a not-found", async () => {
+    const mock = buildSupabaseMock();
+    mock.auth.admin.deleteUser.mockResolvedValue({
+      error: { message: "permission denied" },
+    });
+
     vi.spyOn(supabaseClient, "getSupabase").mockReturnValue(mock as any);
 
     await expect(AdminService.deleteUser("u-bad")).rejects.toThrow(
-      "Error al revocar acceso de autenticación: user not found" 
+      "Error al revocar acceso de autenticación: permission denied"
     );
   });
 

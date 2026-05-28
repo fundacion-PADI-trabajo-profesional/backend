@@ -135,7 +135,8 @@ describe("requireAuth middleware", () => {
         await requireAuth(req, res as Response, next);
 
         expect(next).toHaveBeenCalledTimes(1);
-        expect(req.user).toEqual(fakeProfile);
+        // El middleware convierte escuela_id: null → undefined para compatibilidad de tipos
+        expect(req.user).toEqual({ ...fakeProfile, escuela_id: undefined });
     });
 
     it("devuelve 500 si Supabase client no está disponible", async () => {

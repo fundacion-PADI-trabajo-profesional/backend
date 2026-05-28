@@ -57,8 +57,15 @@ export function mockAuthAs(
         profesoresAulas: {},
         estudiantes: {},
         aulas: {},
-        encargados: {}
+        encargados: {},
     };
+
+    // Mockeamos withRLSContext y withRLSContextAsAdmin para que llamen fn(prismaMock)
+    // directamente, evitando la cadena real de $transaction + $executeRaw.
+    // Los tests que necesiten comportamiento específico (ej: rechazar la transacción)
+    // pueden sobreescribir estas spies con vi.spyOn() en su propio test.
+    vi.spyOn(prismaClient, "withRLSContext").mockImplementation((fn: any) => fn(prismaMock));
+    vi.spyOn(prismaClient, "withRLSContextAsAdmin").mockImplementation((fn: any) => fn(prismaMock));
 
     const prismaSpy = vi.spyOn(prismaClient, "getPrisma").mockReturnValue(prismaMock as any);
 

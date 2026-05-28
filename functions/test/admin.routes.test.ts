@@ -476,10 +476,28 @@ describe("DELETE /admin/users/:id", () => {
     expect(res.body.message).toContain("propia cuenta");
   });
 
-  it("400: Auth devuelve error al eliminar → responde 400", async () => {
+  it("200: Auth no encuentra al usuario (registro fantasma) → igual elimina de la tabla", async () => {
     const { supabaseMock } = mockAuthAs("equipo_padi", "admin-id");
     supabaseMock.auth.admin.deleteUser = vi.fn().mockResolvedValue({
       error: { message: "user not found" },
+    });
+    supabaseMock.from = vi.fn().mockReturnValue({
+      delete: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    });
+
+    const res = await request(app)
+      .delete("/admin/users/ghost-id")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(200);
+    expect(res.body.message).toContain("eliminado");
+  });
+
+  it("400: Auth falla con error distinto a not-found → responde 400", async () => {
+    const { supabaseMock } = mockAuthAs("equipo_padi", "admin-id");
+    supabaseMock.auth.admin.deleteUser = vi.fn().mockResolvedValue({
+      error: { message: "permission denied" },
     });
 
     const res = await request(app)
@@ -487,7 +505,7 @@ describe("DELETE /admin/users/:id", () => {
       .set("Authorization", "Bearer valid-token");
 
     expect(res.status).toBe(400);
-    expect(res.body.message).toContain("user not found");
+    expect(res.body.message).toContain("permission denied");
   });
 
   it("403: docente no puede eliminar usuarios", async () => {

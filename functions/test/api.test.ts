@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/server";
-import * as prismaClient from "../src/config/prismaClient";
 import { EvaluacionRepository } from "../src/repositories/evaluacion.repository";
 import { HealthService } from "../src/services/health.service";
 import { mockAuthAs } from "./helpers/auth-mock";
@@ -39,18 +38,6 @@ describe("directivos assign escuela endpoint", () => {
   it("equipo_padi can assign escuela to director", async () => {
     const { prismaMock } = mockAuthAs("equipo_padi", "padi-user-1");
 
-    const txMock = {
-      usuarioPerfil: {
-        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
-        update: vi.fn().mockResolvedValue({
-          id: "dir1",
-          nombre: "Juan",
-          apellido: "Pérez",
-          escuela: { id: "esc1", nombre: "Escuela Norte" },
-        }),
-      },
-    };
-
     prismaMock.escuelas = {
       findUnique: vi.fn().mockResolvedValue({ id: "esc1", zona: "Norte" }),
     };
@@ -62,8 +49,6 @@ describe("directivos assign escuela endpoint", () => {
       return originalFindUnique(args);
     });
 
-    prismaMock.$transaction = vi.fn().mockImplementation(async (cb: any) => cb(txMock));
-
     const res = await request(app)
       .post("/directivos/dir1/asignar-escuela")
       .set("Authorization", "Bearer fake-token")
@@ -71,7 +56,7 @@ describe("directivos assign escuela endpoint", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ success: true });
-    expect(txMock.usuarioPerfil.update).toHaveBeenCalled();
+    expect(prismaMock.usuarioPerfil.update).toHaveBeenCalled();
   });
 });
 
