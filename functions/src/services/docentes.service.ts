@@ -1,6 +1,6 @@
 import { DocenteRepository } from "../repositories/docente.repository";
 import type { DocenteItem } from "../interfaces/docente.interface";
-import { getPrisma } from "../config/prismaClient";
+import { withRLSContext } from "../config/prismaClient";
 import { getEncargadoZonaId, escuelaPerteneceAZona } from "../utils/scope";
 
 /**
@@ -21,22 +21,20 @@ export class DocentesService {
    * @throws Error si el perfil no existe o el director no tiene escuela asignada.
    */
   private async getDirectorEscuelaId(usuarioId: string): Promise<string> {
-    const prisma = getPrisma();
-    if (!prisma) throw new Error("DB no disponible para listar docentes");
-    const prismaAny = prisma as any;
+    return withRLSContext(async (tx) => {
+      const director = await (tx as any).usuarioPerfil.findUnique({
+        where: { id: usuarioId },
+        select: { rol: true, escuela_id: true },
+      });
 
-    const director = await prismaAny.usuarioPerfil.findUnique({
-      where: { id: usuarioId },
-      select: { rol: true, escuela_id: true },
+      if (!director || director.rol !== "director") {
+        throw new Error("Perfil de director no encontrado.");
+      }
+      if (!director.escuela_id) {
+        throw new Error("El director no tiene colegio asignado.");
+      }
+      return director.escuela_id;
     });
-
-    if (!director || director.rol !== "director") {
-      throw new Error("Perfil de director no encontrado.");
-    }
-    if (!director.escuela_id) {
-      throw new Error("El director no tiene colegio asignado.");
-    }
-    return director.escuela_id;
   }
 
   /**
@@ -121,20 +119,12 @@ export class DocentesService {
       if (!pertenece) throw new Error("No tenés permisos para asignar docentes en esa escuela.");
     }
 
-    const prisma = getPrisma();
-    if (!prisma) throw new Error("DB no disponible para asignar docente");
-    const prismaAny = prisma as any;
-
-    const [profesor, escuela] = await Promise.all([
-      prismaAny.profesores.findUnique({
-        where: { id: profesorId },
-        select: { id: true },
-      }),
-      prismaAny.escuelas.findUnique({
-        where: { id: escuelaId },
-        select: { id: true },
-      }),
-    ]);
+    const [profesor, escuela] = await withRLSContext(async (tx) => {
+      return Promise.all([
+        (tx as any).profesores.findUnique({ where: { id: profesorId }, select: { id: true } }),
+        (tx as any).escuelas.findUnique({ where: { id: escuelaId }, select: { id: true } }),
+      ]);
+    });
 
     if (!profesor) throw new Error("Docente no encontrado.");
     if (!escuela) throw new Error("Colegio no encontrado.");

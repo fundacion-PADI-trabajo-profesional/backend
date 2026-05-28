@@ -1,5 +1,5 @@
 import { DirectivoRepository } from "../repositories/directivo.repository";
-import { getPrisma } from "../config/prismaClient";
+import { withRLSContext } from "../config/prismaClient";
 import { DirectivoItem } from "../interfaces/directivo.interface";
 
 /**
@@ -67,50 +67,47 @@ export class DirectivosService {
             throw new Error("No tenés permisos para asignar escuelas a directivos.");
         }
 
-        const prisma = getPrisma();
-        if (!prisma) throw new Error("DB not available");
-        const prismaAny = prisma as any;
+        return withRLSContext(async (tx) => {
+            const prismaAny = tx as any;
 
-        // 1) Verificar que la escuela exista
-        const escuela = await prismaAny.escuelas.findUnique({
-            where: { id: escuelaId },
-            select: { id: true, zona: true },
-        });
-
-        if (!escuela) {
-            throw new Error("Escuela no encontrada.");
-        }
-
-        // Si es encargado, limitamos la asignación a su zona.
-        if (user.rol === "encargado_zona") {
-            const encargado = await prismaAny.encargados.findUnique({
-                where: { usuario_id: user.id },
+            // 1) Verificar que la escuela exista
+            const escuela = await prismaAny.escuelas.findUnique({
+                where: { id: escuelaId },
                 select: { id: true, zona: true },
             });
 
-            if (!encargado) {
-                throw new Error("No se encontró perfil de encargado de zona.");
+            if (!escuela) {
+                throw new Error("Escuela no encontrada.");
             }
 
-            if (escuela.zona !== encargado.zona) {
-                throw new Error("Solo podés asignar escuelas de tu propia zona.");
+            // Si es encargado, limitamos la asignación a su zona.
+            if (user.rol === "encargado_zona") {
+                const encargado = await prismaAny.encargados.findUnique({
+                    where: { usuario_id: user.id },
+                    select: { id: true, zona: true },
+                });
+
+                if (!encargado) {
+                    throw new Error("No se encontró perfil de encargado de zona.");
+                }
+
+                if (escuela.zona !== encargado.zona) {
+                    throw new Error("Solo podés asignar escuelas de tu propia zona.");
+                }
             }
-        }
 
-        // 3) Verificar que el directivo exista y tenga rol director
-        const director = await prismaAny.usuarioPerfil.findUnique({
-            where: { id: directorId },
-            select: { id: true, rol: true },
-        });
+            // 3) Verificar que el directivo exista y tenga rol director
+            const director = await prismaAny.usuarioPerfil.findUnique({
+                where: { id: directorId },
+                select: { id: true, rol: true },
+            });
 
-        if (!director || director.rol !== "director") {
-            throw new Error("No se encontró un directivo válido con ese ID.");
-        }
+            if (!director || director.rol !== "director") {
+                throw new Error("No se encontró un directivo válido con ese ID.");
+            }
 
-        // 4) Regla de negocio: solo un director activo por escuela.
-        // Se desasignan primero otros directores de esa escuela y luego se asigna el nuevo.
-        const updated = await prismaAny.$transaction(async (tx: any) => {
-            await tx.usuarioPerfil.updateMany({
+            // 4) Regla de negocio: solo un director activo por escuela.
+            await prismaAny.usuarioPerfil.updateMany({
                 where: {
                     rol: "director",
                     escuela_id: escuela.id,
@@ -119,7 +116,7 @@ export class DirectivosService {
                 data: { escuela_id: null },
             });
 
-            return await tx.usuarioPerfil.update({
+            return prismaAny.usuarioPerfil.update({
                 where: { id: directorId },
                 data: { escuela_id: escuela.id },
                 select: {
@@ -135,8 +132,6 @@ export class DirectivosService {
                 },
             });
         });
-
-        return updated;
     }
 }
 

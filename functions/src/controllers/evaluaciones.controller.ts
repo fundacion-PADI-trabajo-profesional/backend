@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { EvaluacionService } from "../services/evaluaciones.service";
 import { commonResponse } from "../interfaces/common-response.interface";
 import { AuthenticatedRequest } from "../middlewares/auth.middleware";
-import { getPrisma } from "../config/prismaClient";
+import { withRLSContext } from "../config/prismaClient";
 
 const service = new EvaluacionService();
 
@@ -67,13 +67,11 @@ export async function getEvaluaciones(req: AuthenticatedRequest, res: Response) 
     }
 
     if (rol === "encargado_zona") {
-      const prisma = getPrisma();
-      if (!prisma) throw new Error("DB not available");
-      const prismaAny = prisma as any;
-
-      const encargado = await prismaAny.encargados.findUnique({
-        where: { usuario_id: userId },
-        include: { zona: { include: { escuelas: { select: { id: true } } } } }
+      const encargado = await withRLSContext(async (tx) => {
+        return (tx as any).encargados.findUnique({
+          where: { usuario_id: userId },
+          include: { zona: { include: { escuelas: { select: { id: true } } } } },
+        });
       });
       const escuelasDeZona: string[] = encargado?.zona?.escuelas.map((e: any) => e.id) ?? [];
 
@@ -131,11 +129,11 @@ export async function getEvaluacionById(req: AuthenticatedRequest, res: Response
     if (rol === "encargado_zona") {
       const escuelaEvaluacion = (data as any).estudiantes?.escuela_id;
       if (escuelaEvaluacion) {
-        const prisma = getPrisma();
-        if (!prisma) throw new Error("DB not available");
-        const encargado = await (prisma as any).encargados.findUnique({
-          where: { usuario_id: userId },
-          include: { zona: { include: { escuelas: { select: { id: true } } } } }
+        const encargado = await withRLSContext(async (tx) => {
+          return (tx as any).encargados.findUnique({
+            where: { usuario_id: userId },
+            include: { zona: { include: { escuelas: { select: { id: true } } } } },
+          });
         });
         const escuelasDeZona: string[] = encargado?.zona?.escuelas.map((e: any) => e.id) ?? [];
         if (!escuelasDeZona.includes(escuelaEvaluacion)) {
@@ -194,11 +192,11 @@ export async function getPreguntasDeArea(req: AuthenticatedRequest, res: Respons
       return res.status(403).json(commonResponse(false, "No tienes permisos para ver esta evaluación.", null));
     }
     if (rol === "encargado_zona" && escuelaEvaluacion) {
-      const prisma = getPrisma();
-      if (!prisma) throw new Error("DB not available");
-      const encargado = await (prisma as any).encargados.findUnique({
-        where: { usuario_id: userId },
-        include: { zona: { include: { escuelas: { select: { id: true } } } } }
+      const encargado = await withRLSContext(async (tx) => {
+        return (tx as any).encargados.findUnique({
+          where: { usuario_id: userId },
+          include: { zona: { include: { escuelas: { select: { id: true } } } } },
+        });
       });
       const escuelasDeZona: string[] = encargado?.zona?.escuelas.map((e: any) => e.id) ?? [];
       if (!escuelasDeZona.includes(escuelaEvaluacion)) {
@@ -239,11 +237,11 @@ export async function guardarRespuestasArea(req: AuthenticatedRequest, res: Resp
       return res.status(403).json(commonResponse(false, "No tienes permisos para modificar esta evaluación.", null));
     }
     if (rol === "encargado_zona" && escuelaEvaluacion) {
-      const prisma = getPrisma();
-      if (!prisma) throw new Error("DB not available");
-      const encargado = await (prisma as any).encargados.findUnique({
-        where: { usuario_id: userId },
-        include: { zona: { include: { escuelas: { select: { id: true } } } } }
+      const encargado = await withRLSContext(async (tx) => {
+        return (tx as any).encargados.findUnique({
+          where: { usuario_id: userId },
+          include: { zona: { include: { escuelas: { select: { id: true } } } } },
+        });
       });
       const escuelasDeZona: string[] = encargado?.zona?.escuelas.map((e: any) => e.id) ?? [];
       if (!escuelasDeZona.includes(escuelaEvaluacion)) {

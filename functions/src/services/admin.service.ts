@@ -1,4 +1,4 @@
-import { getPrisma } from "../config/prismaClient";
+import { withRLSContext, withRLSContextAsAdmin } from "../config/prismaClient";
 import { getSupabase } from "../config/supabaseClient";
 
 const ROLES_VALIDOS = ["equipo_padi", "director", "encargado_zona", "docente"] as const;
@@ -51,7 +51,6 @@ export class AdminService {
    */
   static async createUser(data: CreateUserData): Promise<{ id: string; email: string }> {
     const supabase = getSupabase();
-    const prisma = getPrisma();
     if (!supabase) throw new Error("Supabase client no disponible.");
 
     // Validaciones
@@ -118,33 +117,36 @@ export class AdminService {
     }
 
     // Paso 3: Lógica específica de Prisma según el Rol
+    // Usa withRLSContextAsAdmin para bypasear restricciones RLS de rol regular
     try {
       if (data.rol === "encargado_zona") {
-        await (prisma as any).encargados.create({
-          data: {
-            usuario_id: userId,
-          }
+        await withRLSContextAsAdmin(async (tx) => {
+          await (tx as any).encargados.create({
+            data: { usuario_id: userId },
+          });
         });
       } else if (data.rol === "docente") {
-        // 1. Crear Persona
-        const nuevaPersona = await (prisma as any).personas.create({
-          data: {
-            usuario_id: userId,
-            nombre: data.nombre.trim(),
-            primer_apellido: data.apellido.trim(),
-          }
-        });
+        await withRLSContextAsAdmin(async (tx) => {
+          // 1. Crear Persona
+          const nuevaPersona = await (tx as any).personas.create({
+            data: {
+              usuario_id: userId,
+              nombre: data.nombre.trim(),
+              primer_apellido: data.apellido.trim(),
+            },
+          });
 
-        // 2. Crear Profesor vinculado a la Persona
-        await (prisma as any).profesores.create({
-          data: {
-            id: userId, // Mantenemos el mismo ID de Auth como hacías en el register
-            persona_id: nuevaPersona.id
-          }
+          // 2. Crear Profesor vinculado a la Persona
+          await (tx as any).profesores.create({
+            data: {
+              id: userId,
+              persona_id: nuevaPersona.id,
+            },
+          });
         });
       }
     } catch (error: any) {
-      // Rollback completo si falla Prisma (reutilizamos la función que ya arreglamos)
+      // Rollback completo si falla Prisma
       console.error("Error en Prisma al crear entidades:", error.message);
       await AdminService.deleteUser(userId).catch(() => {});
       throw new Error("Ocurrió un error interno al guardar los datos específicos del rol.");
@@ -305,15 +307,14 @@ export class AdminService {
       throw new Error(`Rol inválido. Los valores permitidos son: ${ROLES_VALIDOS.join(", ")}.`);
     }
 
-    const prisma = getPrisma();
-    if (!prisma) throw new Error("DB not available");
+    await withRLSContext(async (tx) => {
+      const usuario = await (tx as any).usuarioPerfil.findUnique({ where: { id: targetUserId } });
+      if (!usuario) throw new Error("Usuario no encontrado.");
 
-    const usuario = await (prisma as any).usuarioPerfil.findUnique({ where: { id: targetUserId } });
-    if (!usuario) throw new Error("Usuario no encontrado.");
-
-    await (prisma as any).usuarioPerfil.update({
-      where: { id: targetUserId },
-      data: { rol: newRol as RolValido },
+      await (tx as any).usuarioPerfil.update({
+        where: { id: targetUserId },
+        data: { rol: newRol as RolValido },
+      });
     });
 
     return { id: targetUserId, rol: newRol };
