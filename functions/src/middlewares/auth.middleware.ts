@@ -87,7 +87,7 @@ export async function requireAuth(
             return res.status(500).json({ message: "Error interno del servidor." });
         }
 
-        const profile = await (prisma as any).usuarioPerfil.findUnique({
+        const profile = await prisma.usuarioPerfil.findUnique({
             where: { id: user.id },
             select: {
                 id: true,
@@ -103,7 +103,7 @@ export async function requireAuth(
             return res.status(403).json({ message: "Perfil de usuario no encontrado." });
         }
 
-        req.user = profile;
+        req.user = { ...profile, escuela_id: profile.escuela_id ?? undefined };
         rlsContext.run(
           { sub: user.id, email: profile.email, role: profile.rol },
           () => next()

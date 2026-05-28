@@ -68,7 +68,7 @@ export async function getEvaluaciones(req: AuthenticatedRequest, res: Response) 
 
     if (rol === "encargado_zona") {
       const encargado = await withRLSContext(async (tx) => {
-        return (tx as any).encargados.findUnique({
+        return tx.encargados.findUnique({
           where: { usuario_id: userId },
           include: { zona: { include: { escuelas: { select: { id: true } } } } },
         });
@@ -130,7 +130,7 @@ export async function getEvaluacionById(req: AuthenticatedRequest, res: Response
       const escuelaEvaluacion = (data as any).estudiantes?.escuela_id;
       if (escuelaEvaluacion) {
         const encargado = await withRLSContext(async (tx) => {
-          return (tx as any).encargados.findUnique({
+          return tx.encargados.findUnique({
             where: { usuario_id: userId },
             include: { zona: { include: { escuelas: { select: { id: true } } } } },
           });
@@ -193,7 +193,7 @@ export async function getPreguntasDeArea(req: AuthenticatedRequest, res: Respons
     }
     if (rol === "encargado_zona" && escuelaEvaluacion) {
       const encargado = await withRLSContext(async (tx) => {
-        return (tx as any).encargados.findUnique({
+        return tx.encargados.findUnique({
           where: { usuario_id: userId },
           include: { zona: { include: { escuelas: { select: { id: true } } } } },
         });
@@ -238,7 +238,7 @@ export async function guardarRespuestasArea(req: AuthenticatedRequest, res: Resp
     }
     if (rol === "encargado_zona" && escuelaEvaluacion) {
       const encargado = await withRLSContext(async (tx) => {
-        return (tx as any).encargados.findUnique({
+        return tx.encargados.findUnique({
           where: { usuario_id: userId },
           include: { zona: { include: { escuelas: { select: { id: true } } } } },
         });

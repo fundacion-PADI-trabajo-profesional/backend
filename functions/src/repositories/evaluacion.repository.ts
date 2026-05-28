@@ -18,7 +18,7 @@ export const EvaluacionRepository = {
    */
   async findEstudianteByDni(dni: string) {
     return withRLSContext(async (tx) => {
-      return (tx as any).estudiantes.findFirst({
+      return tx.estudiantes.findFirst({
         where: { personas: { dni }, fecha_baja: null },
         select: { id: true, sala_id: true },
       });
@@ -37,9 +37,7 @@ export const EvaluacionRepository = {
     fecha_creacion: Date;
   }) {
     return withRLSContext(async (tx) => {
-      const txAny = tx as any;
-
-      const evaluacion = await txAny.evaluacionEstudiante.create({
+      const evaluacion = await tx.evaluacionEstudiante.create({
         data: {
           estudiante_id: data.estudiante_id,
           profesor_id: data.profesor_id,
@@ -51,7 +49,7 @@ export const EvaluacionRepository = {
         },
       });
 
-      const todasLasAreas = await txAny.areas.findMany({
+      const todasLasAreas = await tx.areas.findMany({
         orderBy: { orden: "asc" },
       });
 
@@ -62,7 +60,7 @@ export const EvaluacionRepository = {
         puntaje: 0,
       }));
 
-      await txAny.evaluacionesEstudianteArea.createMany({
+      await tx.evaluacionesEstudianteArea.createMany({
         data: areasData,
       });
 
@@ -75,7 +73,7 @@ export const EvaluacionRepository = {
    */
   async findAllByProfesor(profesor_id: string) {
     return withRLSContext(async (tx) => {
-      return (tx as any).evaluacionEstudiante.findMany({
+      return tx.evaluacionEstudiante.findMany({
         where: { profesor_id },
         include: {
           aulas: {
@@ -101,7 +99,7 @@ export const EvaluacionRepository = {
    */
   async list() {
     return withRLSContext(async (tx) => {
-      return (tx as any).evaluacionEstudiante.findMany({
+      return tx.evaluacionEstudiante.findMany({
         include: this._commonIncludes(),
         orderBy: { fecha_creacion: "desc" },
       });
@@ -133,7 +131,7 @@ export const EvaluacionRepository = {
         where.estudiantes = { escuela_id: { in: filters.escuelaIds } };
       }
 
-      return (tx as any).evaluacionEstudiante.findMany({
+      return tx.evaluacionEstudiante.findMany({
         where,
         include: this._commonIncludes(),
         orderBy: { fecha_creacion: "desc" },
@@ -146,7 +144,7 @@ export const EvaluacionRepository = {
    */
   async findActiveEstudianteAula(estudianteId: string, aulaId: string) {
     return withRLSContext(async (tx) => {
-      return (tx as any).estudiantesAulas.findFirst({
+      return tx.estudiantesAulas.findFirst({
         where: {
           estudiante_id: estudianteId,
           aula_id: aulaId,
@@ -170,7 +168,7 @@ export const EvaluacionRepository = {
    */
   async listByEscuela(escuelaId: string) {
     return withRLSContext(async (tx) => {
-      return (tx as any).evaluacionEstudiante.findMany({
+      return tx.evaluacionEstudiante.findMany({
         where: {
           estudiantes: { escuela_id: escuelaId },
         },
@@ -185,9 +183,8 @@ export const EvaluacionRepository = {
    */
   async findById(id: string) {
     return withRLSContext(async (tx) => {
-      const txAny = tx as any;
 
-      const evaluacion = await txAny.evaluacionEstudiante.findUnique({
+      const evaluacion = await tx.evaluacionEstudiante.findUnique({
         where: { id },
         include: {
           aulas: {
@@ -280,10 +277,9 @@ export const EvaluacionRepository = {
   async delete(id: string) {
     try {
       return await withRLSContext(async (tx) => {
-        const txAny = tx as any;
 
         // 1) Verificar existencia
-        const exists = await txAny.evaluacionEstudiante.findUnique({
+        const exists = await tx.evaluacionEstudiante.findUnique({
           where: { id },
           select: { id: true },
         });
@@ -292,7 +288,7 @@ export const EvaluacionRepository = {
         }
 
         // 2) Buscar áreas asociadas
-        const areas = await txAny.evaluacionesEstudianteArea.findMany({
+        const areas = await tx.evaluacionesEstudianteArea.findMany({
           where: { evaluacion_estudiante_id: id },
           select: { id: true },
         });
@@ -301,18 +297,18 @@ export const EvaluacionRepository = {
 
         // 3) Borrar respuestas (hijas) primero
         if (areaIds.length > 0) {
-          await txAny.evaluacionesEstudianteAreaPreguntas.deleteMany({
+          await tx.evaluacionesEstudianteAreaPreguntas.deleteMany({
             where: { evaluaciones_area_id: { in: areaIds } },
           });
         }
 
         // 4) Borrar áreas
-        await txAny.evaluacionesEstudianteArea.deleteMany({
+        await tx.evaluacionesEstudianteArea.deleteMany({
           where: { evaluacion_estudiante_id: id },
         });
 
         // 5) Borrar evaluación principal
-        return txAny.evaluacionEstudiante.delete({
+        return tx.evaluacionEstudiante.delete({
           where: { id },
         });
       });
@@ -327,21 +323,20 @@ export const EvaluacionRepository = {
    */
   async getPreguntasArea(evaluacionId: string, areaId: string) {
     return withRLSContext(async (tx) => {
-      const txAny = tx as any;
 
-      const evalEst = await txAny.evaluacionEstudiante.findUnique({
+      const evalEst = await tx.evaluacionEstudiante.findUnique({
         where: { id: evaluacionId },
         select: { id: true, sala_id: true },
       });
       if (!evalEst) throw new Error("Evaluación no encontrada");
 
-      const evalArea = await txAny.evaluacionesEstudianteArea.findFirst({
+      const evalArea = await tx.evaluacionesEstudianteArea.findFirst({
         where: { evaluacion_estudiante_id: evaluacionId, area_id: areaId },
         select: { id: true },
       });
       if (!evalArea) throw new Error("Área no encontrada para esta evaluación");
 
-      const preguntas = await txAny.preguntas.findMany({
+      const preguntas = await tx.preguntas.findMany({
         where: {
           sala_id: evalEst.sala_id,
           area_id: areaId,
@@ -361,7 +356,7 @@ export const EvaluacionRepository = {
         evalEst.sala_id
       );
 
-      const respuestas = await txAny.evaluacionesEstudianteAreaPreguntas.findMany({
+      const respuestas = await tx.evaluacionesEstudianteAreaPreguntas.findMany({
         where: { evaluaciones_area_id: evalArea.id },
         select: { pregunta_id: true, respuesta: true },
       });
@@ -379,21 +374,20 @@ export const EvaluacionRepository = {
     questions: { id: string; answer: number | null }[]
   ) {
     return withRLSContext(async (tx) => {
-      const txAny = tx as any;
 
-      const evalEst = await txAny.evaluacionEstudiante.findUnique({
+      const evalEst = await tx.evaluacionEstudiante.findUnique({
         where: { id: evaluacionId },
         select: { id: true, sala_id: true, estudiante_id: true },
       });
       if (!evalEst) throw new Error("Evaluación no encontrada");
 
-      const estudiante = await txAny.estudiantes.findUnique({
+      const estudiante = await tx.estudiantes.findUnique({
         where: { id: evalEst.estudiante_id },
         select: { fecha_baja: true },
       });
       if (estudiante?.fecha_baja) throw new Error("No se pueden modificar evaluaciones de un estudiante dado de baja.");
 
-      const evalArea = await txAny.evaluacionesEstudianteArea.findFirst({
+      const evalArea = await tx.evaluacionesEstudianteArea.findFirst({
         where: { evaluacion_estudiante_id: evaluacionId, area_id: areaId },
         select: { id: true },
       });
@@ -401,7 +395,7 @@ export const EvaluacionRepository = {
 
       // Upsert manual
       for (const q of questions) {
-        const existing = await txAny.evaluacionesEstudianteAreaPreguntas.findFirst({
+        const existing = await tx.evaluacionesEstudianteAreaPreguntas.findFirst({
           where: {
             evaluaciones_area_id: evalArea.id,
             pregunta_id: q.id,
@@ -410,7 +404,7 @@ export const EvaluacionRepository = {
         });
 
         if (existing) {
-          await txAny.evaluacionesEstudianteAreaPreguntas.update({
+          await tx.evaluacionesEstudianteAreaPreguntas.update({
             where: { id: existing.id },
             data: {
               respuesta: q.answer,
@@ -418,7 +412,7 @@ export const EvaluacionRepository = {
             },
           });
         } else {
-          await txAny.evaluacionesEstudianteAreaPreguntas.create({
+          await tx.evaluacionesEstudianteAreaPreguntas.create({
             data: {
               evaluaciones_area_id: evalArea.id,
               pregunta_id: q.id,
@@ -430,13 +424,13 @@ export const EvaluacionRepository = {
       }
 
       const scoreResult = await calculateAreaScore(
-        txAny,
+        tx,
         evalArea.id,
         evalEst.sala_id,
         areaId
       );
 
-      await txAny.evaluacionesEstudianteArea.update({
+      await tx.evaluacionesEstudianteArea.update({
         where: { id: evalArea.id },
         data: {
           estado_id: scoreResult.estadoFinalArea,
@@ -444,7 +438,7 @@ export const EvaluacionRepository = {
         },
       });
 
-      const areas = await txAny.evaluacionesEstudianteArea.findMany({
+      const areas = await tx.evaluacionesEstudianteArea.findMany({
         where: { evaluacion_estudiante_id: evaluacionId },
         select: { estado_id: true },
       });
@@ -452,7 +446,7 @@ export const EvaluacionRepository = {
       const areaEstados = areas.map((a: any) => a.estado_id);
       const nuevoEstadoEvaluacion = computeEvaluacionEstadoFromAreas(areaEstados);
 
-      await txAny.evaluacionEstudiante.update({
+      await tx.evaluacionEstudiante.update({
         where: { id: evaluacionId },
         data: { estado_id: nuevoEstadoEvaluacion },
       });
@@ -525,7 +519,7 @@ export const EvaluacionRepository = {
           },
         },
         orderBy: {
-          areas: { orden: "asc" },
+          areas: { orden: "asc" as const },
         },
       },
     };

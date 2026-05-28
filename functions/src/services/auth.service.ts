@@ -155,7 +155,7 @@ export class AuthService {
       // --- CASO A: ENCARGADO DE ZONA ---
       if (userData.rol === "encargado_zona") {
         await withRLSContext(async (tx) => {
-          await (tx as any).encargados.create({
+          await tx.encargados.create({
             data: {
               usuario_id: userId,
               zona_id: userData.zona || "A definir",
@@ -168,7 +168,7 @@ export class AuthService {
       else if (userData.rol === "docente") {
         await withRLSContext(async (tx) => {
           // 1. Crear la Persona (Entidad Humana) vinculada al Usuario
-          const nuevaPersona = await (tx as any).personas.create({
+          const nuevaPersona = await tx.personas.create({
             data: {
               usuario_id: userId,
               nombre: userData.nombre,
@@ -177,7 +177,7 @@ export class AuthService {
           });
 
           // 2. Crear el registro Profesional (Profesor) vinculado a la Persona
-          await (tx as any).profesores.create({
+          await tx.profesores.create({
             data: {
               id: userId,
               persona_id: nuevaPersona.id,
@@ -261,13 +261,13 @@ export class AuthService {
   static async updateProfile(userId: string, nombre: string, apellido: string) {
     try {
       return await withRLSContext(async (tx) => {
-        const updatedUser = await (tx as any).usuarioPerfil.update({
+        const updatedUser = await tx.usuarioPerfil.update({
           where: { id: userId },
           data: { nombre, apellido },
         });
 
         try {
-          await (tx as any).personas.update({
+          await tx.personas.update({
             where: { usuario_id: userId },
             data: {
               nombre: nombre,

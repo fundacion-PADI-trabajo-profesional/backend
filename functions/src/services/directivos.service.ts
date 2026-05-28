@@ -68,10 +68,9 @@ export class DirectivosService {
         }
 
         return withRLSContext(async (tx) => {
-            const prismaAny = tx as any;
 
             // 1) Verificar que la escuela exista
-            const escuela = await prismaAny.escuelas.findUnique({
+            const escuela = await tx.escuelas.findUnique({
                 where: { id: escuelaId },
                 select: { id: true, zona: true },
             });
@@ -82,7 +81,7 @@ export class DirectivosService {
 
             // Si es encargado, limitamos la asignación a su zona.
             if (user.rol === "encargado_zona") {
-                const encargado = await prismaAny.encargados.findUnique({
+                const encargado = await tx.encargados.findUnique({
                     where: { usuario_id: user.id },
                     select: { id: true, zona: true },
                 });
@@ -97,7 +96,7 @@ export class DirectivosService {
             }
 
             // 3) Verificar que el directivo exista y tenga rol director
-            const director = await prismaAny.usuarioPerfil.findUnique({
+            const director = await tx.usuarioPerfil.findUnique({
                 where: { id: directorId },
                 select: { id: true, rol: true },
             });
@@ -107,7 +106,7 @@ export class DirectivosService {
             }
 
             // 4) Regla de negocio: solo un director activo por escuela.
-            await prismaAny.usuarioPerfil.updateMany({
+            await tx.usuarioPerfil.updateMany({
                 where: {
                     rol: "director",
                     escuela_id: escuela.id,
@@ -116,7 +115,7 @@ export class DirectivosService {
                 data: { escuela_id: null },
             });
 
-            return prismaAny.usuarioPerfil.update({
+            return tx.usuarioPerfil.update({
                 where: { id: directorId },
                 data: { escuela_id: escuela.id },
                 select: {

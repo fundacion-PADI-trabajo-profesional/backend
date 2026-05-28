@@ -17,7 +17,7 @@ export class AulasService {
    * Devuelve `userType` y `allowedEscuelas` sin acceder a `prismaAny` externamente.
    */
   private async resolvePerms(
-    prismaAny: any,
+    tx: any,
     user: { id: string; rol: string }
   ) {
     if (user.rol === "equipo_padi") {
@@ -30,7 +30,7 @@ export class AulasService {
     }
 
     if (user.rol === "encargado_zona") {
-      const encargado = await prismaAny.encargados.findUnique({
+      const encargado = await tx.encargados.findUnique({
         where: { usuario_id: user.id },
         select: {
           id: true,
@@ -59,7 +59,7 @@ export class AulasService {
     }
 
     if (user.rol === "director") {
-      const director = await prismaAny.usuarioPerfil.findUnique({
+      const director = await tx.usuarioPerfil.findUnique({
         where: { id: user.id },
         select: { id: true, rol: true, escuela_id: true },
       });
@@ -87,14 +87,13 @@ export class AulasService {
    */
   async create(data: CreateAulaDto, user: { id: string; rol: string }) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
-      const perms = await this.resolvePerms(prismaAny, user);
+      const perms = await this.resolvePerms(tx, user);
 
       if (perms.userType !== "director" && perms.userType !== "encargado" && perms.userType !== "padi") {
         throw new Error("No tienes permisos para crear aulas.");
       }
 
-      const sala = await prismaAny.salas.findUnique({
+      const sala = await tx.salas.findUnique({
         where: { id: data.sala_id },
         select: { id: true },
       });
@@ -126,7 +125,7 @@ export class AulasService {
         escuela_id,
       };
 
-      return prismaAny.aulas.create({ data: payload });
+      return tx.aulas.create({ data: payload });
     });
   }
 
@@ -159,14 +158,13 @@ export class AulasService {
    */
   async update(id: string, data: UpdateAulaData, user: { id: string; rol: string }) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
-      const perms = await this.resolvePerms(prismaAny, user);
+      const perms = await this.resolvePerms(tx, user);
 
       if (perms.userType !== "director" && perms.userType !== "encargado" && perms.userType !== "padi") {
         throw new Error("Solo directores, encargados de zona y equipo PADI pueden gestionar aulas.");
       }
 
-      const aula = await prismaAny.aulas.findUnique({
+      const aula = await tx.aulas.findUnique({
         where: { id },
         select: { id: true, escuela_id: true },
       });
@@ -180,7 +178,7 @@ export class AulasService {
         throw new Error("No tienes permisos para modificar esta aula.");
       }
 
-      return prismaAny.aulas.update({
+      return tx.aulas.update({
         where: { id },
         data: {
           ...(data.sala_id !== undefined ? { sala_id: data.sala_id } : {}),
@@ -196,14 +194,13 @@ export class AulasService {
    */
   async delete(id: string, user: { id: string; rol: string }) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
-      const perms = await this.resolvePerms(prismaAny, user);
+      const perms = await this.resolvePerms(tx, user);
 
       if (perms.userType !== "director" && perms.userType !== "encargado" && perms.userType !== "padi") {
         throw new Error("No tienes permisos para eliminar aulas.");
       }
 
-      const aula = await prismaAny.aulas.findUnique({
+      const aula = await tx.aulas.findUnique({
         where: { id },
         select: { id: true, escuela_id: true },
       });
@@ -218,15 +215,15 @@ export class AulasService {
       }
 
       const [estCount, profCount] = await Promise.all([
-        prismaAny.estudiantesAulas.count({ where: { aula_id: id } }),
-        prismaAny.profesoresAulas.count({ where: { aula_id: id } }),
+        tx.estudiantesAulas.count({ where: { aula_id: id } }),
+        tx.profesoresAulas.count({ where: { aula_id: id } }),
       ]);
 
       if (estCount > 0 || profCount > 0) {
         throw new Error("No se puede eliminar un aula con estudiantes o docentes asignados.");
       }
 
-      await prismaAny.aulas.delete({ where: { id } });
+      await tx.aulas.delete({ where: { id } });
     });
   }
 
@@ -235,10 +232,9 @@ export class AulasService {
    */
   async listDocentes(aulaId: string, user: { id: string; rol: string }) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
-      const perms = await this.resolvePerms(prismaAny, user);
+      const perms = await this.resolvePerms(tx, user);
 
-      const aula = await prismaAny.aulas.findUnique({
+      const aula = await tx.aulas.findUnique({
         where: { id: aulaId },
         select: { id: true, escuela_id: true },
       });
@@ -251,7 +247,7 @@ export class AulasService {
         throw new Error("No tienes permisos para ver los docentes de esta aula.");
       }
 
-      return prismaAny.profesoresAulas.findMany({
+      return tx.profesoresAulas.findMany({
         where: { aula_id: aulaId },
         include: {
           profesor: {
@@ -269,14 +265,13 @@ export class AulasService {
    */
   async asignarDocente(aulaId: string, profesorId: string, user: { id: string; rol: string }) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
-      const perms = await this.resolvePerms(prismaAny, user);
+      const perms = await this.resolvePerms(tx, user);
 
       if (perms.userType !== "director" && perms.userType !== "encargado" && perms.userType !== "padi") {
         throw new Error("No tienes permisos para gestionar docentes en aulas.");
       }
 
-      const aula = await prismaAny.aulas.findUnique({
+      const aula = await tx.aulas.findUnique({
         where: { id: aulaId },
         select: { id: true, escuela_id: true },
       });
@@ -290,7 +285,7 @@ export class AulasService {
         throw new Error("No tienes permisos para gestionar docentes de esta aula.");
       }
 
-      const profesor = await prismaAny.profesores.findUnique({
+      const profesor = await tx.profesores.findUnique({
         where: { id: profesorId },
         select: { id: true },
       });
@@ -298,7 +293,7 @@ export class AulasService {
       if (!profesor) throw new Error("Docente no encontrado.");
 
       // Check active escuela assignment inline (same tx)
-      const escuelaAssignment = await prismaAny.profesoresEscuelas.findFirst({
+      const escuelaAssignment = await tx.profesoresEscuelas.findFirst({
         where: {
           profesor_id: profesorId,
           escuela_id: aula.escuela_id,
@@ -311,7 +306,7 @@ export class AulasService {
         throw new Error("El docente no está asignado al colegio de esta aula.");
       }
 
-      return prismaAny.profesoresAulas.create({
+      return tx.profesoresAulas.create({
         data: { profesor_id: profesorId, aula_id: aulaId },
       });
     });
@@ -322,14 +317,13 @@ export class AulasService {
    */
   async desasignarDocente(aulaId: string, profesorId: string, user: { id: string; rol: string }) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
-      const perms = await this.resolvePerms(prismaAny, user);
+      const perms = await this.resolvePerms(tx, user);
 
       if (perms.userType !== "director" && perms.userType !== "encargado" && perms.userType !== "padi") {
         throw new Error("No tienes permisos para gestionar docentes en aulas.");
       }
 
-      const aula = await prismaAny.aulas.findUnique({
+      const aula = await tx.aulas.findUnique({
         where: { id: aulaId },
         select: { id: true, escuela_id: true },
       });
@@ -343,7 +337,7 @@ export class AulasService {
         throw new Error("No tienes permisos para gestionar docentes de esta aula.");
       }
 
-      await prismaAny.profesoresAulas.deleteMany({
+      await tx.profesoresAulas.deleteMany({
         where: { profesor_id: profesorId, aula_id: aulaId },
       });
     });
@@ -364,10 +358,9 @@ export class AulasService {
    */
   async listEstudiantesAula(aulaId: string, user: { id: string; rol: string }) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
-      const perms = await this.resolvePerms(prismaAny, user);
+      const perms = await this.resolvePerms(tx, user);
 
-      const aula = await prismaAny.aulas.findUnique({
+      const aula = await tx.aulas.findUnique({
         where: { id: aulaId },
         select: { id: true, escuela_id: true },
       });
@@ -381,7 +374,7 @@ export class AulasService {
         throw new Error("No tienes permisos para ver estudiantes de esta aula.");
       }
 
-      return prismaAny.estudiantesAulas.findMany({
+      return tx.estudiantesAulas.findMany({
         where: { aula_id: aulaId, fecha_fin: null },
         include: {
           estudiante: {
@@ -415,14 +408,13 @@ export class AulasService {
    */
   async asignarEstudiante(aulaId: string, estudianteId: string, user: { id: string; rol: string }) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
-      const perms = await this.resolvePerms(prismaAny, user);
+      const perms = await this.resolvePerms(tx, user);
 
       if (perms.userType !== "director" && perms.userType !== "encargado" && perms.userType !== "padi") {
         throw new Error("No tienes permisos para gestionar estudiantes en aulas.");
       }
 
-      const aula = await prismaAny.aulas.findUnique({
+      const aula = await tx.aulas.findUnique({
         where: { id: aulaId },
         select: { id: true, escuela_id: true },
       });
@@ -436,7 +428,7 @@ export class AulasService {
         throw new Error("No tienes permisos para gestionar estudiantes de esta aula.");
       }
 
-      const estudiante = await prismaAny.estudiantes.findFirst({
+      const estudiante = await tx.estudiantes.findFirst({
         where: { id: estudianteId, fecha_baja: null },
         select: { id: true, escuela_id: true },
       });
@@ -446,12 +438,12 @@ export class AulasService {
         throw new Error("El estudiante no pertenece al colegio de esta aula.");
       }
 
-      const existing = await prismaAny.estudiantesAulas.findFirst({
+      const existing = await tx.estudiantesAulas.findFirst({
         where: { estudiante_id: estudianteId, aula_id: aulaId, fecha_fin: null },
       });
       if (existing) throw new Error("El estudiante ya está asignado a esta aula.");
 
-      return prismaAny.estudiantesAulas.create({
+      return tx.estudiantesAulas.create({
         data: { estudiante_id: estudianteId, aula_id: aulaId },
       });
     });
@@ -462,14 +454,13 @@ export class AulasService {
    */
   async desasignarEstudiante(aulaId: string, estudianteId: string, user: { id: string; rol: string }) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
-      const perms = await this.resolvePerms(prismaAny, user);
+      const perms = await this.resolvePerms(tx, user);
 
       if (perms.userType !== "director" && perms.userType !== "encargado" && perms.userType !== "padi") {
         throw new Error("No tienes permisos para gestionar estudiantes en aulas.");
       }
 
-      const aula = await prismaAny.aulas.findUnique({
+      const aula = await tx.aulas.findUnique({
         where: { id: aulaId },
         select: { id: true, escuela_id: true },
       });
@@ -483,12 +474,12 @@ export class AulasService {
         throw new Error("No tienes permisos para gestionar estudiantes de esta aula.");
       }
 
-      const assignment = await prismaAny.estudiantesAulas.findFirst({
+      const assignment = await tx.estudiantesAulas.findFirst({
         where: { estudiante_id: estudianteId, aula_id: aulaId, fecha_fin: null },
       });
       if (!assignment) throw new Error("El estudiante no está asignado a esta aula.");
 
-      await prismaAny.estudiantesAulas.update({
+      await tx.estudiantesAulas.update({
         where: { id: assignment.id },
         data: { fecha_fin: new Date() },
       });

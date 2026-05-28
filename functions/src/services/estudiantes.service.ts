@@ -47,7 +47,7 @@ export class EstudiantesService {
             }
 
             const asignacion = await withRLSContext(async (tx) => {
-                return (tx as any).profesoresAulas.findFirst({
+                return tx.profesoresAulas.findFirst({
                     where: {
                         profesor_id: user.id,
                         aula_id: data.aula_id,
@@ -101,7 +101,7 @@ export class EstudiantesService {
         }
         if (user.rol === "encargado_zona") {
             const encargado = await withRLSContext(async (tx) => {
-                return (tx as any).encargados.findUnique({
+                return tx.encargados.findUnique({
                     where: { usuario_id: user.id },
                     include: { zona: { include: { escuelas: { select: { id: true } } } } },
                 });
@@ -178,7 +178,7 @@ export class EstudiantesService {
         // NM1: encargado_zona solo puede importar a escuelas de su zona
         if (user.rol === "encargado_zona") {
             const encargado = await withRLSContext(async (tx) => {
-                return (tx as any).encargados.findUnique({
+                return tx.encargados.findUnique({
                     where: { usuario_id: user.id },
                     include: { zona: { include: { escuelas: { select: { id: true } } } } },
                 });
@@ -193,7 +193,7 @@ export class EstudiantesService {
         // NM1: director solo puede importar a su propia escuela
         if (user.rol === "director") {
             const director = await withRLSContext(async (tx) => {
-                return (tx as any).usuarioPerfil.findUnique({
+                return tx.usuarioPerfil.findUnique({
                     where: { id: user.id },
                     select: { escuela_id: true },
                 });
@@ -225,7 +225,7 @@ export class EstudiantesService {
         // Para directores, verificar que el estudiante pertenece a su escuela
         if (user.rol === "director") {
             const estudiante = await withRLSContext(async (tx) => {
-                return (tx as any).estudiantes.findFirst({
+                return tx.estudiantes.findFirst({
                     where: { id, fecha_baja: null },
                     select: { escuela_id: true },
                 });
@@ -243,8 +243,8 @@ export class EstudiantesService {
         if (user.rol === "encargado_zona") {
             const { estudiante, encargado } = await withRLSContext(async (tx) => {
                 const [est, enc] = await Promise.all([
-                    (tx as any).estudiantes.findFirst({ where: { id, fecha_baja: null }, select: { escuela_id: true } }),
-                    (tx as any).encargados.findUnique({
+                    tx.estudiantes.findFirst({ where: { id, fecha_baja: null }, select: { escuela_id: true } }),
+                    tx.encargados.findUnique({
                         where: { usuario_id: user.id },
                         include: { zona: { include: { escuelas: { select: { id: true } } } } },
                     }),
@@ -256,7 +256,7 @@ export class EstudiantesService {
 
             const escuelasDeZona: string[] = encargado?.zona?.escuelas.map((e: any) => e.id) ?? [];
 
-            if (!escuelasDeZona.includes(estudiante.escuela_id)) {
+            if (!estudiante.escuela_id || !escuelasDeZona.includes(estudiante.escuela_id)) {
                 throw new Error("No tienes permisos para modificar estudiantes de esta zona.");
             }
         }
@@ -284,16 +284,15 @@ export class EstudiantesService {
         }
 
         return withRLSContext(async (tx) => {
-            const prismaAny = tx as any;
 
-            const estudiante = await prismaAny.estudiantes.findFirst({
+            const estudiante = await tx.estudiantes.findFirst({
                 where: { id: estudianteId, fecha_baja: null },
                 select: { id: true, escuela_id: true },
             });
 
             if (!estudiante) throw new Error("Estudiante no encontrado.");
 
-            const aula = await prismaAny.aulas.findUnique({
+            const aula = await tx.aulas.findUnique({
                 where: { id: aulaId },
                 select: { id: true, escuela_id: true },
             });
@@ -305,7 +304,7 @@ export class EstudiantesService {
             }
 
             if (user.rol === "director") {
-                const director = await prismaAny.usuarioPerfil.findUnique({
+                const director = await tx.usuarioPerfil.findUnique({
                     where: { id: user.id },
                     select: { escuela_id: true },
                 });
@@ -313,7 +312,7 @@ export class EstudiantesService {
                     throw new Error("No tienes permisos para gestionar esta escuela.");
                 }
             } else if (user.rol === "encargado_zona") {
-                const encargado = await prismaAny.encargados.findUnique({
+                const encargado = await tx.encargados.findUnique({
                     where: { usuario_id: user.id },
                     include: { zona: { include: { escuelas: { select: { id: true } } } } },
                 });
@@ -323,13 +322,13 @@ export class EstudiantesService {
                 }
             }
 
-            const asignacionExistente = await prismaAny.estudiantesAulas.findFirst({
+            const asignacionExistente = await tx.estudiantesAulas.findFirst({
                 where: { estudiante_id: estudianteId, aula_id: aulaId, fecha_fin: null },
             });
 
             if (asignacionExistente) throw new Error("El estudiante ya está asignado a esta aula.");
 
-            return prismaAny.estudiantesAulas.create({
+            return tx.estudiantesAulas.create({
                 data: { estudiante_id: estudianteId, aula_id: aulaId, fecha_inicio: new Date() },
             });
         });
@@ -341,9 +340,8 @@ export class EstudiantesService {
         }
 
         return withRLSContext(async (tx) => {
-            const prismaAny = tx as any;
 
-            const asignacion = await prismaAny.estudiantesAulas.findFirst({
+            const asignacion = await tx.estudiantesAulas.findFirst({
                 where: { estudiante_id: estudianteId, aula_id: aulaId, fecha_fin: null },
                 include: { aula: { select: { escuela_id: true } } },
             });
@@ -353,7 +351,7 @@ export class EstudiantesService {
             }
 
             if (actor.rol === "director") {
-                const director = await prismaAny.usuarioPerfil.findUnique({
+                const director = await tx.usuarioPerfil.findUnique({
                     where: { id: actor.id },
                     select: { escuela_id: true },
                 });
@@ -361,7 +359,7 @@ export class EstudiantesService {
                     throw new Error("No tienes permisos para gestionar esta escuela.");
                 }
             } else if (actor.rol === "encargado_zona") {
-                const encargado = await prismaAny.encargados.findUnique({
+                const encargado = await tx.encargados.findUnique({
                     where: { usuario_id: actor.id },
                     include: { zona: { include: { escuelas: { select: { id: true } } } } },
                 });
@@ -371,7 +369,7 @@ export class EstudiantesService {
                 }
             }
 
-            return prismaAny.estudiantesAulas.updateMany({
+            return tx.estudiantesAulas.updateMany({
                 where: { estudiante_id: estudianteId, aula_id: aulaId, fecha_fin: null },
                 data: { fecha_fin: new Date() },
             });
@@ -384,16 +382,15 @@ export class EstudiantesService {
         }
 
         return withRLSContext(async (tx) => {
-            const prismaAny = tx as any;
 
-            const estudiante = await prismaAny.estudiantes.findUnique({
+            const estudiante = await tx.estudiantes.findUnique({
                 where: { id },
                 select: { id: true, fecha_baja: true },
             });
             if (!estudiante) throw new Error("Estudiante no encontrado.");
             if (estudiante.fecha_baja) throw new Error("El estudiante ya fue dado de baja.");
 
-            await prismaAny.estudiantes.update({
+            await tx.estudiantes.update({
                 where: { id },
                 data: { fecha_baja: new Date() },
             });

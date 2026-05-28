@@ -8,10 +8,11 @@ export const EstadisticasRepository = {
    */
   async findAreas() {
     return withRLSContext(async (tx) => {
-      return (tx as any).areas.findMany({
+      const rows = await tx.areas.findMany({
         select: { id: true, nombre: true, orden: true },
         orderBy: { orden: "asc" },
       });
+      return rows.map((r) => ({ ...r, nombre: r.nombre ?? "" }));
     });
   },
 
@@ -23,7 +24,7 @@ export const EstadisticasRepository = {
    */
   async findReglasAprobacion() {
     return withRLSContext(async (tx) => {
-      return (tx as any).reglasAprobacion.findMany({
+      return tx.reglasAprobacion.findMany({
         select: { area_id: true, sala_id: true, puntaje_total: true },
       });
     });
@@ -52,7 +53,6 @@ export const EstadisticasRepository = {
     escuelaId?: string;
   }) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
 
       const where: any = {
         tipo_id: filtros.tipo,
@@ -73,7 +73,7 @@ export const EstadisticasRepository = {
         ];
       }
 
-      return prismaAny.evaluacionEstudiante.findMany({
+      return tx.evaluacionEstudiante.findMany({
         where,
         select: {
           id: true,
@@ -140,7 +140,6 @@ export const EstadisticasRepository = {
     escuelaId?: string;
   }) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
 
       const where: any = {
         fecha_creacion: { gte: filtros.periodoStart, lt: filtros.periodoEnd },
@@ -160,7 +159,7 @@ export const EstadisticasRepository = {
         ];
       }
 
-      return prismaAny.evaluacionEstudiante.findMany({
+      return tx.evaluacionEstudiante.findMany({
         where,
         select: {
           id: true,
@@ -219,7 +218,7 @@ export const EstadisticasRepository = {
     tipo: string;
   }) {
     return withRLSContext(async (tx) => {
-      return (tx as any).evaluacionEstudiante.findMany({
+      return tx.evaluacionEstudiante.findMany({
         where: {
           tipo_id: filtros.tipo,
           fecha_creacion: { gte: filtros.periodoStart, lt: filtros.periodoEnd },
@@ -265,7 +264,7 @@ export const EstadisticasRepository = {
    */
   async findZonaIdDeEncargado(usuarioId: string): Promise<string | null> {
     return withRLSContext(async (tx) => {
-      const enc = await (tx as any).encargados.findUnique({
+      const enc = await tx.encargados.findUnique({
         where: { usuario_id: usuarioId },
         select: { zona_id: true },
       });
@@ -283,7 +282,7 @@ export const EstadisticasRepository = {
    */
   async findProfesorIdDeUsuario(usuarioId: string): Promise<string | null> {
     return withRLSContext(async (tx) => {
-      const persona = await (tx as any).personas.findUnique({
+      const persona = await tx.personas.findUnique({
         where: { usuario_id: usuarioId },
         select: { profesores: { select: { id: true }, take: 1 } },
       });
@@ -301,7 +300,7 @@ export const EstadisticasRepository = {
    */
   async findAulaDelProfesor(profesorId: string, aulaId: string): Promise<boolean> {
     return withRLSContext(async (tx) => {
-      const entry = await (tx as any).profesoresAulas.findFirst({
+      const entry = await tx.profesoresAulas.findFirst({
         where: { profesor_id: profesorId, aula_id: aulaId, fecha_fin: null },
       });
       return entry != null;
@@ -329,7 +328,7 @@ export const EstadisticasRepository = {
     areaId?: string;
   }) {
     return withRLSContext(async (tx) => {
-      return (tx as any).evaluacionEstudiante.findMany({
+      return tx.evaluacionEstudiante.findMany({
         where: {
           aula_id: filtros.aulaId,
           fecha_creacion: { gte: filtros.periodoStart, lt: filtros.periodoEnd },
@@ -375,7 +374,7 @@ export const EstadisticasRepository = {
     periodoEnd: Date;
   }) {
     return withRLSContext(async (tx) => {
-      return (tx as any).evaluacionEstudiante.findMany({
+      return tx.evaluacionEstudiante.findMany({
         where: {
           aula_id: filtros.aulaId,
           fecha_creacion: { gte: filtros.periodoStart, lt: filtros.periodoEnd },
@@ -411,7 +410,6 @@ export const EstadisticasRepository = {
     escuelaId?: string;
   }) {
     return withRLSContext(async (tx) => {
-      const prismaAny = tx as any;
       const where: any = {
         fecha_creacion: { gte: filtros.periodoStart, lt: filtros.periodoEnd },
       };
@@ -427,7 +425,7 @@ export const EstadisticasRepository = {
           { aula_id: null, estudiantes: { escuela_id: filtros.escuelaId } },
         ];
       }
-      return prismaAny.evaluacionEstudiante.findMany({
+      return tx.evaluacionEstudiante.findMany({
         where,
         select: {
           profesor_id: true,
@@ -455,7 +453,7 @@ export const EstadisticasRepository = {
     periodoEnd: Date;
   }) {
     return withRLSContext(async (tx) => {
-      return (tx as any).evaluacionEstudiante.findMany({
+      return tx.evaluacionEstudiante.findMany({
         where: { fecha_creacion: { gte: filtros.periodoStart, lt: filtros.periodoEnd } },
         select: {
           estudiante_id: true,
@@ -492,7 +490,7 @@ export const EstadisticasRepository = {
    */
   async findZonaIdDeEscuela(escuelaId: string): Promise<string | null> {
     return withRLSContext(async (tx) => {
-      const esc = await (tx as any).escuelas.findUnique({
+      const esc = await tx.escuelas.findUnique({
         where: { id: escuelaId },
         select: { zona_id: true },
       });
@@ -517,7 +515,7 @@ export const EstadisticasRepository = {
     limit: number;
   }) {
     return withRLSContext(async (tx) => {
-      const rows = await (tx as any).evaluacionEstudiante.findMany({
+      const rows = await tx.evaluacionEstudiante.findMany({
         where: { estudiante_id: filtros.estudianteId },
         select: {
           id: true,
@@ -552,7 +550,7 @@ export const EstadisticasRepository = {
     escuelaId: string
   ): Promise<{ nombre: string | null; primer_apellido: string | null } | null> {
     return withRLSContext(async (tx) => {
-      const est = await (tx as any).estudiantes.findFirst({
+      const est = await tx.estudiantes.findFirst({
         where: { id: estudianteId, escuela_id: escuelaId },
         select: { personas: { select: { nombre: true, primer_apellido: true } } },
       });
@@ -577,7 +575,7 @@ export const EstadisticasRepository = {
     profesorId: string
   ): Promise<{ nombre: string | null; primer_apellido: string | null } | null> {
     return withRLSContext(async (tx) => {
-      const est = await (tx as any).estudiantes.findFirst({
+      const est = await tx.estudiantes.findFirst({
         where: {
           id: estudianteId,
           aulas: {
@@ -609,7 +607,7 @@ export const EstadisticasRepository = {
     aulaId: string
   ): Promise<{ nombre: string | null; primer_apellido: string | null } | null> {
     return withRLSContext(async (tx) => {
-      const est = await (tx as any).estudiantes.findFirst({
+      const est = await tx.estudiantes.findFirst({
         where: {
           id: estudianteId,
           aulas: { some: { aula_id: aulaId } },
