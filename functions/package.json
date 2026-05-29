@@ -34,7 +34,6 @@
     "firebase-functions": "^5.1.1",
     "helmet": "^8.1.0",
     "js-yaml": "^4.1.1",
-    "prisma": "^6.18.0",
     "swagger-ui-express": "^5.0.1",
     "tpp-padi-backend": "file:..",
     "xlsx": "^0.18.5"
@@ -48,6 +47,7 @@
     "@types/swagger-ui-express": "^4.1.8",
     "@vitest/coverage-v8": "^2.1.9",
     "dotenv-cli": "^7.4.4",
+    "prisma": "^6.18.0",
     "rimraf": "^6.0.1",
     "supertest": "^7.0.0",
     "typedoc": "^0.28.19",
