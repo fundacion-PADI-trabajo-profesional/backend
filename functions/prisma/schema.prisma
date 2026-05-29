@@ -201,6 +201,7 @@ model Preguntas {
   puntaje                                Int?
   version                                Int?
   activa                                 Boolean?
+  puntaje_invertido                      Boolean?                              @default(false)
   evaluaciones_estudiante_area_preguntas EvaluacionesEstudianteAreaPreguntas[]
   areas                                  Areas?                                @relation(fields: [area_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "preguntas_area_id_fkey1")
   salas                                  Salas?                                @relation(fields: [sala_id], references: [id], onDelete: NoAction, onUpdate: NoAction)

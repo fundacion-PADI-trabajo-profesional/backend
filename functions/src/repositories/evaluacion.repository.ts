@@ -204,7 +204,7 @@ export const EvaluacionRepository = {
               estados_evaluacion: true,
               evaluaciones_estudiante_area_preguntas: {
                 include: {
-                  preguntas: { select: { id: true, numero: true, activa: true, puntaje: true } },
+                  preguntas: { select: { id: true, numero: true, activa: true, puntaje: true, puntaje_invertido: true } },
                 },
               },
             },
@@ -549,7 +549,7 @@ async function calculateAreaScore(
   const qas = await tx.evaluacionesEstudianteAreaPreguntas.findMany({
     where: { evaluaciones_area_id: evaluacionAreaId },
     include: {
-      preguntas: { select: { id: true, numero: true, activa: true, puntaje: true } },
+      preguntas: { select: { id: true, numero: true, activa: true, puntaje: true, puntaje_invertido: true } },
     },
   });
 
@@ -580,7 +580,11 @@ async function calculateAreaScore(
 
     if (qa.respuesta !== null && qa.respuesta !== undefined) {
       g.answered += 1;
-      if (qa.respuesta === 1) g.correct += 1;
+      // Para preguntas negativas (puntaje_invertido=true), aprueba cuando responde NO (0)
+      const esCorrecta = qa.preguntas.puntaje_invertido
+        ? qa.respuesta === 0
+        : qa.respuesta === 1;
+      if (esCorrecta) g.correct += 1;
     }
 
     groups.set(groupKey, g);
