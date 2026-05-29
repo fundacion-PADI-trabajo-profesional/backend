@@ -3,6 +3,7 @@ import type { AuthenticatedRequest } from "../middlewares/auth.middleware";
 import { commonResponse } from "../interfaces/common-response.interface";
 import { EstadisticasService } from "../services/estadisticas.service";
 import { getEncargadoZonaId, escuelaPerteneceAZona, getEscuelaDeAula } from "../utils/scope";
+import { AuthorizationError } from "../utils/errors";
 
 const service = new EstadisticasService();
 const TIPOS_VALIDOS = ["inicial", "final"];
@@ -54,7 +55,7 @@ async function resolveEscuelaId(req: AuthenticatedRequest): Promise<string | nul
   if (rol === "encargado_zona") {
     const zonaId = await getEncargadoZonaId(req.user!.id);
     const pertenece = await escuelaPerteneceAZona(escuelaId, zonaId);
-    if (!pertenece) throw new Error("No tenés permisos para ver estadísticas de esa escuela.");
+    if (!pertenece) throw new AuthorizationError("No tenés permisos para ver estadísticas de esa escuela.");
   }
 
   return escuelaId;
@@ -71,16 +72,15 @@ async function validateAulaScope(req: AuthenticatedRequest, aulaId: string): Pro
   if (rol === "equipo_padi" || rol === "docente") return;
 
   const aulaEscuelaId = await getEscuelaDeAula(aulaId);
-  if (!aulaEscuelaId) throw new Error("Aula no encontrada");
 
   if (rol === "director") {
     if (aulaEscuelaId !== (req.user!.escuela_id ?? null)) {
-      throw new Error("No tenés permisos para ver estadísticas de esa aula");
+      throw new AuthorizationError("No tenés permisos para ver estadísticas de esa aula");
     }
   } else if (rol === "encargado_zona") {
     const zonaId = await getEncargadoZonaId(req.user!.id);
     const pertenece = await escuelaPerteneceAZona(aulaEscuelaId, zonaId);
-    if (!pertenece) throw new Error("No tenés permisos para ver estadísticas de esa aula");
+    if (!pertenece) throw new AuthorizationError("No tenés permisos para ver estadísticas de esa aula");
   }
 }
 
@@ -103,8 +103,11 @@ export async function getHeatmapZonas(req: AuthenticatedRequest, res: Response) 
 
     const data = await service.heatmapZonas({ periodo, tipo, rol: String(req.user!.rol) });
     return res.status(200).json(commonResponse(true, "ok", data));
-  } catch (error: any) {
-    return res.status(403).json(commonResponse(false, error.message, null));
+  } catch (error: unknown) {
+    if (error instanceof AuthorizationError) {
+      return res.status(403).json(commonResponse(false, error.message, null));
+    }
+    return res.status(500).json(commonResponse(false, "Error interno del servidor", null));
   }
 }
 
@@ -132,8 +135,11 @@ export async function getHeatmapEscuelas(req: AuthenticatedRequest, res: Respons
       usuarioId: String(req.user!.id),
     });
     return res.status(200).json(commonResponse(true, "ok", data));
-  } catch (error: any) {
-    return res.status(403).json(commonResponse(false, error.message, null));
+  } catch (error: unknown) {
+    if (error instanceof AuthorizationError) {
+      return res.status(403).json(commonResponse(false, error.message, null));
+    }
+    return res.status(500).json(commonResponse(false, "Error interno del servidor", null));
   }
 }
 
@@ -153,8 +159,11 @@ export async function getEvolucionPadi(req: AuthenticatedRequest, res: Response)
     if (!periodo) return badParams(res);
     const data = await service.evolucionPadi({ periodo, rol: String(req.user!.rol) });
     return res.status(200).json(commonResponse(true, "ok", data));
-  } catch (error: any) {
-    return res.status(403).json(commonResponse(false, error.message, null));
+  } catch (error: unknown) {
+    if (error instanceof AuthorizationError) {
+      return res.status(403).json(commonResponse(false, error.message, null));
+    }
+    return res.status(500).json(commonResponse(false, "Error interno del servidor", null));
   }
 }
 
@@ -178,8 +187,11 @@ export async function getEvolucionZona(req: AuthenticatedRequest, res: Response)
       usuarioId: String(req.user!.id),
     });
     return res.status(200).json(commonResponse(true, "ok", data));
-  } catch (error: any) {
-    return res.status(403).json(commonResponse(false, error.message, null));
+  } catch (error: unknown) {
+    if (error instanceof AuthorizationError) {
+      return res.status(403).json(commonResponse(false, error.message, null));
+    }
+    return res.status(500).json(commonResponse(false, "Error interno del servidor", null));
   }
 }
 
@@ -207,8 +219,11 @@ export async function getEvolucionEscuela(req: AuthenticatedRequest, res: Respon
       escuelaId,
     });
     return res.status(200).json(commonResponse(true, "ok", data));
-  } catch (error: any) {
-    return res.status(403).json(commonResponse(false, error.message, null));
+  } catch (error: unknown) {
+    if (error instanceof AuthorizationError) {
+      return res.status(403).json(commonResponse(false, error.message, null));
+    }
+    return res.status(500).json(commonResponse(false, "Error interno del servidor", null));
   }
 }
 
@@ -229,8 +244,11 @@ export async function getAreasCriticasPadi(req: AuthenticatedRequest, res: Respo
     if (!periodo || !TIPOS_VALIDOS.includes(tipo)) return badParams(res);
     const data = await service.areasCriticasPadi({ periodo, tipo, rol: String(req.user!.rol) });
     return res.status(200).json(commonResponse(true, "ok", data));
-  } catch (error: any) {
-    return res.status(403).json(commonResponse(false, error.message, null));
+  } catch (error: unknown) {
+    if (error instanceof AuthorizationError) {
+      return res.status(403).json(commonResponse(false, error.message, null));
+    }
+    return res.status(500).json(commonResponse(false, "Error interno del servidor", null));
   }
 }
 
@@ -256,8 +274,11 @@ export async function getAreasCriticasZona(req: AuthenticatedRequest, res: Respo
       usuarioId: String(req.user!.id),
     });
     return res.status(200).json(commonResponse(true, "ok", data));
-  } catch (error: any) {
-    return res.status(403).json(commonResponse(false, error.message, null));
+  } catch (error: unknown) {
+    if (error instanceof AuthorizationError) {
+      return res.status(403).json(commonResponse(false, error.message, null));
+    }
+    return res.status(500).json(commonResponse(false, "Error interno del servidor", null));
   }
 }
 
@@ -287,8 +308,11 @@ export async function getAreasCriticasEscuela(req: AuthenticatedRequest, res: Re
       escuelaId,
     });
     return res.status(200).json(commonResponse(true, "ok", data));
-  } catch (error: any) {
-    return res.status(403).json(commonResponse(false, error.message, null));
+  } catch (error: unknown) {
+    if (error instanceof AuthorizationError) {
+      return res.status(403).json(commonResponse(false, error.message, null));
+    }
+    return res.status(500).json(commonResponse(false, "Error interno del servidor", null));
   }
 }
 
@@ -321,8 +345,11 @@ export async function getEstudiantesEnRiesgoZona(req: AuthenticatedRequest, res:
       usuarioId: String(req.user!.id),
     });
     return res.status(200).json(commonResponse(true, "ok", data));
-  } catch (error: any) {
-    return res.status(403).json(commonResponse(false, error.message, null));
+  } catch (error: unknown) {
+    if (error instanceof AuthorizationError) {
+      return res.status(403).json(commonResponse(false, error.message, null));
+    }
+    return res.status(500).json(commonResponse(false, "Error interno del servidor", null));
   }
 }
 
@@ -357,8 +384,11 @@ export async function getEstudiantesEnRiesgoEscuela(req: AuthenticatedRequest, r
       escuelaId,
     });
     return res.status(200).json(commonResponse(true, "ok", data));
-  } catch (error: any) {
-    return res.status(403).json(commonResponse(false, error.message, null));
+  } catch (error: unknown) {
+    if (error instanceof AuthorizationError) {
+      return res.status(403).json(commonResponse(false, error.message, null));
+    }
+    return res.status(500).json(commonResponse(false, "Error interno del servidor", null));
   }
 }
 
@@ -382,8 +412,11 @@ export async function getActividadDocentesZona(req: AuthenticatedRequest, res: R
       usuarioId: String(req.user!.id),
     });
     return res.status(200).json(commonResponse(true, "ok", data));
-  } catch (error: any) {
-    return res.status(403).json(commonResponse(false, error.message, null));
+  } catch (error: unknown) {
+    if (error instanceof AuthorizationError) {
+      return res.status(403).json(commonResponse(false, error.message, null));
+    }
+    return res.status(500).json(commonResponse(false, "Error interno del servidor", null));
   }
 }
 
@@ -410,8 +443,11 @@ export async function getActividadDocentesEscuela(req: AuthenticatedRequest, res
       escuelaId,
     });
     return res.status(200).json(commonResponse(true, "ok", data));
-  } catch (error: any) {
-    return res.status(403).json(commonResponse(false, error.message, null));
+  } catch (error: unknown) {
+    if (error instanceof AuthorizationError) {
+      return res.status(403).json(commonResponse(false, error.message, null));
+    }
+    return res.status(500).json(commonResponse(false, "Error interno del servidor", null));
   }
 }
 
@@ -431,8 +467,11 @@ export async function getCoberturaPorZona(req: AuthenticatedRequest, res: Respon
     if (!periodo) return badParams(res);
     const data = await service.coberturaPorZona({ periodo, rol: String(req.user!.rol) });
     return res.status(200).json(commonResponse(true, "ok", data));
-  } catch (error: any) {
-    return res.status(403).json(commonResponse(false, error.message, null));
+  } catch (error: unknown) {
+    if (error instanceof AuthorizationError) {
+      return res.status(403).json(commonResponse(false, error.message, null));
+    }
+    return res.status(500).json(commonResponse(false, "Error interno del servidor", null));
   }
 }
 
@@ -462,8 +501,11 @@ export async function getComparativaEscuela(req: AuthenticatedRequest, res: Resp
       escuelaId,
     });
     return res.status(200).json(commonResponse(true, "ok", data));
-  } catch (error: any) {
-    return res.status(403).json(commonResponse(false, error.message, null));
+  } catch (error: unknown) {
+    if (error instanceof AuthorizationError) {
+      return res.status(403).json(commonResponse(false, error.message, null));
+    }
+    return res.status(500).json(commonResponse(false, "Error interno del servidor", null));
   }
 }
 
@@ -494,8 +536,11 @@ export async function getProgresionEstudianteDocente(req: AuthenticatedRequest, 
       aulaId,
     });
     return res.status(200).json(commonResponse(true, "ok", data));
-  } catch (error: any) {
-    return res.status(403).json(commonResponse(false, error.message, null));
+  } catch (error: unknown) {
+    if (error instanceof AuthorizationError) {
+      return res.status(403).json(commonResponse(false, error.message, null));
+    }
+    return res.status(500).json(commonResponse(false, "Error interno del servidor", null));
   }
 }
 
@@ -523,8 +568,11 @@ export async function getProgresionEstudianteEscuela(req: AuthenticatedRequest, 
       escuelaId,
     });
     return res.status(200).json(commonResponse(true, "ok", data));
-  } catch (error: any) {
-    return res.status(403).json(commonResponse(false, error.message, null));
+  } catch (error: unknown) {
+    if (error instanceof AuthorizationError) {
+      return res.status(403).json(commonResponse(false, error.message, null));
+    }
+    return res.status(500).json(commonResponse(false, "Error interno del servidor", null));
   }
 }
 
@@ -557,8 +605,11 @@ export async function getAprobacionPreguntas(req: AuthenticatedRequest, res: Res
       usuarioId: String(req.user!.id),
     });
     return res.status(200).json(commonResponse(true, "ok", data));
-  } catch (error: any) {
-    return res.status(403).json(commonResponse(false, error.message, null));
+  } catch (error: unknown) {
+    if (error instanceof AuthorizationError) {
+      return res.status(403).json(commonResponse(false, error.message, null));
+    }
+    return res.status(500).json(commonResponse(false, "Error interno del servidor", null));
   }
 }
 
@@ -587,8 +638,11 @@ export async function getDistribucionPuntajes(req: AuthenticatedRequest, res: Re
       usuarioId: String(req.user!.id),
     });
     return res.status(200).json(commonResponse(true, "ok", data));
-  } catch (error: any) {
-    return res.status(403).json(commonResponse(false, error.message, null));
+  } catch (error: unknown) {
+    if (error instanceof AuthorizationError) {
+      return res.status(403).json(commonResponse(false, error.message, null));
+    }
+    return res.status(500).json(commonResponse(false, "Error interno del servidor", null));
   }
 }
 
@@ -615,8 +669,11 @@ export async function getRendimientoNivelSocioeconomico(req: AuthenticatedReques
       rol: String(req.user!.rol),
     });
     return res.status(200).json(commonResponse(true, "ok", data));
-  } catch (error: any) {
-    return res.status(403).json(commonResponse(false, error.message, null));
+  } catch (error: unknown) {
+    if (error instanceof AuthorizationError) {
+      return res.status(403).json(commonResponse(false, error.message, null));
+    }
+    return res.status(500).json(commonResponse(false, "Error interno del servidor", null));
   }
 }
 
@@ -649,7 +706,10 @@ export async function getHeatmapAulas(req: AuthenticatedRequest, res: Response) 
       escuelaId,
     });
     return res.status(200).json(commonResponse(true, "ok", data));
-  } catch (error: any) {
-    return res.status(403).json(commonResponse(false, error.message, null));
+  } catch (error: unknown) {
+    if (error instanceof AuthorizationError) {
+      return res.status(403).json(commonResponse(false, error.message, null));
+    }
+    return res.status(500).json(commonResponse(false, "Error interno del servidor", null));
   }
 }

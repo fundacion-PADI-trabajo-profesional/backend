@@ -56,7 +56,9 @@ export function mockAuthAs(
 
         profesoresAulas: {},
         estudiantes: {},
-        aulas: {},
+        aulas: {
+            findUnique: vi.fn().mockResolvedValue({ escuela_id: null }),
+        },
         encargados: {},
     };
 

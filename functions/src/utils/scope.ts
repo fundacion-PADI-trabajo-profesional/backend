@@ -1,4 +1,5 @@
 import { withRLSContext } from "../config/prismaClient";
+import { AuthorizationError } from "./errors";
 
 /**
  * Retorna el zona_id del encargado de zona autenticado.
@@ -12,7 +13,7 @@ export async function getEncargadoZonaId(userId: string): Promise<string> {
       where: { usuario_id: userId },
       select: { zona_id: true },
     });
-    if (!encargado?.zona_id) throw new Error("Encargado sin zona asignada");
+    if (!encargado?.zona_id) throw new AuthorizationError("Encargado sin zona asignada");
     return encargado.zona_id;
   });
 }

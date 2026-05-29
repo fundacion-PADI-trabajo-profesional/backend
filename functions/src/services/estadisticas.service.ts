@@ -1,4 +1,5 @@
 import { EstadisticasRepository } from "../repositories/estadisticas.repository";
+import { AuthorizationError } from "../utils/errors";
 
 export interface HeatmapResponse {
   periodo: number;
@@ -777,7 +778,7 @@ export class EstadisticasService {
    * @throws Error con mensaje `"Acceso denegado"` si el rol no está permitido.
    */
   private validateRol(rol: string, ...rolesPermitidos: string[]) {
-    if (!rolesPermitidos.includes(rol)) throw new Error("Acceso denegado");
+    if (!rolesPermitidos.includes(rol)) throw new AuthorizationError("Acceso denegado");
   }
 
   /**
@@ -836,7 +837,7 @@ export class EstadisticasService {
   async evolucionZona(params: { periodo: number; rol: string; usuarioId: string }): Promise<EvolucionResponse> {
     this.validateRol(params.rol, "encargado_zona");
     const zonaId = await this.repo.findZonaIdDeEncargado(params.usuarioId);
-    if (!zonaId) throw new Error("Encargado sin zona asignada");
+    if (!zonaId) throw new AuthorizationError("Encargado sin zona asignada");
     const { periodoStart, periodoEnd } = getPeriodoRange(params.periodo);
     const [areas, reglasMap, evIni, evFin] = await Promise.all([
       this.repo.findAreas(),
@@ -906,7 +907,7 @@ export class EstadisticasService {
   async areasCriticasZona(params: { periodo: number; tipo: string; rol: string; usuarioId: string }): Promise<AreasCriticasResponse> {
     this.validateRol(params.rol, "encargado_zona");
     const zonaId = await this.repo.findZonaIdDeEncargado(params.usuarioId);
-    if (!zonaId) throw new Error("Encargado sin zona asignada");
+    if (!zonaId) throw new AuthorizationError("Encargado sin zona asignada");
     const { periodoStart, periodoEnd } = getPeriodoRange(params.periodo);
     const [areas, reglasMap, evaluaciones] = await Promise.all([
       this.repo.findAreas(),
@@ -960,7 +961,7 @@ export class EstadisticasService {
   }): Promise<RiesgoResponse> {
     this.validateRol(params.rol, "encargado_zona");
     const zonaId = await this.repo.findZonaIdDeEncargado(params.usuarioId);
-    if (!zonaId) throw new Error("Encargado sin zona asignada");
+    if (!zonaId) throw new AuthorizationError("Encargado sin zona asignada");
     const { periodoStart, periodoEnd } = getPeriodoRange(params.periodo);
     const [areasMap, reglasMap, evaluaciones] = await Promise.all([
       this.getAreasMap(),
@@ -1019,7 +1020,7 @@ export class EstadisticasService {
   }): Promise<ActividadResponse> {
     this.validateRol(params.rol, "encargado_zona");
     const zonaId = await this.repo.findZonaIdDeEncargado(params.usuarioId);
-    if (!zonaId) throw new Error("Encargado sin zona asignada");
+    if (!zonaId) throw new AuthorizationError("Encargado sin zona asignada");
     const { periodoStart, periodoEnd } = getPeriodoRange(params.periodo);
     const evals = await this.repo.findActividadDocentes({ periodoStart, periodoEnd, zonaId });
     return calcularActividad(evals, params.periodo);
@@ -1140,13 +1141,13 @@ export class EstadisticasService {
     let persona: { nombre: string | null; primer_apellido: string | null } | null;
     if (params.rol === "docente") {
       const profesorId = await this.repo.findProfesorIdDeUsuario(params.usuarioId);
-      if (!profesorId) throw new Error("No se encontró el perfil de docente");
+      if (!profesorId) throw new AuthorizationError("No se encontró el perfil de docente");
       persona = await this.repo.findEstudianteEnAulasDeProfesor(params.estudianteId, profesorId);
-      if (!persona) throw new Error("Estudiante no pertenece a tus aulas");
+      if (!persona) throw new AuthorizationError("Estudiante no pertenece a tus aulas");
     } else {
       if (!params.aulaId) throw new Error("Se requiere aula_id");
       persona = await this.repo.findEstudianteEnAula(params.estudianteId, params.aulaId);
-      if (!persona) throw new Error("Estudiante no pertenece a esta aula");
+      if (!persona) throw new AuthorizationError("Estudiante no pertenece a esta aula");
     }
     const [areas, reglasMap, evaluaciones] = await Promise.all([
       this.repo.findAreas(),
@@ -1180,7 +1181,7 @@ export class EstadisticasService {
     this.validateRol(params.rol, "director", "encargado_zona", "equipo_padi");
     if (!params.escuelaId) throw new Error("Director sin escuela asignada");
     const persona = await this.repo.findEstudianteEnEscuela(params.estudianteId, params.escuelaId);
-    if (!persona) throw new Error("Estudiante no pertenece a esta escuela");
+    if (!persona) throw new AuthorizationError("Estudiante no pertenece a esta escuela");
     const [areas, reglasMap, evaluaciones] = await Promise.all([
       this.repo.findAreas(),
       this.getReglasMap(),
@@ -1220,9 +1221,9 @@ export class EstadisticasService {
     this.validateRol(params.rol, "docente", "director", "encargado_zona", "equipo_padi");
     if (params.rol === "docente") {
       const profesorId = await this.repo.findProfesorIdDeUsuario(params.usuarioId);
-      if (!profesorId) throw new Error("No se encontró el perfil de docente");
+      if (!profesorId) throw new AuthorizationError("No se encontró el perfil de docente");
       const tieneAcceso = await this.repo.findAulaDelProfesor(profesorId, params.aulaId);
-      if (!tieneAcceso) throw new Error("No tenés acceso a esta aula");
+      if (!tieneAcceso) throw new AuthorizationError("No tenés acceso a esta aula");
     }
 
     const { periodoStart, periodoEnd } = getPeriodoRange(params.periodo);
@@ -1289,9 +1290,9 @@ export class EstadisticasService {
     this.validateRol(params.rol, "docente", "director", "encargado_zona", "equipo_padi");
     if (params.rol === "docente") {
       const profesorId = await this.repo.findProfesorIdDeUsuario(params.usuarioId);
-      if (!profesorId) throw new Error("No se encontró el perfil de docente");
+      if (!profesorId) throw new AuthorizationError("No se encontró el perfil de docente");
       const tieneAcceso = await this.repo.findAulaDelProfesor(profesorId, params.aulaId);
-      if (!tieneAcceso) throw new Error("No tenés acceso a esta aula");
+      if (!tieneAcceso) throw new AuthorizationError("No tenés acceso a esta aula");
     }
 
     const { periodoStart, periodoEnd } = getPeriodoRange(params.periodo);
@@ -1402,7 +1403,7 @@ export class EstadisticasService {
   }): Promise<HeatmapResponse> {
     this.validateRol(params.rol, "encargado_zona");
     const zonaId = await this.repo.findZonaIdDeEncargado(params.usuarioId);
-    if (!zonaId) throw new Error("Encargado sin zona asignada");
+    if (!zonaId) throw new AuthorizationError("Encargado sin zona asignada");
     const { periodoStart, periodoEnd } = getPeriodoRange(params.periodo);
     const [areas, reglasMap, evaluaciones] = await Promise.all([
       this.repo.findAreas(),
