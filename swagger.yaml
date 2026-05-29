@@ -2290,6 +2290,15 @@ paths:
       description: |
         Evolución del puntaje de un estudiante a lo largo del tiempo, filtrada por el aula del docente.
         Roles: `docente`, `director`, `encargado_zona`, `equipo_padi`.
+
+        Si se provee `aula_id`, el servidor valida que el aula pertenezca al alcance del usuario
+        antes de procesar la solicitud:
+        - `director`: el aula debe pertenecer a su escuela.
+        - `encargado_zona`: la escuela del aula debe estar en su zona.
+        - `equipo_padi` y `docente`: sin restricción de alcance en esta capa.
+
+        Devuelve `403` si el `aula_id` está fuera del alcance del usuario. Devuelve `500` ante
+        errores inesperados (fallas de base de datos u otros estados no previstos).
       security:
         - bearerAuth: []
       parameters:
@@ -2316,6 +2325,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /estadisticas/escuela/progresion-estudiante:
     get:
@@ -2359,6 +2370,15 @@ paths:
       description: |
         Porcentaje de respuestas correctas por pregunta en un aula específica.
         Roles: `docente`, `director`, `encargado_zona`, `equipo_padi`.
+
+        El servidor valida que el `aula_id` pertenezca al alcance del usuario antes de procesar
+        la solicitud:
+        - `director`: el aula debe pertenecer a su escuela.
+        - `encargado_zona`: la escuela del aula debe estar en su zona.
+        - `equipo_padi` y `docente`: sin restricción de alcance en esta capa.
+
+        Devuelve `403` si el `aula_id` está fuera del alcance del usuario. Devuelve `500` ante
+        errores inesperados (fallas de base de datos u otros estados no previstos).
       security:
         - bearerAuth: []
       parameters:
@@ -2390,6 +2410,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
   /estadisticas/docente/distribucion-puntajes:
     get:
@@ -2398,6 +2420,15 @@ paths:
       description: |
         Distribución de puntajes de los estudiantes de un aula (para histogramas).
         Roles: `docente`, `director`, `encargado_zona`, `equipo_padi`.
+
+        El servidor valida que el `aula_id` pertenezca al alcance del usuario antes de procesar
+        la solicitud:
+        - `director`: el aula debe pertenecer a su escuela.
+        - `encargado_zona`: la escuela del aula debe estar en su zona.
+        - `equipo_padi` y `docente`: sin restricción de alcance en esta capa.
+
+        Devuelve `403` si el `aula_id` está fuera del alcance del usuario. Devuelve `500` ante
+        errores inesperados (fallas de base de datos u otros estados no previstos).
       security:
         - bearerAuth: []
       parameters:
@@ -2424,6 +2455,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
 
 # ─────────────────────────────────────────────
 # COMPONENTS
