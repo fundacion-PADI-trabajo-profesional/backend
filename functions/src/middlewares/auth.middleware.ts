@@ -105,7 +105,7 @@ export async function requireAuth(
 
         req.user = { ...profile, escuela_id: profile.escuela_id ?? undefined };
         rlsContext.run(
-          { sub: user.id, email: profile.email, role: profile.rol },
+          { sub: user.id, email: profile.email, role: 'authenticated' },
           () => next()
         );
     } catch (err) {

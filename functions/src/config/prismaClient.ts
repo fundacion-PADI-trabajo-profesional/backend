@@ -64,6 +64,9 @@ export async function withRLSContext<T>(
       await tx.$executeRaw`SET LOCAL ROLE authenticated`;
     }
     return fn(tx);
+  }, {
+    timeout: 30000,   // 30 s — evita que cortes de red DEV maten la transacción
+    maxWait: 10000,   // 10 s esperando conexión disponible
   });
 }
 
@@ -89,5 +92,8 @@ export async function withRLSContextAsAdmin<T>(
 
   // Corre como el usuario de la conexión (postgres/superuser), que bypasea RLS.
   // La autorización ya fue validada por requireRole en la capa de rutas.
-  return prisma.$transaction(fn);
+  return prisma.$transaction(fn, {
+    timeout: 30000,
+    maxWait: 10000,
+  });
 }
