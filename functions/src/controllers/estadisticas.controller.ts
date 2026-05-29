@@ -2,7 +2,7 @@ import type { Response } from "express";
 import type { AuthenticatedRequest } from "../middlewares/auth.middleware";
 import { commonResponse } from "../interfaces/common-response.interface";
 import { EstadisticasService } from "../services/estadisticas.service";
-import { getEncargadoZonaId, escuelaPerteneceAZona } from "../utils/scope";
+import { getEncargadoZonaId, escuelaPerteneceAZona, getEscuelaDeAula } from "../utils/scope";
 
 const service = new EstadisticasService();
 const TIPOS_VALIDOS = ["inicial", "final"];
@@ -58,6 +58,30 @@ async function resolveEscuelaId(req: AuthenticatedRequest): Promise<string | nul
   }
 
   return escuelaId;
+}
+
+/**
+ * Verifica que el aula_id esté dentro del scope del usuario autenticado.
+ * - director: el aula debe pertenecer a su escuela (del JWT).
+ * - encargado_zona: la escuela del aula debe estar en su zona.
+ * - equipo_padi / docente: sin restricción (docente lo valida el servicio).
+ */
+async function validateAulaScope(req: AuthenticatedRequest, aulaId: string): Promise<void> {
+  const rol = req.user!.rol;
+  if (rol === "equipo_padi" || rol === "docente") return;
+
+  const aulaEscuelaId = await getEscuelaDeAula(aulaId);
+  if (!aulaEscuelaId) throw new Error("Aula no encontrada");
+
+  if (rol === "director") {
+    if (aulaEscuelaId !== (req.user!.escuela_id ?? null)) {
+      throw new Error("No tenés permisos para ver estadísticas de esa aula");
+    }
+  } else if (rol === "encargado_zona") {
+    const zonaId = await getEncargadoZonaId(req.user!.id);
+    const pertenece = await escuelaPerteneceAZona(aulaEscuelaId, zonaId);
+    if (!pertenece) throw new Error("No tenés permisos para ver estadísticas de esa aula");
+  }
 }
 
 /**
@@ -462,6 +486,7 @@ export async function getProgresionEstudianteDocente(req: AuthenticatedRequest, 
     const estudianteId = String(req.query.estudiante_id ?? "");
     if (!estudianteId) return badParams(res);
     const aulaId = req.query.aula_id ? String(req.query.aula_id) : undefined;
+    if (aulaId) await validateAulaScope(req, aulaId);
     const data = await service.progresionEstudianteDocente({
       estudianteId,
       rol: String(req.user!.rol),
@@ -522,6 +547,7 @@ export async function getAprobacionPreguntas(req: AuthenticatedRequest, res: Res
     const periodo = parsePeriodo(req.query.periodo);
     const aulaId = String(req.query.aula_id ?? "");
     if (!periodo || !aulaId) return badParams(res);
+    await validateAulaScope(req, aulaId);
     const areaId = req.query.area_id ? String(req.query.area_id) : null;
     const data = await service.aprobacionPorPregunta({
       periodo,
@@ -553,6 +579,7 @@ export async function getDistribucionPuntajes(req: AuthenticatedRequest, res: Re
     const periodo = parsePeriodo(req.query.periodo);
     const aulaId = String(req.query.aula_id ?? "");
     if (!periodo || !aulaId) return badParams(res);
+    await validateAulaScope(req, aulaId);
     const data = await service.distribucionPuntajesDocente({
       periodo,
       aulaId,

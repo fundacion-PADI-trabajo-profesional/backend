@@ -65,3 +65,19 @@ export async function escuelaPerteneceAZona(
     return escuela?.zona_id === zonaId;
   });
 }
+
+/**
+ * Retorna el escuela_id del aula dado su id.
+ *
+ * @param aulaId - UUID del aula.
+ * @returns El escuela_id si el aula existe, null si no.
+ */
+export async function getEscuelaDeAula(aulaId: string): Promise<string | null> {
+  return withRLSContext(async (tx) => {
+    const aula = await tx.aulas.findUnique({
+      where: { id: aulaId },
+      select: { escuela_id: true },
+    });
+    return aula?.escuela_id ?? null;
+  });
+}
