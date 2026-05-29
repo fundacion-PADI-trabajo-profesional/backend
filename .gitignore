@@ -10,9 +10,11 @@ firebase-debug.*.log
 .env
 .env.local
 .env.remote
+.env.local
 .DS_Store
 install_nvm.sh
 .gitnexus
 .claude/
 CLAUDE.md
 AGENTS.md
+functions/.secret.local
