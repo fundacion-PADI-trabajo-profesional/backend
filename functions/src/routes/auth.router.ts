@@ -33,9 +33,9 @@ export function createAuthRouter() {
 
     router.post("/auth/login", authLimiter, AuthController.login);
     router.post("/auth/register", authLimiter, AuthController.register);
-    router.post("/auth/refresh-token", AuthController.refreshToken);
+    router.post("/auth/refresh-token", authLimiter, AuthController.refreshToken);
     router.post("/auth/reset-password-request", authLimiter, AuthController.requestPasswordReset);
-    router.post("/auth/update-password", AuthController.updatePassword);
+    router.post("/auth/update-password", authLimiter, AuthController.updatePassword);
 
     return router;
 }
