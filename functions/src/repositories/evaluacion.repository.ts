@@ -361,7 +361,11 @@ export const EvaluacionRepository = {
         select: { pregunta_id: true, respuesta: true },
       });
 
-      return { preguntas, respuestas };
+      const preguntasMapped = preguntas.map((p: any) => ({
+        ...p,
+        tipoPregunta: p.tipopregunta ?? null,
+      }));
+      return { preguntas: preguntasMapped, respuestas };
     });
   },
 
