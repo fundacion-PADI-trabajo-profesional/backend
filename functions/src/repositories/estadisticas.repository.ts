@@ -264,7 +264,7 @@ export const EstadisticasRepository = {
     tipo: string;
   }) {
     return withRLSContext(async (tx) => {
-      return tx.evaluacionEstudiante.findMany({
+      const rows = await tx.evaluacionEstudiante.findMany({
         where: {
           tipo_id: filtros.tipo,
           fecha_creacion: { gte: filtros.periodoStart, lt: filtros.periodoEnd },
@@ -298,7 +298,16 @@ export const EstadisticasRepository = {
             select: { area_id: true, puntaje: true },
           },
         },
+        take: MAX_EVALUACIONES_POR_QUERY + 1,
       });
+
+      if (rows.length > MAX_EVALUACIONES_POR_QUERY) {
+        throw new Error(
+          `La consulta supera el límite de ${MAX_EVALUACIONES_POR_QUERY} evaluaciones. Aplicá un filtro de período más acotado.`
+        );
+      }
+
+      return rows;
     });
   },
 
@@ -374,7 +383,7 @@ export const EstadisticasRepository = {
     areaId?: string;
   }) {
     return withRLSContext(async (tx) => {
-      return tx.evaluacionEstudiante.findMany({
+      const rows = await tx.evaluacionEstudiante.findMany({
         where: {
           aula_id: filtros.aulaId,
           fecha_creacion: { gte: filtros.periodoStart, lt: filtros.periodoEnd },
@@ -398,7 +407,16 @@ export const EstadisticasRepository = {
             },
           },
         },
+        take: MAX_EVALUACIONES_POR_QUERY + 1,
       });
+
+      if (rows.length > MAX_EVALUACIONES_POR_QUERY) {
+        throw new Error(
+          `La consulta supera el límite de ${MAX_EVALUACIONES_POR_QUERY} evaluaciones para el aula.`
+        );
+      }
+
+      return rows;
     });
   },
 
@@ -420,7 +438,7 @@ export const EstadisticasRepository = {
     periodoEnd: Date;
   }) {
     return withRLSContext(async (tx) => {
-      return tx.evaluacionEstudiante.findMany({
+      const rows = await tx.evaluacionEstudiante.findMany({
         where: {
           aula_id: filtros.aulaId,
           fecha_creacion: { gte: filtros.periodoStart, lt: filtros.periodoEnd },
@@ -434,7 +452,16 @@ export const EstadisticasRepository = {
             select: { area_id: true, puntaje: true },
           },
         },
+        take: MAX_EVALUACIONES_POR_QUERY + 1,
       });
+
+      if (rows.length > MAX_EVALUACIONES_POR_QUERY) {
+        throw new Error(
+          `La consulta supera el límite de ${MAX_EVALUACIONES_POR_QUERY} evaluaciones para el aula.`
+        );
+      }
+
+      return rows;
     });
   },
 
