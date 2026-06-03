@@ -146,7 +146,6 @@ export const DocenteRepository = {
     return withRLSContext(async (tx) => {
       const rows = await tx.profesores.findMany({
         where: {
-          personas: { usuario: { rol: "docente" } },
           profesores_escuelas: {
             some: {
               fecha_fin: null,
