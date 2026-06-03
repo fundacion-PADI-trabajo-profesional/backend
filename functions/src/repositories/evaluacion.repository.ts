@@ -1,4 +1,5 @@
 import { withRLSContext } from "../config/prismaClient";
+import { getSignedImageUrl } from "../utils/storage";
 
 /** Estado: no iniciada. */
 const ESTADO_NO_INICIADA = "N";
@@ -361,10 +362,13 @@ export const EvaluacionRepository = {
         select: { pregunta_id: true, respuesta: true },
       });
 
-      const preguntasMapped = preguntas.map((p: any) => ({
-        ...p,
-        tipoPregunta: p.tipopregunta ?? null,
-      }));
+      const preguntasMapped = await Promise.all(
+        preguntas.map(async (p: any) => ({
+          ...p,
+          tipoPregunta: p.tipopregunta ?? null,
+          signed_url: p.imagen_url ? await getSignedImageUrl(p.imagen_url) : null,
+        }))
+      );
       return { preguntas: preguntasMapped, respuestas };
     });
   },

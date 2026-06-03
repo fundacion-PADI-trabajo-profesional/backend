@@ -20,6 +20,6 @@ const app = createApp();
  * @see {@link createApp} para la configuración interna del servidor.
  */
 export const api = onRequest({
-    secrets: ["DATABASE_URL", "SUPABASE_URL", "SUPABASE_KEY"],
-    memory: "256MiB" // Opcional
+    secrets: ["DATABASE_URL", "SUPABASE_URL", "SUPABASE_KEY", "SUPABASE_SERVICE_KEY"],
+    memory: "256MiB"
 }, app);

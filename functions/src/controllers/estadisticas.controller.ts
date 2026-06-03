@@ -78,6 +78,7 @@ async function validateAulaScope(req: AuthenticatedRequest, aulaId: string): Pro
       throw new AuthorizationError("No tenés permisos para ver estadísticas de esa aula");
     }
   } else if (rol === "encargado_zona") {
+    if (!aulaEscuelaId) throw new AuthorizationError("No tenés permisos para ver estadísticas de esa aula");
     const zonaId = await getEncargadoZonaId(req.user!.id);
     const pertenece = await escuelaPerteneceAZona(aulaEscuelaId, zonaId);
     if (!pertenece) throw new AuthorizationError("No tenés permisos para ver estadísticas de esa aula");
