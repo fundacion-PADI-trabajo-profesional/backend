@@ -34,8 +34,14 @@ export function getPrisma(): PrismaClient | null {
     return null;
   }
 
+  // Limitar conexiones para no agotar el pool del session mode pooler de Supabase (máx 15).
+  // Se agrega connection_limit a la URL si no está ya configurado.
+  const url = process.env.DATABASE_URL;
+  const datasourceUrl = url.includes('connection_limit') ? url : `${url}?connection_limit=5&pool_timeout=20`;
+
   prisma = new PrismaClient({
     log: ['error', 'warn'],
+    datasources: { db: { url: datasourceUrl } },
   });
 
   return prisma;
