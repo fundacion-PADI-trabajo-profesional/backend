@@ -118,6 +118,7 @@ export const EvaluacionRepository = {
     estadoId?: string;
     escuelaId?: string;
     escuelaIds?: string[];
+    aulaIds?: string[];
   }) {
     return withRLSContextAsAdmin(async (tx) => {
       const where: any = {};
@@ -126,7 +127,9 @@ export const EvaluacionRepository = {
       if (filters?.salaId !== undefined) where.sala_id = filters.salaId;
       if (filters?.tipoId) where.tipo_id = filters.tipoId;
       if (filters?.estadoId) where.estado_id = filters.estadoId;
-      if (filters?.escuelaId) {
+      if (filters?.aulaIds && filters.aulaIds.length > 0) {
+        where.aula_id = { in: filters.aulaIds };
+      } else if (filters?.escuelaId) {
         where.estudiantes = { escuela_id: filters.escuelaId };
       } else if (filters?.escuelaIds && filters.escuelaIds.length > 0) {
         where.estudiantes = { escuela_id: { in: filters.escuelaIds } };
@@ -381,7 +384,7 @@ export const EvaluacionRepository = {
     areaId: string,
     questions: { id: string; answer: number | null }[]
   ) {
-    return withRLSContext(async (tx) => {
+    return withRLSContextAsAdmin(async (tx) => {
 
       const evalEst = await tx.evaluacionEstudiante.findUnique({
         where: { id: evaluacionId },

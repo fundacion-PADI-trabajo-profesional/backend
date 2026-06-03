@@ -86,8 +86,20 @@ export async function getEvaluaciones(req: AuthenticatedRequest, res: Response) 
     }
 
     if (rol === "docente") {
-      // NC2: ignorar profesorId del query y forzar siempre el propio ID para prevenir IDOR
-      filters.profesorId = userId;
+      // El docente puede ver evaluaciones de alumnos de sus aulas activas (no solo las que él tomó).
+      const profesorAulas = await withRLSContext(async (tx) => {
+        return tx.profesoresAulas.findMany({
+          where: { profesor_id: userId, fecha_fin: null },
+          select: { aula_id: true },
+        });
+      });
+      const aulaIds = profesorAulas.map((pa: any) => pa.aula_id);
+      if (aulaIds.length === 0) {
+        // Sin aulas asignadas: solo ve sus propias evaluaciones
+        filters.profesorId = userId;
+      } else {
+        (filters as any).aulaIds = aulaIds;
+      }
     }
     data = await service.listWithFilters(filters);
 
@@ -115,9 +127,20 @@ export async function getEvaluacionById(req: AuthenticatedRequest, res: Response
     const { rol, id: userId, escuela_id: userEscuelaId } = req.user!;
     const data = await service.getDetalle(req.params.id);
 
-    //docente solo ve sus propias evaluaciones; director solo las de su escuela
+    // Docente: puede ver evaluaciones de sus propias aulas activas (no solo las que él tomó)
     if (rol === "docente" && data.profesor_id !== userId) {
-      return res.status(403).json(commonResponse(false, "No tienes permisos para ver esta evaluación.", null));
+      const aulaEvaluacion = (data as any).aula_id;
+      if (!aulaEvaluacion) {
+        return res.status(403).json(commonResponse(false, "No tienes permisos para ver esta evaluación.", null));
+      }
+      const asignacion = await withRLSContext(async (tx) => {
+        return tx.profesoresAulas.findFirst({
+          where: { profesor_id: userId, aula_id: aulaEvaluacion, fecha_fin: null },
+        });
+      });
+      if (!asignacion) {
+        return res.status(403).json(commonResponse(false, "No tienes permisos para ver esta evaluación.", null));
+      }
     }
     if (rol === "director" && userEscuelaId) {
       const escuelaEvaluacion = (data as any).estudiantes?.escuela_id ?? (data as any).escuela_id;
@@ -186,7 +209,18 @@ export async function getPreguntasDeArea(req: AuthenticatedRequest, res: Respons
     const escuelaEvaluacion = (evaluacion as any).estudiantes?.escuela_id;
 
     if (rol === "docente" && evaluacion.profesor_id !== userId) {
-      return res.status(403).json(commonResponse(false, "No tienes permisos para ver esta evaluación.", null));
+      const aulaEvaluacion = (evaluacion as any).aula_id;
+      if (!aulaEvaluacion) {
+        return res.status(403).json(commonResponse(false, "No tienes permisos para ver esta evaluación.", null));
+      }
+      const asignacion = await withRLSContext(async (tx) => {
+        return tx.profesoresAulas.findFirst({
+          where: { profesor_id: userId, aula_id: aulaEvaluacion, fecha_fin: null },
+        });
+      });
+      if (!asignacion) {
+        return res.status(403).json(commonResponse(false, "No tienes permisos para ver esta evaluación.", null));
+      }
     }
     if (rol === "director" && userEscuelaId && escuelaEvaluacion && escuelaEvaluacion !== userEscuelaId) {
       return res.status(403).json(commonResponse(false, "No tienes permisos para ver esta evaluación.", null));
@@ -231,7 +265,18 @@ export async function guardarRespuestasArea(req: AuthenticatedRequest, res: Resp
     const escuelaEvaluacion = (evaluacion as any).estudiantes?.escuela_id;
 
     if (rol === "docente" && evaluacion.profesor_id !== userId) {
-      return res.status(403).json(commonResponse(false, "No tienes permisos para modificar esta evaluación.", null));
+      const aulaEvaluacion = (evaluacion as any).aula_id;
+      if (!aulaEvaluacion) {
+        return res.status(403).json(commonResponse(false, "No tienes permisos para modificar esta evaluación.", null));
+      }
+      const asignacion = await withRLSContext(async (tx) => {
+        return tx.profesoresAulas.findFirst({
+          where: { profesor_id: userId, aula_id: aulaEvaluacion, fecha_fin: null },
+        });
+      });
+      if (!asignacion) {
+        return res.status(403).json(commonResponse(false, "No tienes permisos para modificar esta evaluación.", null));
+      }
     }
     if (rol === "director" && userEscuelaId && escuelaEvaluacion && escuelaEvaluacion !== userEscuelaId) {
       return res.status(403).json(commonResponse(false, "No tienes permisos para modificar esta evaluación.", null));
