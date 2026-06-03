@@ -82,7 +82,23 @@ export class AuthService {
       throw new Error("Perfil de usuario no encontrado. Por favor, contactá al administrador.");
     }
 
-    const profile = profileData;
+    let profile = profileData;
+
+    // Para docentes, escuela_id en usuarios es null — su escuela viene de profesores_escuelas.
+    if (profile.rol === "docente" && !profile.escuela) {
+      const { data: escuelaData } = await (supabase as any)
+        .from("_ProfesoresToEscuelas")
+        .select("escuela:escuelas(id, nombre)")
+        .eq("profesor_id", data.user.id)
+        .is("fecha_fin", null)
+        .order("fecha_inicio", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (escuelaData?.escuela) {
+        profile = { ...profile, escuela: escuelaData.escuela };
+      }
+    }
 
     return { user: data.user, session: data.session, profile };
   }
