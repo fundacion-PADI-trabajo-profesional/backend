@@ -1,4 +1,4 @@
-import { withRLSContext } from "../config/prismaClient";
+import { withRLSContext, withRLSContextAsAdmin } from "../config/prismaClient";
 import { getSignedImageUrl } from "../utils/storage";
 
 /** Estado: no iniciada. */
@@ -119,7 +119,7 @@ export const EvaluacionRepository = {
     escuelaId?: string;
     escuelaIds?: string[];
   }) {
-    return withRLSContext(async (tx) => {
+    return withRLSContextAsAdmin(async (tx) => {
       const where: any = {};
       if (filters?.estudianteId) where.estudiante_id = filters.estudianteId;
       if (filters?.profesorId) where.profesor_id = filters.profesorId;
