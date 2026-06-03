@@ -112,8 +112,9 @@ function armarHeatmap(
       // nivel === "aula": solo evaluaciones con aula asignada
       if (!aula) continue;
       filaId = aula.id;
-      filaNombre = `${aula.comision} - ${aula.turno}`;
-      filaMeta = { comision: String(aula.comision), turno: String(aula.turno) };
+      const salaNombre = aula.sala?.nombre ?? `Sala ${ev.sala_id}`;
+      filaNombre = `${salaNombre} - ${aula.comision} - ${aula.turno}`;
+      filaMeta = { comision: String(aula.comision), turno: String(aula.turno), sala: salaNombre };
     }
 
     if (!filasMap.has(filaId)) {
@@ -766,6 +767,12 @@ function bucketPct(pct: number): number {
   return 4;
 }
 
+// Cache de módulo para datos estáticos — persiste entre invocaciones warm en Cloud Functions.
+// TTL de 10 min para recargar si cambian las reglas o áreas (raro pero posible).
+const CACHE_TTL_MS = 10 * 60 * 1000;
+let _reglasCache: { map: Map<string, number>; ts: number } | null = null;
+let _areasCache: { data: Array<{ id: string; nombre: string; orden: number }>; ts: number } | null = null;
+
 export class EstadisticasService {
   private repo = EstadisticasRepository;
 
@@ -784,12 +791,26 @@ export class EstadisticasService {
   /**
    * Obtiene las reglas de aprobación desde el repositorio y las convierte en
    * un mapa de clave `"area_id__sala_id"` a puntaje máximo.
+   * Resultado cacheado en memoria por 10 minutos.
    *
    * @returns Mapa de reglas de aprobación listo para normalizar puntajes.
    */
   private async getReglasMap() {
+    const now = Date.now();
+    if (_reglasCache && now - _reglasCache.ts < CACHE_TTL_MS) return _reglasCache.map;
     const reglas = await this.repo.findReglasAprobacion();
-    return buildReglasMap(reglas);
+    const map = buildReglasMap(reglas);
+    _reglasCache = { map, ts: now };
+    return map;
+  }
+
+  /** Áreas cacheadas — mismo TTL que reglasMap. */
+  private async getAreas() {
+    const now = Date.now();
+    if (_areasCache && now - _areasCache.ts < CACHE_TTL_MS) return _areasCache.data;
+    const data = await this.repo.findAreas();
+    _areasCache = { data, ts: now };
+    return data;
   }
 
   /**
@@ -799,7 +820,7 @@ export class EstadisticasService {
    * @returns Mapa de `area_id` → `nombre` de área.
    */
   private async getAreasMap(): Promise<Map<string, string>> {
-    const areas = await this.repo.findAreas();
+    const areas = await this.getAreas();
     return new Map(areas.map((a: any) => [a.id, a.nombre as string]));
   }
 
@@ -816,10 +837,10 @@ export class EstadisticasService {
     this.validateRol(params.rol, "equipo_padi");
     const { periodoStart, periodoEnd } = getPeriodoRange(params.periodo);
     const [areas, reglasMap, evIni, evFin] = await Promise.all([
-      this.repo.findAreas(),
+      this.getAreas(),
       this.getReglasMap(),
       this.repo.findEvaluacionesParaHeatmap({ periodoStart, periodoEnd, tipo: "inicial" }),
-      this.repo.findEvaluacionesParaHeatmap({ periodoStart, periodoEnd, tipo: "final" }),
+      this.repo.findEvaluacionesParaHeatmap({ periodoStart, periodoEnd, tipo: "cierre" }),
     ]);
     return calcularEvolucion(evIni, evFin, reglasMap, areas, params.periodo);
   }
@@ -840,10 +861,10 @@ export class EstadisticasService {
     if (!zonaId) throw new AuthorizationError("Encargado sin zona asignada");
     const { periodoStart, periodoEnd } = getPeriodoRange(params.periodo);
     const [areas, reglasMap, evIni, evFin] = await Promise.all([
-      this.repo.findAreas(),
+      this.getAreas(),
       this.getReglasMap(),
       this.repo.findEvaluacionesParaHeatmap({ periodoStart, periodoEnd, tipo: "inicial", zonaId }),
-      this.repo.findEvaluacionesParaHeatmap({ periodoStart, periodoEnd, tipo: "final", zonaId }),
+      this.repo.findEvaluacionesParaHeatmap({ periodoStart, periodoEnd, tipo: "cierre", zonaId }),
     ]);
     return calcularEvolucion(evIni, evFin, reglasMap, areas, params.periodo);
   }
@@ -863,10 +884,10 @@ export class EstadisticasService {
     if (!params.escuelaId) throw new Error("Director sin escuela asignada");
     const { periodoStart, periodoEnd } = getPeriodoRange(params.periodo);
     const [areas, reglasMap, evIni, evFin] = await Promise.all([
-      this.repo.findAreas(),
+      this.getAreas(),
       this.getReglasMap(),
       this.repo.findEvaluacionesParaHeatmap({ periodoStart, periodoEnd, tipo: "inicial", escuelaId: params.escuelaId }),
-      this.repo.findEvaluacionesParaHeatmap({ periodoStart, periodoEnd, tipo: "final", escuelaId: params.escuelaId }),
+      this.repo.findEvaluacionesParaHeatmap({ periodoStart, periodoEnd, tipo: "cierre", escuelaId: params.escuelaId }),
     ]);
     return calcularEvolucion(evIni, evFin, reglasMap, areas, params.periodo);
   }
@@ -886,7 +907,7 @@ export class EstadisticasService {
     this.validateRol(params.rol, "equipo_padi");
     const { periodoStart, periodoEnd } = getPeriodoRange(params.periodo);
     const [areas, reglasMap, evaluaciones] = await Promise.all([
-      this.repo.findAreas(),
+      this.getAreas(),
       this.getReglasMap(),
       this.repo.findEvaluacionesParaHeatmap({ periodoStart, periodoEnd, tipo: params.tipo }),
     ]);
@@ -910,7 +931,7 @@ export class EstadisticasService {
     if (!zonaId) throw new AuthorizationError("Encargado sin zona asignada");
     const { periodoStart, periodoEnd } = getPeriodoRange(params.periodo);
     const [areas, reglasMap, evaluaciones] = await Promise.all([
-      this.repo.findAreas(),
+      this.getAreas(),
       this.getReglasMap(),
       this.repo.findEvaluacionesParaHeatmap({ periodoStart, periodoEnd, tipo: params.tipo, zonaId }),
     ]);
@@ -934,7 +955,7 @@ export class EstadisticasService {
     if (!params.escuelaId) throw new Error("Director sin escuela asignada");
     const { periodoStart, periodoEnd } = getPeriodoRange(params.periodo);
     const [areas, reglasMap, evaluaciones] = await Promise.all([
-      this.repo.findAreas(),
+      this.getAreas(),
       this.getReglasMap(),
       this.repo.findEvaluacionesParaHeatmap({ periodoStart, periodoEnd, tipo: params.tipo, escuelaId: params.escuelaId }),
     ]);
@@ -1093,7 +1114,7 @@ export class EstadisticasService {
     const zonaId = await this.repo.findZonaIdDeEscuela(params.escuelaId);
     const { periodoStart, periodoEnd } = getPeriodoRange(params.periodo);
     const [areas, reglasMap, evEscuela, evZona, evNacional] = await Promise.all([
-      this.repo.findAreas(),
+      this.getAreas(),
       this.getReglasMap(),
       this.repo.findEvaluacionesParaHeatmap({
         periodoStart, periodoEnd, tipo: params.tipo, escuelaId: params.escuelaId,
@@ -1150,7 +1171,7 @@ export class EstadisticasService {
       if (!persona) throw new AuthorizationError("Estudiante no pertenece a esta aula");
     }
     const [areas, reglasMap, evaluaciones] = await Promise.all([
-      this.repo.findAreas(),
+      this.getAreas(),
       this.getReglasMap(),
       this.repo.findUltimasEvaluaciones({ estudianteId: params.estudianteId, limit: 4 }),
     ]);
@@ -1183,7 +1204,7 @@ export class EstadisticasService {
     const persona = await this.repo.findEstudianteEnEscuela(params.estudianteId, params.escuelaId);
     if (!persona) throw new AuthorizationError("Estudiante no pertenece a esta escuela");
     const [areas, reglasMap, evaluaciones] = await Promise.all([
-      this.repo.findAreas(),
+      this.getAreas(),
       this.getReglasMap(),
       this.repo.findUltimasEvaluaciones({ estudianteId: params.estudianteId, limit: 4 }),
     ]);
@@ -1227,14 +1248,30 @@ export class EstadisticasService {
     }
 
     const { periodoStart, periodoEnd } = getPeriodoRange(params.periodo);
-    const evaluaciones = await this.repo.findRespuestasPorAula({
-      aulaId: params.aulaId,
-      periodoStart,
-      periodoEnd,
-      ...(params.areaId ? { areaId: params.areaId } : {}),
-    });
+    const [evaluaciones, salaId] = await Promise.all([
+      this.repo.findRespuestasPorAula({
+        aulaId: params.aulaId,
+        periodoStart,
+        periodoEnd,
+        ...(params.areaId ? { areaId: params.areaId } : {}),
+      }),
+      this.repo.findSalaIdDeAula(params.aulaId),
+    ]);
 
-    const map = new Map<string, { consigna: string | null; area_id: string | null; total: number; correctos: number }>();
+    // Inicializar el mapa con TODAS las preguntas de la sala (total=0)
+    const todasPreguntas = salaId != null
+      ? await this.repo.findPreguntasPorSala({ salaId, ...(params.areaId ? { areaId: params.areaId } : {}) })
+      : [];
+
+    const map = new Map<string, { consigna: string | null; area_id: string | null; total: number; correctos: number }>(
+      todasPreguntas.map((p) => [p.id, {
+        consigna: p.consigna ?? p.titulo ?? null,
+        area_id: p.area_id ?? null,
+        total: 0,
+        correctos: 0,
+      }])
+    );
+
     for (const ev of evaluaciones) {
       for (const area of ev.evaluaciones_estudiante_area) {
         for (const resp of area.evaluaciones_estudiante_area_preguntas) {
@@ -1351,7 +1388,7 @@ export class EstadisticasService {
     this.validateRol(params.rol, "equipo_padi");
     const { periodoStart, periodoEnd } = getPeriodoRange(params.periodo);
     const [areas, reglasMap, evaluaciones] = await Promise.all([
-      this.repo.findAreas(),
+      this.getAreas(),
       this.getReglasMap(),
       this.repo.findEvaluacionesPorNivelSocioeconomico({ periodoStart, periodoEnd, tipo: params.tipo }),
     ]);
@@ -1377,7 +1414,7 @@ export class EstadisticasService {
     this.validateRol(params.rol, "equipo_padi");
     const { periodoStart, periodoEnd } = getPeriodoRange(params.periodo);
     const [areas, reglasMap, evaluaciones] = await Promise.all([
-      this.repo.findAreas(),
+      this.getAreas(),
       this.getReglasMap(),
       this.repo.findEvaluacionesParaHeatmap({ periodoStart, periodoEnd, tipo: params.tipo }),
     ]);
@@ -1406,7 +1443,7 @@ export class EstadisticasService {
     if (!zonaId) throw new AuthorizationError("Encargado sin zona asignada");
     const { periodoStart, periodoEnd } = getPeriodoRange(params.periodo);
     const [areas, reglasMap, evaluaciones] = await Promise.all([
-      this.repo.findAreas(),
+      this.getAreas(),
       this.getReglasMap(),
       this.repo.findEvaluacionesParaHeatmap({ periodoStart, periodoEnd, tipo: params.tipo, zonaId }),
     ]);
@@ -1435,7 +1472,7 @@ export class EstadisticasService {
     if (!params.escuelaId) throw new Error("Director sin escuela asignada");
     const { periodoStart, periodoEnd } = getPeriodoRange(params.periodo);
     const [areas, reglasMap, evaluaciones] = await Promise.all([
-      this.repo.findAreas(),
+      this.getAreas(),
       this.getReglasMap(),
       this.repo.findEvaluacionesParaHeatmap({
         periodoStart,

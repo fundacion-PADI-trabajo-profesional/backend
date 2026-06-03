@@ -6,7 +6,7 @@ import { getEncargadoZonaId, escuelaPerteneceAZona, getEscuelaDeAula } from "../
 import { AuthorizationError } from "../utils/errors";
 
 const service = new EstadisticasService();
-const TIPOS_VALIDOS = ["inicial", "final"];
+const TIPOS_VALIDOS = ["inicial", "cierre"];
 
 /**
  * Parsea el parámetro de período del query string y lo convierte a un entero.
@@ -29,7 +29,7 @@ function parsePeriodo(raw: unknown): number | null {
 function badParams(res: Response) {
   return res
     .status(400)
-    .json(commonResponse(false, "Parámetros inválidos: se requieren periodo (año) y tipo (inicial|final)", null));
+    .json(commonResponse(false, "Parámetros inválidos: se requieren periodo (año) y tipo (inicial|cierre)", null));
 }
 
 /**

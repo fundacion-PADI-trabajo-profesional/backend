@@ -106,8 +106,12 @@ export async function listEstudiantes(req: AuthenticatedRequest, res: Response) 
             }
             data = await service.listByEscuela(String(escuela_id), user);
         } else {
-            // Usuarios admin (PADI/Encargados) siguen viendo todo el listado
-            data = await service.list(user);
+            // Encargados y equipo PADI: si viene escuela_id en el query, filtrar por escuela
+            if (escuela_id) {
+                data = await service.listByEscuela(String(escuela_id), user);
+            } else {
+                data = await service.list(user);
+            }
         }
 
         res.status(200).json(commonResponse(true, "ok", data));

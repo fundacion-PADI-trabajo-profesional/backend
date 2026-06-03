@@ -101,6 +101,7 @@ export const EstadisticasRepository = {
               comision: true,
               turno: true,
               escuela_id: true,
+              sala: { select: { id: true, nombre: true } },
               escuela: {
                 select: {
                   id: true,
@@ -707,6 +708,29 @@ export const EstadisticasRepository = {
    * @returns Objeto con `nombre` y `primer_apellido` del estudiante, o `null` si
    *          el estudiante no está matriculado en esa aula.
    */
+  async findSalaIdDeAula(aulaId: string): Promise<number | null> {
+    return withRLSContext(async (tx) => {
+      const aula = await tx.aulas.findUnique({
+        where: { id: aulaId },
+        select: { sala_id: true },
+      });
+      return aula?.sala_id ?? null;
+    });
+  },
+
+  async findPreguntasPorSala(filtros: { salaId: number; areaId?: string }) {
+    return withRLSContext(async (tx) => {
+      return tx.preguntas.findMany({
+        where: {
+          sala_id: filtros.salaId,
+          activa: true,
+          ...(filtros.areaId ? { area_id: filtros.areaId } : {}),
+        },
+        select: { id: true, consigna: true, titulo: true, area_id: true },
+      });
+    });
+  },
+
   async findEstudianteEnAula(
     estudianteId: string,
     aulaId: string

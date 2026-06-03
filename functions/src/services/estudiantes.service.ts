@@ -150,7 +150,8 @@ export class EstudiantesService {
      * @throws Error si el rol no tiene permisos de acceso filtrado por escuela.
      */
     async listByEscuela(escuelaId: string, user: { id: string; rol: string }) {
-        if (user.rol === "docente" || user.rol === "director") {
+        const rolesPermitidos = ["docente", "director", "encargado_zona", "equipo_padi"];
+        if (rolesPermitidos.includes(user.rol)) {
             return await this.repo.listByEscuela(escuelaId);
         }
         throw new Error("No tienes permisos para acceder a los estudiantes de esta escuela.");
