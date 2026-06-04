@@ -1,4 +1,4 @@
-import { withRLSContext } from "../config/prismaClient";
+import { withRLSContextAsAdmin } from "../config/prismaClient";
 import { DirectivoItem } from "../interfaces/directivo.interface";
 
 /**
@@ -9,7 +9,7 @@ export const DirectivoRepository = {
    * Lista todos los directivos del sistema con su escuela asignada (si la tienen).
    */
   async list(): Promise<DirectivoItem[]> {
-    return withRLSContext(async (tx) => {
+    return withRLSContextAsAdmin(async (tx) => {
       const rows = await tx.usuarioPerfil.findMany({
         where: { rol: "director" },
         select: {
@@ -33,7 +33,7 @@ export const DirectivoRepository = {
    * Lista los directivos que aún no tienen una escuela asignada.
    */
   async listAvailable(): Promise<DirectivoItem[]> {
-    return withRLSContext(async (tx) => {
+    return withRLSContextAsAdmin(async (tx) => {
       const rows = await tx.usuarioPerfil.findMany({
         where: {
           rol: "director",

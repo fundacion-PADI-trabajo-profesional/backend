@@ -305,6 +305,9 @@ export class AdminService {
     });
 
     if (inviteError) {
+      if (inviteError.message.toLowerCase().includes("rate limit")) {
+        throw new Error("Se realizaron demasiados intentos de envío. Esperá unos minutos antes de volver a intentarlo.");
+      }
       throw new Error(`Error al reenviar invitación: ${inviteError.message}`);
     }
   }
