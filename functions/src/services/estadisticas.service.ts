@@ -773,6 +773,12 @@ const CACHE_TTL_MS = 10 * 60 * 1000;
 let _reglasCache: { map: Map<string, number>; ts: number } | null = null;
 let _areasCache: { data: Array<{ id: string; nombre: string; orden: number }>; ts: number } | null = null;
 
+/** Limpia la caché en memoria. Solo para uso en tests. */
+export function clearStatsCache() {
+  _reglasCache = null;
+  _areasCache = null;
+}
+
 export class EstadisticasService {
   private repo = EstadisticasRepository;
 

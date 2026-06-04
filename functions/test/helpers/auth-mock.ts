@@ -54,7 +54,10 @@ export function mockAuthAs(
             updateMany: vi.fn().mockResolvedValue({ count: 0 }),
         },
 
-        profesoresAulas: {},
+        profesoresAulas: {
+            findMany: vi.fn().mockResolvedValue([]),
+            findFirst: vi.fn().mockResolvedValue(null),
+        },
         estudiantes: {},
         aulas: {
             findUnique: vi.fn().mockResolvedValue({ escuela_id: null }),

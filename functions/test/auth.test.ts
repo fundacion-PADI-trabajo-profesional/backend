@@ -22,6 +22,13 @@ describe("auth endpoints", () => {
         select: () => ({
           eq: () => ({
             single: vi.fn().mockResolvedValue({ data: { id: "user-1", rol: "docente" }, error: null }),
+            is: () => ({
+              order: () => ({
+                limit: () => ({
+                  single: vi.fn().mockResolvedValue({ data: null, error: null }),
+                }),
+              }),
+            }),
           }),
         }),
       }),

@@ -79,6 +79,13 @@ describe("integración: rutas públicas NO requieren token", () => {
                             data: { id: "u1", rol: "docente", nombre: "A", apellido: "B" },
                             error: null,
                         }),
+                        is: () => ({
+                            order: () => ({
+                                limit: () => ({
+                                    single: vi.fn().mockResolvedValue({ data: null, error: null }),
+                                }),
+                            }),
+                        }),
                     }),
                 }),
             }),

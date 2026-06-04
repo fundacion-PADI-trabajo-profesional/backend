@@ -1,10 +1,12 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import request from "supertest";
 import { createApp } from "../src/server";
 import { EstadisticasRepository } from "../src/repositories/estadisticas.repository";
 import { mockAuthAs } from "./helpers/auth-mock";
+import { clearStatsCache } from "../src/services/estadisticas.service";
 
 const app = createApp();
+beforeEach(() => clearStatsCache());
 afterEach(() => vi.restoreAllMocks());
 
 const AREAS = [{ id: "A1", nombre: "Área 1", orden: 1 }];
@@ -272,7 +274,7 @@ describe("GET /estadisticas/escuela/heatmap-aulas", () => {
       .set("Authorization", "Bearer fake-token");
 
     expect(res.status).toBe(200);
-    expect(res.body.data.filas[0].nombre).toBe("A - mañana");
+    expect(res.body.data.filas[0].nombre).toBe("Sala 3 - A - mañana");
     expect(res.body.data.filas[0].meta?.comision).toBe("A");
     expect(res.body.data.filas[0].meta?.turno).toBe("mañana");
   });
@@ -849,11 +851,11 @@ describe("GET /estadisticas/escuela/areas-criticas", () => {
     ] as any);
 
     const res = await request(app)
-      .get("/estadisticas/escuela/areas-criticas?periodo=2025&tipo=final")
+      .get("/estadisticas/escuela/areas-criticas?periodo=2025&tipo=cierre")
       .set("Authorization", "Bearer fake-token");
 
     expect(res.status).toBe(200);
-    expect(res.body.data.tipo).toBe("final");
+    expect(res.body.data.tipo).toBe("cierre");
     expect(res.body.data.areas[0].area_id).toBe("A1"); // 20% < 70%
   });
 
