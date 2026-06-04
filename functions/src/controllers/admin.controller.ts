@@ -1,6 +1,7 @@
 import { Response } from "express";
 import { AuthenticatedRequest } from "../middlewares/auth.middleware";
 import { AdminService, type CreateUserData } from "../services/admin.service";
+import { getEncargadoZonaId, escuelaPerteneceAZona } from "../utils/scope";
 
 /**
  * Controlador HTTP para las operaciones del panel de administración de usuarios del sistema.
@@ -43,8 +44,18 @@ export class AdminController {
         return res.status(403).json({ message: "Solo tenés permisos para crear cuentas de docentes." });
       }
 
-      // Si el solicitante es director, asignar el nuevo docente a su escuela automáticamente.
-      const escuela_id = solicitanteRol === "director" ? req.user?.escuela_id : undefined;
+      // Determinar escuela_id según el rol del solicitante.
+      let escuela_id: string | undefined;
+      if (solicitanteRol === "director") {
+        escuela_id = req.user?.escuela_id;
+      } else if (solicitanteRol === "encargado_zona" && req.body.escuela_id) {
+        const zonaId = await getEncargadoZonaId(req.user!.id);
+        const valida = await escuelaPerteneceAZona(req.body.escuela_id, zonaId);
+        if (!valida) {
+          return res.status(403).json({ message: "La escuela seleccionada no pertenece a tu zona." });
+        }
+        escuela_id = req.body.escuela_id;
+      }
 
       const newUser = await AdminService.createUser({ nombre, apellido, email, rol, escuela_id });
 
