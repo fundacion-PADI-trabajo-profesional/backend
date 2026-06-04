@@ -238,7 +238,10 @@ export const EvaluacionRepository = {
 
           if (qa.respuesta !== null && qa.respuesta !== undefined) {
             g.answered += 1;
-            if (qa.respuesta === 1) g.correct += 1;
+            const esCorrecta = qa.preguntas.puntaje_invertido
+              ? qa.respuesta === 0
+              : qa.respuesta === 1;
+            if (esCorrecta) g.correct += 1;
           }
 
           groups.set(groupKey, g);
