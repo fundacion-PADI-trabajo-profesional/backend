@@ -284,19 +284,17 @@ export class AdminService {
       throw new Error("Usuario no encontrado.");
     }
 
-    // Verificar que el usuario esté realmente en estado pendiente
-    const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(userId);
-    if (authError || !authUser.user) {
-      throw new Error("Este usuario no tiene cuenta activa en el sistema de autenticación. Eliminá el registro y creá el usuario nuevamente.");
-    }
-    if (authUser.user.last_sign_in_at) {
+    // Verificar estado en Supabase Auth (puede no existir si hubo un error al crear)
+    const { data: authUser } = await supabase.auth.admin.getUserById(userId);
+
+    if (authUser?.user?.last_sign_in_at) {
       throw new Error("El usuario ya activó su cuenta. No es necesario reenviar la invitación.");
     }
 
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
     const redirectTo = `${frontendUrl}/cambiar-contrasena-temporal`;
 
-    // Re-invitar: Supabase reenvía el email si el usuario aún no confirmó
+    // inviteUserByEmail crea la cuenta en Auth si no existe, o reenvía el email si ya existe
     const { error: inviteError } = await supabase.auth.admin.inviteUserByEmail(profile.email, {
       redirectTo,
       data: {
