@@ -8,16 +8,9 @@ info:
     La mayoría de los endpoints requieren un token JWT en el header `Authorization: Bearer <token>`.
     Los endpoints bajo `/auth/login`, `/auth/register`, `/auth/refresh-token`, `/auth/reset-password-request` y `/auth/update-password` son públicos.
 
-    ## Roles
-    - **equipo_padi**: Acceso total al sistema.
-    - **encargado_zona**: Gestión de escuelas y datos de su zona.
-    - **director**: Acceso a datos de su escuela.
-    - **docente**: Acceso a sus aulas y evaluaciones.
-  version: 1.0.0
+  version: 2.0.0
 
 servers:
-  - url: http://localhost:8080
-    description: Servidor Local (Docker)
   - url: https://{region}-{project}.cloudfunctions.net/api
     description: Firebase Cloud Functions (producción)
     variables:
@@ -25,6 +18,8 @@ servers:
         default: us-central1
       project:
         default: fundacionpadi-41cb2
+  - url: http://localhost:8080
+    description: Servidor Local (Docker)
 
 tags:
   - name: Health
