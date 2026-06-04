@@ -8,6 +8,7 @@ on:
       - 'functions/src/**'
       - 'functions/typedoc.json'
       - 'functions/package.json'
+      - 'swagger.yaml'
       - '.github/workflows/docs.yml'
 
   # Permite ejecutar manualmente desde la pestaña Actions
@@ -35,6 +36,37 @@ jobs:
       - name: Generar documentación con TypeDoc
         run: npm run docs
         working-directory: functions
+
+      - name: Construir Swagger UI
+        run: |
+          mkdir -p functions/docs/swagger
+          cp swagger.yaml functions/docs/swagger/swagger.yaml
+          # Descargar swagger-ui-dist desde npm cache ya instalado
+          cp -r functions/node_modules/swagger-ui-dist/{swagger-ui-bundle.js,swagger-ui.css,favicon-32x32.png} functions/docs/swagger/ 2>/dev/null || true
+          # Generar index.html de Swagger UI
+          cat > functions/docs/swagger/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="es">
+          <head>
+            <meta charset="UTF-8">
+            <title>PADI API - Swagger UI</title>
+            <link rel="stylesheet" href="swagger-ui.css">
+          </head>
+          <body>
+            <div id="swagger-ui"></div>
+            <script src="swagger-ui-bundle.js"></script>
+            <script>
+              SwaggerUIBundle({
+                url: "swagger.yaml",
+                dom_id: '#swagger-ui',
+                presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
+                layout: "BaseLayout",
+                deepLinking: true
+              });
+            </script>
+          </body>
+          </html>
+          EOF
 
       - name: Publicar en Firebase Hosting (docs)
         uses: FirebaseExtended/action-hosting-deploy@v0
