@@ -172,11 +172,11 @@ class AulasService {
      * Elimina un aula, verificando que no tenga estudiantes ni docentes asignados.
      */
     async delete(id, user) {
-        return (0, prismaClient_1.withRLSContext)(async (tx) => {
-            const perms = await this.resolvePerms(tx, user);
-            if (perms.userType !== "director" && perms.userType !== "encargado" && perms.userType !== "padi") {
-                throw new Error("No tienes permisos para eliminar aulas.");
-            }
+        const perms = await (0, prismaClient_1.withRLSContext)(async (tx) => this.resolvePerms(tx, user));
+        if (perms.userType !== "director" && perms.userType !== "encargado" && perms.userType !== "padi") {
+            throw new Error("No tienes permisos para eliminar aulas.");
+        }
+        return (0, prismaClient_1.withRLSContextAsAdmin)(async (tx) => {
             const aula = await tx.aulas.findUnique({
                 where: { id },
                 select: { id: true, escuela_id: true },

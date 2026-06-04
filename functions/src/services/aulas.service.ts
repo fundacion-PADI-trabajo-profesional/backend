@@ -1,4 +1,4 @@
-import { withRLSContext } from "../config/prismaClient";
+import { withRLSContext, withRLSContextAsAdmin } from "../config/prismaClient";
 import { CreateAulaDto } from "../interfaces/aula.interface";
 import { AulasRepository, CreateAulaData, UpdateAulaData } from "../repositories/aula.repository";
 import { ProfesoresAulasRepository } from "../repositories/profesor-aula.repository";
@@ -193,13 +193,13 @@ export class AulasService {
    * Elimina un aula, verificando que no tenga estudiantes ni docentes asignados.
    */
   async delete(id: string, user: { id: string; rol: string }) {
-    return withRLSContext(async (tx) => {
-      const perms = await this.resolvePerms(tx, user);
+    const perms = await withRLSContext(async (tx) => this.resolvePerms(tx, user));
 
-      if (perms.userType !== "director" && perms.userType !== "encargado" && perms.userType !== "padi") {
-        throw new Error("No tienes permisos para eliminar aulas.");
-      }
+    if (perms.userType !== "director" && perms.userType !== "encargado" && perms.userType !== "padi") {
+      throw new Error("No tienes permisos para eliminar aulas.");
+    }
 
+    return withRLSContextAsAdmin(async (tx) => {
       const aula = await tx.aulas.findUnique({
         where: { id },
         select: { id: true, escuela_id: true },
