@@ -24,7 +24,7 @@ servers:
       region:
         default: us-central1
       project:
-        default: padi-project
+        default: fundacionpadi-41cb2
 
 tags:
   - name: Health
