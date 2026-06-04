@@ -223,3 +223,27 @@ export async function removeEncargado(req: AuthenticatedRequest, res: Response) 
         return res.status(400).json(commonResponse(false, error.message, null));
     }
 }
+
+/**
+ * Elimina una zona geográfica del sistema.
+ *
+ * `DELETE /zonas/:id`
+ *
+ * @remarks
+ * Desvincula automáticamente los encargados y escuelas asociados antes de eliminar.
+ *
+ * @param req - Request autenticado. Param: `id` de la zona.
+ * @param res - `200` si fue eliminada, `404` si no existe, `403` sin permisos.
+ */
+export async function deleteZona(req: AuthenticatedRequest, res: Response) {
+    try {
+        const { id } = req.params;
+        const rol = req.user!.rol;
+
+        const data = await service.delete(id, { rol: String(rol) });
+        return res.status(200).json(commonResponse(true, "Zona eliminada", data));
+    } catch (error: any) {
+        const status = error.message === "La zona no existe." ? 404 : 403;
+        return res.status(status).json(commonResponse(false, error.message, null));
+    }
+}

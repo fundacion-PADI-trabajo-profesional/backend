@@ -35,7 +35,10 @@ export const ZonasRepository = {
             },
           },
           _count: {
-            select: { escuelas: true, encargados: true },
+            select: {
+              escuelas: { where: { desvinculada_at: null } },
+              encargados: true,
+            },
           },
         },
         orderBy: { nombre: "asc" },
@@ -182,6 +185,22 @@ export const ZonasRepository = {
         where: { id: encargadoId },
         data: { zona_id: null },
       });
+    });
+  },
+
+  /**
+   * Elimina una zona. Desvincula encargados y escuelas antes de borrarla.
+   * Lanza error si la zona no existe.
+   */
+  async delete(id: string) {
+    return withRLSContext(async (tx) => {
+      const zona = await tx.zonas.findUnique({ where: { id } });
+      if (!zona) throw new Error("La zona no existe.");
+
+      await tx.encargados.updateMany({ where: { zona_id: id }, data: { zona_id: null } });
+      await tx.escuelas.updateMany({ where: { zona_id: id }, data: { zona_id: null } });
+
+      return tx.zonas.delete({ where: { id } });
     });
   },
 };

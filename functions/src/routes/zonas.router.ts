@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { createZona, listZonas, getZona, addEscuela, listEscuelasDisponibles, removeEscuela, updateZona, addEncargado, listEncargadosSinZona, removeEncargado, listEncargados } from "../controllers/zonas.controller";
+import { createZona, listZonas, getZona, addEscuela, listEscuelasDisponibles, removeEscuela, updateZona, addEncargado, listEncargadosSinZona, removeEncargado, listEncargados, deleteZona } from "../controllers/zonas.controller";
 import { requireRole } from "../middlewares/auth.middleware";
 
 /**
@@ -37,6 +37,7 @@ export function createZonasRouter() {
     router.get("/escuelas-sin-zona", requireRole("equipo_padi") as any, listEscuelasDisponibles);
     router.post("/escuelas/:escuelaId/quitar-escuela", requireRole("equipo_padi") as any, removeEscuela);
     router.put("/zonas/:id", requireRole("equipo_padi") as any, updateZona);
+    router.delete("/zonas/:id", requireRole("equipo_padi") as any, deleteZona);
     router.get("/encargados-sin-zona", requireRole("equipo_padi") as any, listEncargadosSinZona);
     router.post("/zonas/:id/asignar-encargado", requireRole("equipo_padi") as any, addEncargado);
     router.post("/encargados/:encargadoId/quitar-zona", requireRole("equipo_padi") as any, removeEncargado);
