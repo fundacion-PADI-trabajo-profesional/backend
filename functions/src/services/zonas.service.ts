@@ -167,4 +167,17 @@ export class ZonasService {
         this.validatePadi(user.rol);
         return await this.repo.unassignEncargado(encargadoId);
     }
+
+    /**
+     * Elimina una zona del sistema.
+     * * @remarks
+     * Desvincula automáticamente los encargados y escuelas asociados antes de eliminar.
+     * * @param id - UUID de la zona a eliminar.
+     * @param user - Usuario con rol autorizado.
+     * @throws Error si la zona no existe.
+     */
+    async delete(id: string, user: { rol: string }) {
+        this.validatePadi(user.rol);
+        return await this.repo.delete(id);
+    }
 }

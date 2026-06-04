@@ -1472,6 +1472,30 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
 
+    delete:
+      tags: [Zonas]
+      summary: Eliminar una zona
+      description: |
+        Solo `equipo_padi`. Desvincula automáticamente los encargados y escuelas
+        asociados antes de eliminar la zona.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      responses:
+        '200':
+          description: Zona eliminada correctamente
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /zonas/{id}/asignar-escuela:
     post:
       tags: [Zonas]
