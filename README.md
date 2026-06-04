@@ -4,9 +4,9 @@ API REST del sistema de evaluaciones del Programa de Atención al Desarrollo Inf
 
 Construida con Node.js + Express + TypeScript, desplegada como Firebase Cloud Function v2 y conectada a una base de datos PostgreSQL alojada en Supabase.  
 
-**Documento de decisiones de arquitectura (ADR):** `https://fundacion-padi-trabajo-profesional.github.io/documentacion-ADR/`  
+**Documento de decisiones de arquitectura (ADR):** [https://fundacion-padi-trabajo-profesional.github.io/documentacion-ADR/](https://fundacion-padi-trabajo-profesional.github.io/documentacion-ADR/)  
 **Documentación de código:** [https://fundacionpadi-docs.web.app](https://fundacionpadi-docs.web.app)  
-**Swagger UI:** `http://localhost:8080/docs`
+**Swagger UI:** [https://fundacionpadi-docs.web.app/swagger/](https://fundacionpadi-docs.web.app/swagger/)
 
 ---
 
