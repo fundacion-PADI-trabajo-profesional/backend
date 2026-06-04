@@ -45,6 +45,8 @@ export function createApp() {
     "http://localhost:4173",
     "https://fundacionpadi-41cb2.web.app",
     "https://fundacionpadi-41cb2.firebaseapp.com",
+    "https://fundacionpadi-docs.web.app",
+    "https://fundacionpadi-docs.firebaseapp.com",
     process.env.FRONTEND_URL,
   ].filter(Boolean) as string[];
 
