@@ -1,4 +1,4 @@
-import { withRLSContext } from "../config/prismaClient";
+import { withRLSContext, withRLSContextAsAdmin } from "../config/prismaClient";
 import { CreateEscuelaDto } from "../interfaces/escuela.interface";
 
 /**
@@ -165,7 +165,7 @@ export const EscuelasRepository = {
    * Lista las escuelas de una zona específica.
    */
   async findByZonaId(zonaId: string) {
-    return withRLSContext(async (tx) => {
+    return withRLSContextAsAdmin(async (tx) => {
 
       const rows = await tx.escuelas.findMany({
         where: { zona_id: zonaId, desvinculada_at: null },
