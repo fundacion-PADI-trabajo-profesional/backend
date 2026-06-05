@@ -485,21 +485,27 @@ describe("AdminService.resendInvite", () => {
     await expect(AdminService.resendInvite("u1")).rejects.toThrow("Usuario no encontrado.");
   });
 
-  it("lanza error si el usuario de Auth no se encuentra", async () => {
+  it("reenvía la invitación aunque el usuario de Auth no se encuentre (recuperación de estado inconsistente)", async () => {
+    // Si getUserById no devuelve un user, inviteUserByEmail actúa como creación
     const mock = buildResendMock({ authUser: null });
     vi.spyOn(supabaseClient, "getSupabase").mockReturnValue(mock as any);
 
-    await expect(AdminService.resendInvite("u1")).rejects.toThrow(
-      "no tiene cuenta activa"
+    await expect(AdminService.resendInvite("u1")).resolves.toBeUndefined();
+    expect(mock.auth.admin.inviteUserByEmail).toHaveBeenCalledWith(
+      "inv@t.com",
+      expect.objectContaining({ redirectTo: expect.stringContaining("cambiar-contrasena-temporal") })
     );
   });
 
-  it("lanza error si Auth devuelve error en getUserById", async () => {
+  it("reenvía la invitación aunque getUserById retorne error (recuperación de estado inconsistente)", async () => {
+    // Si getUserById falla, inviteUserByEmail actúa como creación de la cuenta
     const mock = buildResendMock({ authError: { message: "not found" } });
     vi.spyOn(supabaseClient, "getSupabase").mockReturnValue(mock as any);
 
-    await expect(AdminService.resendInvite("u1")).rejects.toThrow(
-      "no tiene cuenta activa"
+    await expect(AdminService.resendInvite("u1")).resolves.toBeUndefined();
+    expect(mock.auth.admin.inviteUserByEmail).toHaveBeenCalledWith(
+      "inv@t.com",
+      expect.objectContaining({ redirectTo: expect.stringContaining("cambiar-contrasena-temporal") })
     );
   });
 
