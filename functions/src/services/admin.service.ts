@@ -324,17 +324,74 @@ export class AdminService {
       throw new Error(`Rol inválido. Los valores permitidos son: ${ROLES_VALIDOS.join(", ")}.`);
     }
 
-    await withRLSContext(async (tx) => {
+    return withRLSContext(async (tx) => {
       const usuario = await tx.usuarioPerfil.findUnique({ where: { id: targetUserId } });
       if (!usuario) throw new Error("Usuario no encontrado.");
 
+      // Si el rol no cambia, no hay nada que migrar.
+      if (usuario.rol === newRol) {
+        return { id: targetUserId, rol: newRol };
+      }
+
+      // 1) Limpiar el alcance del rol viejo (soft-delete; NUNCA hard-delete).
+      //    Las asignaciones no se conservan: se reasignan manualmente luego.
+      if (usuario.rol === "director") {
+        await tx.usuarioPerfil.update({
+          where: { id: targetUserId },
+          data: { escuela_id: null },
+        });
+      } else if (usuario.rol === "docente") {
+        const ahora = new Date();
+        // Cierra (no borra) las asignaciones activas: preserva histórico y evaluaciones.
+        await tx.profesoresEscuelas.updateMany({
+          where: { profesor_id: targetUserId, fecha_fin: null },
+          data: { fecha_fin: ahora },
+        });
+        await tx.profesoresAulas.updateMany({
+          where: { profesor_id: targetUserId, fecha_fin: null },
+          data: { fecha_fin: ahora },
+        });
+      } else if (usuario.rol === "encargado_zona") {
+        await tx.encargados.updateMany({
+          where: { usuario_id: targetUserId },
+          data: { zona_id: null },
+        });
+      }
+
+      // 2) Provisionar la entidad del rol nuevo (idempotente).
+      if (newRol === "docente") {
+        const profesorExistente = await tx.profesores.findUnique({ where: { id: targetUserId } });
+        if (!profesorExistente) {
+          let persona = await tx.personas.findFirst({ where: { usuario_id: targetUserId } });
+          if (!persona) {
+            persona = await tx.personas.create({
+              data: {
+                usuario_id: targetUserId,
+                nombre: usuario.nombre,
+                primer_apellido: usuario.apellido,
+              },
+            });
+          }
+          // profesores.id == usuario.id por convención del sistema.
+          await tx.profesores.create({
+            data: { id: targetUserId, persona_id: persona.id },
+          });
+        }
+      } else if (newRol === "encargado_zona") {
+        const encargadoExistente = await tx.encargados.findUnique({ where: { usuario_id: targetUserId } });
+        if (!encargadoExistente) {
+          await tx.encargados.create({ data: { usuario_id: targetUserId } });
+        }
+      }
+
+      // 3) Cambiar el rol.
       await tx.usuarioPerfil.update({
         where: { id: targetUserId },
         data: { rol: newRol as RolValido },
       });
-    });
 
-    return { id: targetUserId, rol: newRol };
+      return { id: targetUserId, rol: newRol };
+    });
   }
 
   /**
