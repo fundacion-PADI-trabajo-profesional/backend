@@ -357,7 +357,7 @@ export class AulasService {
    * Lista los estudiantes activos de un aula con control de permisos.
    */
   async listEstudiantesAula(aulaId: string, user: { id: string; rol: string }) {
-    return withRLSContext(async (tx) => {
+    return withRLSContextAsAdmin(async (tx) => {
       const perms = await this.resolvePerms(tx, user);
 
       const aula = await tx.aulas.findUnique({

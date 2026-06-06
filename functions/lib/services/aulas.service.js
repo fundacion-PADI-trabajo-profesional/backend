@@ -312,7 +312,7 @@ class AulasService {
      * Lista los estudiantes activos de un aula con control de permisos.
      */
     async listEstudiantesAula(aulaId, user) {
-        return (0, prismaClient_1.withRLSContext)(async (tx) => {
+        return (0, prismaClient_1.withRLSContextAsAdmin)(async (tx) => {
             const perms = await this.resolvePerms(tx, user);
             const aula = await tx.aulas.findUnique({
                 where: { id: aulaId },

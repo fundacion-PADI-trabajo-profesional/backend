@@ -1,4 +1,4 @@
-import { withRLSContext } from "../config/prismaClient";
+import { withRLSContext, withRLSContextAsAdmin } from "../config/prismaClient";
 
 /**
  * Datos requeridos para crear un aula nueva.
@@ -181,12 +181,21 @@ export const AulasRepository = {
    * Lista las aulas asignadas a un docente, incluyendo los estudiantes activos
    * y el resumen de evaluaciones de cada uno.
    */
-  async listByProfesor(profesor_id: string) {
-    return withRLSContext(async (tx) => {
+  async listByProfesor(usuario_id: string) {
+    return withRLSContextAsAdmin(async (tx) => {
+
+      // usuario_id es el ID de auth/UsuarioPerfil
+      // La cadena es: UsuarioPerfil.id → Personas.usuario_id → Profesores.persona_id
+      const profesor = await tx.profesores.findFirst({
+        where: { personas: { usuario_id } },
+        select: { id: true },
+      });
+
+      if (!profesor) return [];
 
       const asignaciones = await tx.profesoresAulas.findMany({
         where: {
-          profesor_id,
+          profesor_id: profesor.id,
           fecha_fin: null,
         },
         include: {
