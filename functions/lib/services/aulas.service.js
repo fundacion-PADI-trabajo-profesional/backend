@@ -5,6 +5,7 @@ const prismaClient_1 = require("../config/prismaClient");
 const aula_repository_1 = require("../repositories/aula.repository");
 const profesor_aula_repository_1 = require("../repositories/profesor-aula.repository");
 const docente_repository_1 = require("../repositories/docente.repository");
+const inscripcion_helper_1 = require("../helpers/inscripcion.helper");
 /**
  * Servicio de gestión de aulas y sus asignaciones de docentes y estudiantes.
  */
@@ -365,7 +366,7 @@ class AulasService {
             }
             const aula = await tx.aulas.findUnique({
                 where: { id: aulaId },
-                select: { id: true, escuela_id: true },
+                select: { id: true, escuela_id: true, sala_id: true, comision: true },
             });
             if (!aula)
                 throw new Error("Aula no encontrada.");
@@ -377,21 +378,15 @@ class AulasService {
             }
             const estudiante = await tx.estudiantes.findFirst({
                 where: { id: estudianteId, fecha_baja: null },
-                select: { id: true, escuela_id: true },
+                select: { id: true, escuela_id: true, sala_id: true },
             });
             if (!estudiante)
                 throw new Error("Estudiante no encontrado.");
             if (estudiante.escuela_id !== aula.escuela_id) {
                 throw new Error("El estudiante no pertenece al colegio de esta aula.");
             }
-            const existing = await tx.estudiantesAulas.findFirst({
-                where: { estudiante_id: estudianteId, aula_id: aulaId, fecha_fin: null },
-            });
-            if (existing)
-                throw new Error("El estudiante ya está asignado a esta aula.");
-            return tx.estudiantesAulas.create({
-                data: { estudiante_id: estudianteId, aula_id: aulaId },
-            });
+            (0, inscripcion_helper_1.validarSalaCompatible)(estudiante.sala_id, aula.sala_id, { aulaComision: aula.comision });
+            return (await (0, inscripcion_helper_1.inscribirConTraslado)(tx, estudianteId, aulaId)).registro;
         });
     }
     /**

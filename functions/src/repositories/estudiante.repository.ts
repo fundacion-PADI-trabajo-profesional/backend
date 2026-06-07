@@ -2,6 +2,7 @@
 
 import { Prisma } from "@prisma/client"
 import { withRLSContext } from "../config/prismaClient"
+import { validarSalaCompatible, inscribirConTraslado } from "../helpers/inscripcion.helper"
 const { v4: uuidv4 } = require('uuid');
 
 /**
@@ -122,9 +123,13 @@ export const EstudianteRepository = {
                     })
 
                     if (aula_id) {
-                        await tx.estudiantesAulas.create({
-                            data: { id: uuidv4(), estudiante_id: estudianteExistente.id, aula_id, fecha_inicio: new Date() }
+                        const aulaDatos = await tx.aulas.findUnique({
+                            where: { id: aula_id },
+                            select: { sala_id: true, comision: true },
                         })
+                        if (!aulaDatos) throw new Error("Aula no encontrada.")
+                        validarSalaCompatible(sala_id, aulaDatos.sala_id, { aulaComision: aulaDatos.comision })
+                        await inscribirConTraslado(tx, estudianteExistente.id, aula_id)
                     }
 
                     const estudianteReactivado = await tx.estudiantes.findUnique({
@@ -150,9 +155,13 @@ export const EstudianteRepository = {
                 })
 
                 if (aula_id) {
-                    await tx.estudiantesAulas.create({
-                        data: { id: uuidv4(), estudiante_id: nuevoEstudiante.id, aula_id, fecha_inicio: new Date() }
+                    const aulaDatos = await tx.aulas.findUnique({
+                        where: { id: aula_id },
+                        select: { sala_id: true, comision: true },
                     })
+                    if (!aulaDatos) throw new Error("Aula no encontrada.")
+                    validarSalaCompatible(sala_id, aulaDatos.sala_id, { aulaComision: aulaDatos.comision })
+                    await inscribirConTraslado(tx, nuevoEstudiante.id, aula_id)
                 }
 
                 const estudianteCreado = await tx.estudiantes.findUnique({
@@ -466,23 +475,14 @@ export const EstudianteRepository = {
             })
 
             if (data.aula_id) {
-                await tx.estudiantesAulas.updateMany({
-                    where: {
-                        estudiante_id: id,
-                        fecha_fin: null,
-                    },
-                    data: {
-                        fecha_fin: new Date(),
-                    },
+                const aulaDatos = await tx.aulas.findUnique({
+                    where: { id: data.aula_id },
+                    select: { sala_id: true, comision: true },
                 })
-
-                await tx.estudiantesAulas.create({
-                    data: {
-                        estudiante_id: id,
-                        aula_id: data.aula_id,
-                        fecha_inicio: new Date(),
-                    },
-                })
+                if (!aulaDatos) throw new Error("Aula no encontrada.")
+                const salaEfectiva: number = data.sala_id ?? estudiante.sala_id
+                validarSalaCompatible(salaEfectiva, aulaDatos.sala_id, { aulaComision: aulaDatos.comision })
+                await inscribirConTraslado(tx, id, data.aula_id)
             }
 
             return actualizado
@@ -527,12 +527,14 @@ export const EstudianteRepository = {
             })
         }
 
-        // Si NO es dryRun, guardamos de verdad
-        return withRLSContext(async (tx) => {
-            const procesados = []
+        // Si NO es dryRun, procesamos fila por fila con transacción individual.
+        // Los errores se acumulan sin abortar el lote.
+        const procesados: any[] = []
+        const errores: Array<{ fila: { dni: string; nombre: string; apellido: string }; motivo: string }> = []
 
-            for (const est of estudiantesData) {
-                try {
+        for (const est of estudiantesData) {
+            try {
+                await withRLSContext(async (tx) => {
                     const fechaNac = new Date(est.fecha_nacimiento)
                     if (isNaN(fechaNac.getTime())) {
                         throw new Error(`Fecha inválida para ${est.nombre} ${est.apellido}`)
@@ -544,7 +546,7 @@ export const EstudianteRepository = {
                         include: { estudiantes: true }
                     })
 
-                    let estudianteId
+                    let estudianteId: string
 
                     if (personaExistente) {
                         // ACTUALIZACIÓN (Pase de año / Repetición / Reactivación)
@@ -558,7 +560,6 @@ export const EstudianteRepository = {
                         }
 
                         if (estudianteExistente.fecha_baja !== null) {
-                            // Reactivar alumno dado de baja y actualizar datos personales
                             updateData.fecha_baja = null
                             await tx.personas.update({
                                 where: { id: personaExistente.id },
@@ -597,28 +598,26 @@ export const EstudianteRepository = {
                         estudianteId = nuevoEstudiante.id
                     }
 
-                    // 3. Vincular a la nueva Aula para mantener el historial
+                    // 2. Vincular al aula con validación INV1 + traslado/idempotencia (INV2/INV3)
                     const aulaId = est.aula_id || commonData.aula_id
                     if (aulaId) {
-                        await tx.estudiantesAulas.create({
-                            data: {
-                                id: crypto.randomUUID(),
-                                estudiante_id: estudianteId,
-                                aula_id: aulaId,
-                                fecha_inicio: new Date()
-                            }
+                        const aulaDatos = await tx.aulas.findUnique({
+                            where: { id: aulaId },
+                            select: { sala_id: true, comision: true },
                         })
+                        if (!aulaDatos) throw new Error("Aula no encontrada.")
+                        validarSalaCompatible(Number(est.sala_id), aulaDatos.sala_id, { aulaComision: aulaDatos.comision })
+                        await inscribirConTraslado(tx, estudianteId, aulaId)
                     }
-                    procesados.push(est)
-
-                } catch (error: any) {
-                    if (error.code === 'P2003') {
-                        throw new Error(`Error en el alumno ${est.nombre}: El género o la sala no existen.`)
-                    }
-                    throw error
-                }
+                })
+                procesados.push(est)
+            } catch (error: any) {
+                const motivo = error.code === 'P2003'
+                    ? `El género o la sala no existen.`
+                    : (error.message || 'Error desconocido.')
+                errores.push({ fila: { dni: est.dni, nombre: est.nombre, apellido: est.apellido }, motivo })
             }
-            return procesados
-        })
+        }
+        return { procesados, errores }
     }
 }
