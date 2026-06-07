@@ -131,26 +131,10 @@ describe("PUT /auth/profile - edición de perfil", () => {
     });
 
     it("400 - getPrisma devuelve null (DATABASE_URL no configurada)", async () => {
-        // requireAuth hace una llamada a getPrisma (para findUnique).
-        // El handler hace una segunda llamada. Usamos mockReturnValueOnce para
-        // que la primera pase el middleware y la segunda devuelva null al handler.
-        const authPrismaMock = {
-            usuarioPerfil: {
-                findUnique: vi.fn().mockResolvedValue({
-                    id: "u-1", rol: "docente", nombre: "X", apellido: "Y",
-                }),
-            },
-        };
-        vi.spyOn(supabaseClient, "getSupabase").mockReturnValue({
-            auth: {
-                getUser: vi.fn().mockResolvedValue({
-                    data: { user: { id: "u-1" } }, error: null,
-                }),
-            },
-        } as any);
-        vi.spyOn(prismaClient, "getPrisma")
-            .mockReturnValueOnce(authPrismaMock as any) // requireAuth
-            .mockReturnValueOnce(null);                 // handler
+        // requireAuth usa getPrisma directamente; el handler usa withRLSContext.
+        // Mockeamos withRLSContext para simular DB no disponible en el handler.
+        mockAuthAs("docente", "u-1");
+        vi.spyOn(prismaClient, "withRLSContext").mockRejectedValue(new Error("DB not available"));
 
         const res = await request(app)
             .put("/auth/profile")

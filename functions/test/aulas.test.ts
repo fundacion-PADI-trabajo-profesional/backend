@@ -230,6 +230,7 @@ it("POST /aulas/:id/asignar-estudiante allows equipo_padi", async () => {
   };
   prismaMock.estudiantesAulas = {
     findFirst: vi.fn().mockResolvedValue(null),
+    updateMany: vi.fn().mockResolvedValue({ count: 0 }),
     create: vi.fn().mockResolvedValue({ id: "ea1", estudiante_id: estudianteId, aula_id: aulaId }),
   };
 
