@@ -18,7 +18,7 @@ export const EvaluacionRepository = {
    * Busca un estudiante por su DNI y retorna su ID y sala.
    */
   async findEstudianteByDni(dni: string) {
-    return withRLSContext(async (tx) => {
+    return withRLSContextAsAdmin(async (tx) => {
       return tx.estudiantes.findFirst({
         where: { personas: { dni }, fecha_baja: null },
         select: { id: true, sala_id: true },
@@ -73,7 +73,7 @@ export const EvaluacionRepository = {
    * Lista todas las evaluaciones asignadas a un docente.
    */
   async findAllByProfesor(profesor_id: string) {
-    return withRLSContext(async (tx) => {
+    return withRLSContextAsAdmin(async (tx) => {
       return tx.evaluacionEstudiante.findMany({
         where: { profesor_id },
         include: {
@@ -99,7 +99,7 @@ export const EvaluacionRepository = {
    * Lista todas las evaluaciones del sistema (uso exclusivo del rol `admin`).
    */
   async list() {
-    return withRLSContext(async (tx) => {
+    return withRLSContextAsAdmin(async (tx) => {
       return tx.evaluacionEstudiante.findMany({
         include: this._commonIncludes(),
         orderBy: { fecha_creacion: "desc" },
@@ -147,7 +147,7 @@ export const EvaluacionRepository = {
    * Busca la asignación activa de un estudiante a un aula.
    */
   async findActiveEstudianteAula(estudianteId: string, aulaId: string) {
-    return withRLSContext(async (tx) => {
+    return withRLSContextAsAdmin(async (tx) => {
       return tx.estudiantesAulas.findFirst({
         where: {
           estudiante_id: estudianteId,
@@ -171,7 +171,7 @@ export const EvaluacionRepository = {
    * Lista evaluaciones filtradas por escuela (para directores y docentes).
    */
   async listByEscuela(escuelaId: string) {
-    return withRLSContext(async (tx) => {
+    return withRLSContextAsAdmin(async (tx) => {
       return tx.evaluacionEstudiante.findMany({
         where: {
           estudiantes: { escuela_id: escuelaId },
@@ -283,7 +283,7 @@ export const EvaluacionRepository = {
    */
   async delete(id: string) {
     try {
-      return await withRLSContext(async (tx) => {
+      return await withRLSContextAsAdmin(async (tx) => {
 
         // 1) Verificar existencia
         const exists = await tx.evaluacionEstudiante.findUnique({
@@ -329,7 +329,7 @@ export const EvaluacionRepository = {
    * Retorna las preguntas activas de un área para una evaluación y las respuestas previas.
    */
   async getPreguntasArea(evaluacionId: string, areaId: string) {
-    return withRLSContext(async (tx) => {
+    return withRLSContextAsAdmin(async (tx) => {
 
       const evalEst = await tx.evaluacionEstudiante.findUnique({
         where: { id: evaluacionId },
@@ -569,6 +569,20 @@ async function calculateAreaScore(
 
   const activos = qas.filter((qa: any) => qa.preguntas && (qa.preguntas.activa === true || qa.preguntas.activa === null));
 
+  // Total de grupos (ítems) que existen en el área para esta sala,
+  // independientemente de si ya fueron respondidos.
+  const todasLasPreguntas = await tx.preguntas.findMany({
+    where: {
+      sala_id: salaId,
+      area_id: areaId,
+      OR: [{ activa: true }, { activa: null }],
+    },
+    select: { id: true, numero: true },
+  });
+  const totalGruposReales = new Set(
+    todasLasPreguntas.map((p: any) => p.numero ?? `Q:${p.id}`)
+  ).size;
+
   if (activos.length === 0) {
     return {
       puntajeFinal: 0,
@@ -576,7 +590,7 @@ async function calculateAreaScore(
       totalPuntosPosibles: 0,
       estadoFinalArea: ESTADO_EN_PROGRESO,
       aciertosIndividuales: 0,
-      totalPreguntasActivas: 0,
+      totalPreguntasActivas: totalGruposReales,
     };
   }
 
@@ -604,8 +618,9 @@ async function calculateAreaScore(
     groups.set(groupKey, g);
   }
 
-  const totalGrupos = groups.size;
-  let completado = true;
+  const totalGrupos = totalGruposReales;
+  // completado = todos los grupos del área tienen todas sus sub-preguntas respondidas
+  let completado = groups.size === totalGruposReales;
   let gruposAprobados = 0;
   let puntajeFinal = 0;
   let totalPuntosPosibles = 0;
