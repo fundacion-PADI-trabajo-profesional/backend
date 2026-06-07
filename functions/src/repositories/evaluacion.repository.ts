@@ -37,7 +37,7 @@ export const EvaluacionRepository = {
     tipo_id: string;
     fecha_creacion: Date;
   }) {
-    return withRLSContext(async (tx) => {
+    return withRLSContextAsAdmin(async (tx) => {
       const evaluacion = await tx.evaluacionEstudiante.create({
         data: {
           estudiante_id: data.estudiante_id,
@@ -186,7 +186,7 @@ export const EvaluacionRepository = {
    * Retorna el detalle completo de una evaluación, incluyendo puntajes calculados por área.
    */
   async findById(id: string) {
-    return withRLSContext(async (tx) => {
+    return withRLSContextAsAdmin(async (tx) => {
 
       const evaluacion = await tx.evaluacionEstudiante.findUnique({
         where: { id },
