@@ -1,6 +1,7 @@
 import { EstudianteRepository } from "../repositories/estudiante.repository"
 import type { CreateEstudianteData } from "../interfaces/estudiante.interface"
 import { withRLSContext } from "../config/prismaClient"
+import { validarSalaCompatible, inscribirConTraslado } from "../helpers/inscripcion.helper"
 
 /**
  * Servicio de gestión de estudiantes y sus asignaciones a aulas.
@@ -288,14 +289,14 @@ export class EstudiantesService {
 
             const estudiante = await tx.estudiantes.findFirst({
                 where: { id: estudianteId, fecha_baja: null },
-                select: { id: true, escuela_id: true },
+                select: { id: true, escuela_id: true, sala_id: true },
             });
 
             if (!estudiante) throw new Error("Estudiante no encontrado.");
 
             const aula = await tx.aulas.findUnique({
                 where: { id: aulaId },
-                select: { id: true, escuela_id: true },
+                select: { id: true, escuela_id: true, sala_id: true, comision: true },
             });
 
             if (!aula) throw new Error("Aula no encontrada.");
@@ -303,6 +304,8 @@ export class EstudiantesService {
             if (estudiante.escuela_id !== aula.escuela_id) {
                 throw new Error("El estudiante y el aula deben pertenecer a la misma escuela.");
             }
+
+            validarSalaCompatible(estudiante.sala_id, aula.sala_id, { aulaComision: aula.comision });
 
             if (user.rol === "director") {
                 const director = await tx.usuarioPerfil.findUnique({
@@ -323,15 +326,7 @@ export class EstudiantesService {
                 }
             }
 
-            const asignacionExistente = await tx.estudiantesAulas.findFirst({
-                where: { estudiante_id: estudianteId, aula_id: aulaId, fecha_fin: null },
-            });
-
-            if (asignacionExistente) throw new Error("El estudiante ya está asignado a esta aula.");
-
-            return tx.estudiantesAulas.create({
-                data: { estudiante_id: estudianteId, aula_id: aulaId, fecha_inicio: new Date() },
-            });
+            return (await inscribirConTraslado(tx, estudianteId, aulaId)).registro;
         });
     }
 

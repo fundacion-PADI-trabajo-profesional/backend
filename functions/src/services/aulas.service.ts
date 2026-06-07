@@ -3,6 +3,7 @@ import { CreateAulaDto } from "../interfaces/aula.interface";
 import { AulasRepository, CreateAulaData, UpdateAulaData } from "../repositories/aula.repository";
 import { ProfesoresAulasRepository } from "../repositories/profesor-aula.repository";
 import { DocenteRepository } from "../repositories/docente.repository";
+import { validarSalaCompatible, inscribirConTraslado } from "../helpers/inscripcion.helper";
 
 /**
  * Servicio de gestión de aulas y sus asignaciones de docentes y estudiantes.
@@ -416,7 +417,7 @@ export class AulasService {
 
       const aula = await tx.aulas.findUnique({
         where: { id: aulaId },
-        select: { id: true, escuela_id: true },
+        select: { id: true, escuela_id: true, sala_id: true, comision: true },
       });
 
       if (!aula) throw new Error("Aula no encontrada.");
@@ -430,7 +431,7 @@ export class AulasService {
 
       const estudiante = await tx.estudiantes.findFirst({
         where: { id: estudianteId, fecha_baja: null },
-        select: { id: true, escuela_id: true },
+        select: { id: true, escuela_id: true, sala_id: true },
       });
 
       if (!estudiante) throw new Error("Estudiante no encontrado.");
@@ -438,14 +439,9 @@ export class AulasService {
         throw new Error("El estudiante no pertenece al colegio de esta aula.");
       }
 
-      const existing = await tx.estudiantesAulas.findFirst({
-        where: { estudiante_id: estudianteId, aula_id: aulaId, fecha_fin: null },
-      });
-      if (existing) throw new Error("El estudiante ya está asignado a esta aula.");
+      validarSalaCompatible(estudiante.sala_id, aula.sala_id, { aulaComision: aula.comision });
 
-      return tx.estudiantesAulas.create({
-        data: { estudiante_id: estudianteId, aula_id: aulaId },
-      });
+      return (await inscribirConTraslado(tx, estudianteId, aulaId)).registro;
     });
   }
 

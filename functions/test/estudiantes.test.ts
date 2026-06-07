@@ -400,9 +400,10 @@ describe("POST /estudiantes/bulk", () => {
 
   it("returns 201 with the created students on valid payload", async () => {
     mockAuthAs("equipo_padi");
-    vi.spyOn(EstudianteRepository, "createBulk").mockResolvedValue([
-      { id: "s-1" }, { id: "s-2" },
-    ] as any);
+    vi.spyOn(EstudianteRepository, "createBulk").mockResolvedValue({
+      procesados: [{ id: "s-1" }, { id: "s-2" }],
+      errores: [],
+    } as any);
 
     const res = await request(app)
       .post("/estudiantes/bulk")
@@ -411,12 +412,13 @@ describe("POST /estudiantes/bulk", () => {
 
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
-    expect(res.body.data).toHaveLength(2);
+    expect(res.body.data.procesados).toHaveLength(2);
+    expect(res.body.data.errores).toHaveLength(0);
   });
 
   it("passes escuela_id and aula_id from body to the repository", async () => {
     mockAuthAs("equipo_padi");
-    const spy = vi.spyOn(EstudianteRepository, "createBulk").mockResolvedValue([] as any);
+    const spy = vi.spyOn(EstudianteRepository, "createBulk").mockResolvedValue({ procesados: [], errores: [] } as any);
 
     await request(app)
       .post("/estudiantes/bulk")
@@ -651,5 +653,272 @@ describe("DELETE /estudiantes/:id", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.error.code).toBe("DELETE_ERROR");
+  });
+});
+
+// ─── INV1 — Validación de sala (asignarEstudianteAula) ────────────────────────
+describe("INV1 — validación sala en asignarEstudianteAula", () => {
+  const ENDPOINT = "/estudiantes/asignar-aula";
+  const BODY = { estudianteId: "s-1", aulaId: "a-1" };
+
+  function setupMocks(prismaMock: any, estudianteSala: number, aulaSala: number, comision = "A") {
+    prismaMock.estudiantes = {
+      findFirst: vi.fn().mockResolvedValue({ id: "s-1", escuela_id: "esc-1", sala_id: estudianteSala }),
+    };
+    prismaMock.aulas = {
+      findUnique: vi.fn().mockResolvedValue({ id: "a-1", escuela_id: "esc-1", sala_id: aulaSala, comision }),
+    };
+    prismaMock.estudiantesAulas = {
+      findFirst: vi.fn().mockResolvedValue(null),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      create: vi.fn().mockResolvedValue({ id: "ea-1", estudiante_id: "s-1", aula_id: "a-1" }),
+    };
+  }
+
+  it("INV1 caso válido: sala del alumno == sala del aula → 200", async () => {
+    const { prismaMock } = mockAuthAs("equipo_padi");
+    setupMocks(prismaMock, 3, 3);
+
+    const res = await request(app)
+      .post(ENDPOINT)
+      .set("Authorization", "Bearer fake-token")
+      .send(BODY);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
+
+  it("INV1 sala distinta: alumno sala 3, aula sala 2 → 400 con mensaje claro", async () => {
+    const { prismaMock } = mockAuthAs("equipo_padi");
+    setupMocks(prismaMock, 3, 2, "Mañana");
+
+    const res = await request(app)
+      .post(ENDPOINT)
+      .set("Authorization", "Bearer fake-token")
+      .send(BODY);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.description).toMatch(/sala.*3/i);
+    expect(res.body.error.description).toMatch(/sala.*2/i);
+  });
+
+  it("INV1 sala distinta en aula Multiedad: también rechaza → 400", async () => {
+    const { prismaMock } = mockAuthAs("equipo_padi");
+    setupMocks(prismaMock, 1, 3, "Multiedad");
+
+    const res = await request(app)
+      .post(ENDPOINT)
+      .set("Authorization", "Bearer fake-token")
+      .send(BODY);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.description).toMatch(/Multiedad/);
+  });
+});
+
+// ─── INV2/INV3 — Traslado + idempotencia ─────────────────────────────────────
+describe("INV2/INV3 — traslado e idempotencia en asignarEstudianteAula", () => {
+  const ENDPOINT = "/estudiantes/asignar-aula";
+
+  function baseEstudiante() {
+    return { id: "s-1", escuela_id: "esc-1", sala_id: 3 };
+  }
+  function baseAula(id = "a-1") {
+    return { id, escuela_id: "esc-1", sala_id: 3, comision: "A" };
+  }
+
+  it("INV2/INV3 alumno sin inscripción previa → crea nueva", async () => {
+    const { prismaMock } = mockAuthAs("equipo_padi");
+    prismaMock.estudiantes = { findFirst: vi.fn().mockResolvedValue(baseEstudiante()) };
+    prismaMock.aulas = { findUnique: vi.fn().mockResolvedValue(baseAula()) };
+    const createSpy = vi.fn().mockResolvedValue({ id: "ea-new" });
+    prismaMock.estudiantesAulas = {
+      findFirst: vi.fn().mockResolvedValue(null),       // no activo en a-1
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      create: createSpy,
+    };
+
+    const res = await request(app)
+      .post(ENDPOINT)
+      .set("Authorization", "Bearer fake-token")
+      .send({ estudianteId: "s-1", aulaId: "a-1" });
+
+    expect(res.status).toBe(200);
+    expect(createSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("INV2 alumno activo en aula A → al inscribirlo en B cierra A y crea en B", async () => {
+    const { prismaMock } = mockAuthAs("equipo_padi");
+    prismaMock.estudiantes = { findFirst: vi.fn().mockResolvedValue(baseEstudiante()) };
+    prismaMock.aulas = { findUnique: vi.fn().mockResolvedValue(baseAula("a-2")) };
+    const updateManySpy = vi.fn().mockResolvedValue({ count: 1 });
+    const createSpy = vi.fn().mockResolvedValue({ id: "ea-new", aula_id: "a-2" });
+    prismaMock.estudiantesAulas = {
+      findFirst: vi.fn().mockResolvedValue(null),       // no activo en a-2
+      updateMany: updateManySpy,
+      create: createSpy,
+    };
+
+    const res = await request(app)
+      .post(ENDPOINT)
+      .set("Authorization", "Bearer fake-token")
+      .send({ estudianteId: "s-1", aulaId: "a-2" });
+
+    expect(res.status).toBe(200);
+    // Debe haber cerrado inscripciones activas previas
+    expect(updateManySpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ estudiante_id: "s-1", fecha_fin: null }),
+        data: expect.objectContaining({ fecha_fin: expect.any(Date) }),
+      })
+    );
+    expect(createSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("INV3 alumno ya activo en aula B → re-inscribir no crea fila nueva (asignar)", async () => {
+    const { prismaMock } = mockAuthAs("equipo_padi");
+    prismaMock.estudiantes = { findFirst: vi.fn().mockResolvedValue(baseEstudiante()) };
+    prismaMock.aulas = { findUnique: vi.fn().mockResolvedValue(baseAula()) };
+    const updateManySpy = vi.fn();
+    const createSpy = vi.fn();
+    prismaMock.estudiantesAulas = {
+      findFirst: vi.fn().mockResolvedValue({ id: "ea-existing", aula_id: "a-1" }), // ya activo
+      updateMany: updateManySpy,
+      create: createSpy,
+    };
+
+    const res = await request(app)
+      .post(ENDPOINT)
+      .set("Authorization", "Bearer fake-token")
+      .send({ estudianteId: "s-1", aulaId: "a-1" });
+
+    expect(res.status).toBe(200);
+    expect(updateManySpy).not.toHaveBeenCalled();
+    expect(createSpy).not.toHaveBeenCalled();
+  });
+});
+
+// ─── FASE 3 — Import por Excel: errores por fila ──────────────────────────────
+describe("FASE3 — bulk import: errores por fila sin abortar el lote", () => {
+  const BULK_ENDPOINT = "/estudiantes/bulk";
+
+  function rowBase(dni: string, aulaId: string, salaId = 3) {
+    return { dni, nombre: "Test", apellido: "User", fecha_nacimiento: "2018-01-01", genero_id: "F", sala_id: salaId, aula_id: aulaId };
+  }
+
+  it("FASE3 lote mixto: filas válidas se procesan, sala incompatible va a errores", async () => {
+    const { prismaMock } = mockAuthAs("equipo_padi");
+
+    prismaMock.personas = {
+      findUnique: vi.fn().mockResolvedValue(null),
+      create: vi.fn()
+        .mockResolvedValueOnce({ id: "p-1" })
+        .mockResolvedValueOnce({ id: "p-2" }),
+    };
+    prismaMock.estudiantes = {
+      create: vi.fn()
+        .mockResolvedValueOnce({ id: "s-1" })
+        .mockResolvedValueOnce({ id: "s-2" }),
+    };
+    prismaMock.aulas = {
+      findUnique: vi.fn().mockImplementation(({ where }: any) => {
+        if (where.id === "aula-ok")  return Promise.resolve({ sala_id: 3, comision: "A" });
+        if (where.id === "aula-mal") return Promise.resolve({ sala_id: 5, comision: "B" });
+        return Promise.resolve(null);
+      }),
+    };
+    prismaMock.estudiantesAulas = {
+      findFirst: vi.fn().mockResolvedValue(null),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      create: vi.fn().mockResolvedValue({ id: "ea-1" }),
+    };
+
+    const rows = [
+      rowBase("11111111", "aula-ok"),   // sala 3 == aula sala 3 → válida
+      rowBase("22222222", "aula-mal"),  // sala 3 != aula sala 5 → error
+    ];
+
+    const res = await request(app)
+      .post(BULK_ENDPOINT)
+      .set("Authorization", "Bearer fake-token")
+      .send({ estudiantes: rows, escuela_id: "esc-1" });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.procesados).toHaveLength(1);
+    expect(res.body.data.errores).toHaveLength(1);
+    expect(res.body.data.errores[0].fila.dni).toBe("22222222");
+    expect(res.body.data.errores[0].motivo).toMatch(/Sala incompatible/i);
+  });
+
+  it("FASE3 bulk: alumno activo en otra aula → traslado automático", async () => {
+    const { prismaMock } = mockAuthAs("equipo_padi");
+
+    prismaMock.personas = {
+      findUnique: vi.fn().mockResolvedValue({
+        id: "p-1",
+        estudiantes: [{ id: "s-1", fecha_baja: null, sala_id: 3 }],
+      }),
+    };
+    prismaMock.estudiantes = {
+      update: vi.fn().mockResolvedValue({ id: "s-1" }),
+    };
+    prismaMock.aulas = {
+      findUnique: vi.fn().mockResolvedValue({ sala_id: 3, comision: "A" }),
+    };
+    const updateManySpy = vi.fn().mockResolvedValue({ count: 1 });
+    prismaMock.estudiantesAulas = {
+      findFirst: vi.fn().mockResolvedValue(null),   // no activo en aula-b aún
+      updateMany: updateManySpy,
+      create: vi.fn().mockResolvedValue({ id: "ea-new" }),
+    };
+
+    const res = await request(app)
+      .post(BULK_ENDPOINT)
+      .set("Authorization", "Bearer fake-token")
+      .send({ estudiantes: [rowBase("11111111", "aula-b")], escuela_id: "esc-1" });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.procesados).toHaveLength(1);
+    expect(res.body.data.errores).toHaveLength(0);
+    expect(updateManySpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ estudiante_id: "s-1", fecha_fin: null }),
+      })
+    );
+  });
+
+  it("FASE3 bulk: re-correr el mismo lote no crea filas duplicadas (INV3)", async () => {
+    const { prismaMock } = mockAuthAs("equipo_padi");
+
+    prismaMock.personas = {
+      findUnique: vi.fn().mockResolvedValue({
+        id: "p-1",
+        estudiantes: [{ id: "s-1", fecha_baja: null, sala_id: 3 }],
+      }),
+    };
+    prismaMock.estudiantes = {
+      update: vi.fn().mockResolvedValue({ id: "s-1" }),
+    };
+    prismaMock.aulas = {
+      findUnique: vi.fn().mockResolvedValue({ sala_id: 3, comision: "A" }),
+    };
+    const createSpy = vi.fn();
+    const updateManySpy = vi.fn();
+    prismaMock.estudiantesAulas = {
+      findFirst: vi.fn().mockResolvedValue({ id: "ea-existing" }), // ya activo en esa aula
+      updateMany: updateManySpy,
+      create: createSpy,
+    };
+
+    const res = await request(app)
+      .post(BULK_ENDPOINT)
+      .set("Authorization", "Bearer fake-token")
+      .send({ estudiantes: [rowBase("11111111", "aula-b")], escuela_id: "esc-1" });
+
+    expect(res.status).toBe(201);
+    expect(res.body.data.procesados).toHaveLength(1);
+    expect(res.body.data.errores).toHaveLength(0);
+    expect(createSpy).not.toHaveBeenCalled();
+    expect(updateManySpy).not.toHaveBeenCalled();
   });
 });
