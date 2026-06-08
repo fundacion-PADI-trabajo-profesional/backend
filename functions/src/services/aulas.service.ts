@@ -383,7 +383,7 @@ export class AulasService {
     return withRLSContextAsAdmin(async (tx) => {
       void perms; // permisos ya verificados arriba
       return tx.estudiantesAulas.findMany({
-        where: { aula_id: aulaId, fecha_fin: null },
+        where: { aula_id: aulaId, fecha_fin: null, estudiante: { fecha_baja: null } },
         include: {
           estudiante: {
             include: {
