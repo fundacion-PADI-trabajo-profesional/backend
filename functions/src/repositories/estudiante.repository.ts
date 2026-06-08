@@ -125,10 +125,13 @@ export const EstudianteRepository = {
                     if (aula_id) {
                         const aulaDatos = await tx.aulas.findUnique({
                             where: { id: aula_id },
-                            select: { sala_id: true, comision: true },
+                            select: { sala_id: true, comision: true, escuela_id: true },
                         })
                         if (!aulaDatos) throw new Error("Aula no encontrada.")
                         validarSalaCompatible(sala_id, aulaDatos.sala_id, { aulaComision: aulaDatos.comision })
+                        if (escuela_id && aulaDatos.escuela_id !== escuela_id) {
+                            throw new Error("El aula seleccionada no pertenece a la escuela del estudiante.")
+                        }
                         await inscribirConTraslado(tx, estudianteExistente.id, aula_id)
                     }
 
@@ -157,10 +160,13 @@ export const EstudianteRepository = {
                 if (aula_id) {
                     const aulaDatos = await tx.aulas.findUnique({
                         where: { id: aula_id },
-                        select: { sala_id: true, comision: true },
+                        select: { sala_id: true, comision: true, escuela_id: true },
                     })
                     if (!aulaDatos) throw new Error("Aula no encontrada.")
                     validarSalaCompatible(sala_id, aulaDatos.sala_id, { aulaComision: aulaDatos.comision })
+                    if (escuela_id && aulaDatos.escuela_id !== escuela_id) {
+                        throw new Error("El aula seleccionada no pertenece a la escuela del estudiante.")
+                    }
                     await inscribirConTraslado(tx, nuevoEstudiante.id, aula_id)
                 }
 
@@ -477,11 +483,15 @@ export const EstudianteRepository = {
             if (data.aula_id) {
                 const aulaDatos = await tx.aulas.findUnique({
                     where: { id: data.aula_id },
-                    select: { sala_id: true, comision: true },
+                    select: { sala_id: true, comision: true, escuela_id: true },
                 })
                 if (!aulaDatos) throw new Error("Aula no encontrada.")
                 const salaEfectiva: number = data.sala_id ?? estudiante.sala_id
                 validarSalaCompatible(salaEfectiva, aulaDatos.sala_id, { aulaComision: aulaDatos.comision })
+                const escuelaEfectiva = data.escuela_id ?? estudiante.escuela_id
+                if (escuelaEfectiva && aulaDatos.escuela_id !== escuelaEfectiva) {
+                    throw new Error("El aula seleccionada no pertenece a la escuela del estudiante.")
+                }
                 await inscribirConTraslado(tx, id, data.aula_id)
             }
 
