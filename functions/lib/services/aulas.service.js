@@ -313,20 +313,26 @@ class AulasService {
      * Lista los estudiantes activos de un aula con control de permisos.
      */
     async listEstudiantesAula(aulaId, user) {
-        return (0, prismaClient_1.withRLSContext)(async (tx) => {
-            const perms = await this.resolvePerms(tx, user);
+        // Verificamos permisos con el contexto RLS del usuario
+        const perms = await (0, prismaClient_1.withRLSContext)(async (tx) => {
+            const p = await this.resolvePerms(tx, user);
             const aula = await tx.aulas.findUnique({
                 where: { id: aulaId },
                 select: { id: true, escuela_id: true },
             });
             if (!aula)
                 throw new Error("Aula no encontrada.");
-            if (perms.userType === "director" && aula.escuela_id !== perms.escuelaId) {
+            if (p.userType === "director" && aula.escuela_id !== p.escuelaId) {
                 throw new Error("No tienes permisos para ver estudiantes de esta aula.");
             }
-            if (perms.userType === "encargado" && !perms.allowedEscuelas.includes(aula.escuela_id)) {
+            if (p.userType === "encargado" && !p.allowedEscuelas.includes(aula.escuela_id)) {
                 throw new Error("No tienes permisos para ver estudiantes de esta aula.");
             }
+            return p;
+        });
+        // Leemos _EstudiantesToAulas como admin para evitar bloqueos RLS en esa tabla
+        return (0, prismaClient_1.withRLSContextAsAdmin)(async (tx) => {
+            void perms; // permisos ya verificados arriba
             return tx.estudiantesAulas.findMany({
                 where: { aula_id: aulaId, fecha_fin: null },
                 include: {

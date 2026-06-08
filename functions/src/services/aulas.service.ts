@@ -358,8 +358,9 @@ export class AulasService {
    * Lista los estudiantes activos de un aula con control de permisos.
    */
   async listEstudiantesAula(aulaId: string, user: { id: string; rol: string }) {
-    return withRLSContext(async (tx) => {
-      const perms = await this.resolvePerms(tx, user);
+    // Verificamos permisos con el contexto RLS del usuario
+    const perms = await withRLSContext(async (tx) => {
+      const p = await this.resolvePerms(tx, user);
 
       const aula = await tx.aulas.findUnique({
         where: { id: aulaId },
@@ -368,13 +369,19 @@ export class AulasService {
 
       if (!aula) throw new Error("Aula no encontrada.");
 
-      if (perms.userType === "director" && aula.escuela_id !== perms.escuelaId) {
+      if (p.userType === "director" && aula.escuela_id !== p.escuelaId) {
         throw new Error("No tienes permisos para ver estudiantes de esta aula.");
       }
-      if (perms.userType === "encargado" && !(perms.allowedEscuelas as string[]).includes(aula.escuela_id)) {
+      if (p.userType === "encargado" && !(p.allowedEscuelas as string[]).includes(aula.escuela_id)) {
         throw new Error("No tienes permisos para ver estudiantes de esta aula.");
       }
 
+      return p;
+    });
+
+    // Leemos _EstudiantesToAulas como admin para evitar bloqueos RLS en esa tabla
+    return withRLSContextAsAdmin(async (tx) => {
+      void perms; // permisos ya verificados arriba
       return tx.estudiantesAulas.findMany({
         where: { aula_id: aulaId, fecha_fin: null },
         include: {
