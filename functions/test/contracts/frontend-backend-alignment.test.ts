@@ -172,4 +172,14 @@ describe("Frontend/Backend contract alignment", () => {
     expect(fn).toContain("nombre");
     expect(fn).toContain("apellido");
   });
+
+  // export de evaluaciones
+
+  it("getExportEvaluaciones usa la ruta y el query param del backend", () => {
+    const src = readFrontendApiFile("estadisticas.ts");
+    const fn = extractBlockByAnchor(src, "export async function getExportEvaluaciones");
+
+    expect(fn).toContain("/estadisticas/padi/export-evaluaciones");
+    expect(fn).toContain("periodo=");
+  });
 });
