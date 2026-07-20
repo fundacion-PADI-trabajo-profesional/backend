@@ -3,6 +3,7 @@ import { CreateAulaDto } from "../interfaces/aula.interface";
 import { AulasRepository, CreateAulaData, UpdateAulaData } from "../repositories/aula.repository";
 import { ProfesoresAulasRepository } from "../repositories/profesor-aula.repository";
 import { DocenteRepository } from "../repositories/docente.repository";
+import { validarSalaCompatible, inscribirConTraslado } from "../helpers/inscripcion.helper";
 
 /**
  * Servicio de gestión de aulas y sus asignaciones de docentes y estudiantes.
@@ -357,8 +358,9 @@ export class AulasService {
    * Lista los estudiantes activos de un aula con control de permisos.
    */
   async listEstudiantesAula(aulaId: string, user: { id: string; rol: string }) {
-    return withRLSContextAsAdmin(async (tx) => {
-      const perms = await this.resolvePerms(tx, user);
+    // Verificamos permisos con el contexto RLS del usuario
+    const perms = await withRLSContext(async (tx) => {
+      const p = await this.resolvePerms(tx, user);
 
       const aula = await tx.aulas.findUnique({
         where: { id: aulaId },
@@ -367,15 +369,21 @@ export class AulasService {
 
       if (!aula) throw new Error("Aula no encontrada.");
 
-      if (perms.userType === "director" && aula.escuela_id !== perms.escuelaId) {
+      if (p.userType === "director" && aula.escuela_id !== p.escuelaId) {
         throw new Error("No tienes permisos para ver estudiantes de esta aula.");
       }
-      if (perms.userType === "encargado" && !(perms.allowedEscuelas as string[]).includes(aula.escuela_id)) {
+      if (p.userType === "encargado" && !(p.allowedEscuelas as string[]).includes(aula.escuela_id)) {
         throw new Error("No tienes permisos para ver estudiantes de esta aula.");
       }
 
+      return p;
+    });
+
+    // Leemos _EstudiantesToAulas como admin para evitar bloqueos RLS en esa tabla
+    return withRLSContextAsAdmin(async (tx) => {
+      void perms; // permisos ya verificados arriba
       return tx.estudiantesAulas.findMany({
-        where: { aula_id: aulaId, fecha_fin: null },
+        where: { aula_id: aulaId, fecha_fin: null, estudiante: { fecha_baja: null } },
         include: {
           estudiante: {
             include: {
@@ -416,7 +424,7 @@ export class AulasService {
 
       const aula = await tx.aulas.findUnique({
         where: { id: aulaId },
-        select: { id: true, escuela_id: true },
+        select: { id: true, escuela_id: true, sala_id: true, comision: true },
       });
 
       if (!aula) throw new Error("Aula no encontrada.");
@@ -430,7 +438,7 @@ export class AulasService {
 
       const estudiante = await tx.estudiantes.findFirst({
         where: { id: estudianteId, fecha_baja: null },
-        select: { id: true, escuela_id: true },
+        select: { id: true, escuela_id: true, sala_id: true },
       });
 
       if (!estudiante) throw new Error("Estudiante no encontrado.");
@@ -438,14 +446,9 @@ export class AulasService {
         throw new Error("El estudiante no pertenece al colegio de esta aula.");
       }
 
-      const existing = await tx.estudiantesAulas.findFirst({
-        where: { estudiante_id: estudianteId, aula_id: aulaId, fecha_fin: null },
-      });
-      if (existing) throw new Error("El estudiante ya está asignado a esta aula.");
+      validarSalaCompatible(estudiante.sala_id, aula.sala_id, { aulaComision: aula.comision });
 
-      return tx.estudiantesAulas.create({
-        data: { estudiante_id: estudianteId, aula_id: aulaId },
-      });
+      return (await inscribirConTraslado(tx, estudianteId, aulaId)).registro;
     });
   }
 

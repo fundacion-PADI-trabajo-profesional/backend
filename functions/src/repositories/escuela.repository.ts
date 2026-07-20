@@ -60,7 +60,22 @@ export const EscuelasRepository = {
         data: { escuela_id: null },
       });
 
-      // 3. Cerrar asignaciones docentes
+      // 3. Cerrar asignaciones de estudiantes a aulas de esta escuela
+      const aulasEscuela = await tx.aulas.findMany({
+        where: { escuela_id: id },
+        select: { id: true },
+      });
+      if (aulasEscuela.length > 0) {
+        await tx.estudiantesAulas.updateMany({
+          where: {
+            aula_id: { in: aulasEscuela.map((a) => a.id) },
+            fecha_fin: null,
+          },
+          data: { fecha_fin: now },
+        });
+      }
+
+      // 4. Cerrar asignaciones docentes
       await tx.profesoresEscuelas.updateMany({
         where: { escuela_id: id, fecha_fin: null },
         data: { fecha_fin: now },

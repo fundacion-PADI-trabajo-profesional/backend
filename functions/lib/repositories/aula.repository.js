@@ -183,7 +183,7 @@ exports.AulasRepository = {
                                 },
                             },
                             estudiantes_aulas: {
-                                where: { fecha_fin: null },
+                                where: { fecha_fin: null, estudiante: { fecha_baja: null } },
                                 include: {
                                     estudiante: {
                                         include: {
@@ -287,6 +287,7 @@ exports.AulasRepository = {
                 where: {
                     aula_id,
                     fecha_fin: null,
+                    estudiante: { fecha_baja: null },
                 },
                 include: {
                     estudiante: {
