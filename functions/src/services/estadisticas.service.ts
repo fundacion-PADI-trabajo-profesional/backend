@@ -14,6 +14,40 @@ export interface HeatmapResponse {
   total_evaluaciones: number;
 }
 
+export interface ExportAreaFila {
+  area_id: string;
+  aprobadas: number | null;
+  total: number | null;
+  aprueba_con: number | null;
+  estado: string | null;
+  observacion: string | null;
+}
+
+export interface ExportFila {
+  zona: string | null;
+  escuela: string;
+  sala: string;
+  aula: string | null;
+  apellido: string;
+  nombre: string;
+  dni: string | null;
+  tipo: string;
+  estado: string;
+  fecha: string | null;
+  areas_aprobadas: number | null;
+  areas: ExportAreaFila[];
+}
+
+export interface ExportEvaluacionesResponse {
+  periodo: number;
+  areas: Array<{ id: string; nombre: string; orden: number }>;
+  reglas: Array<{ sala: string; area_id: string; aprueba_con: number | null; puntaje_total: number | null }>;
+  filas: ExportFila[];
+}
+
+/** Tipos de evaluación del sistema, en el orden en que se exportan. */
+const TIPOS_EXPORT = ["inicial", "cierre"];
+
 type Nivel = "zona" | "escuela" | "aula";
 
 function nombreEscuela(escuela: { nombre: string; desvinculada_at?: Date | null } | null): string {
@@ -1399,6 +1433,139 @@ export class EstadisticasService {
       this.repo.findEvaluacionesPorNivelSocioeconomico({ periodoStart, periodoEnd, tipo: params.tipo }),
     ]);
     return calcularRendimientoNivel(evaluaciones, reglasMap, areas, params.tipo, params.periodo);
+  }
+
+  /**
+   * Arma el dataset completo para el export a Excel del equipo PADI:
+   * una fila por evaluación del período (todos los estados, duplicados
+   * incluidos) más una fila sintética "sin_evaluar" por cada estudiante
+   * activo y tipo de evaluación sin registro en el año.
+   *
+   * @param params.periodo - Año calendario a exportar.
+   * @param params.rol     - Rol del usuario; debe ser `"equipo_padi"`.
+   * @returns `ExportEvaluacionesResponse` con áreas, reglas y filas ordenadas.
+   * @throws AuthorizationError si el rol no es `equipo_padi`.
+   */
+  async getExportEvaluaciones(params: {
+    periodo: number;
+    rol: string;
+  }): Promise<ExportEvaluacionesResponse> {
+    this.validateRol(params.rol, "equipo_padi");
+    const { periodoStart, periodoEnd } = getPeriodoRange(params.periodo);
+    const [areas, reglasRows, evaluaciones, estudiantes] = await Promise.all([
+      this.getAreas(),
+      this.repo.findReglasParaExport(),
+      this.repo.findEvaluacionesParaExport({ periodoStart, periodoEnd }),
+      this.repo.findEstudiantesActivosParaExport(),
+    ]);
+
+    const reglasMap = new Map<string, { aprueba_con: number | null; puntaje_total: number | null }>();
+    for (const r of reglasRows) {
+      if (r.area_id && r.sala_id !== null) {
+        reglasMap.set(`${r.area_id}__${r.sala_id}`, {
+          aprueba_con: r.aprueba_con,
+          puntaje_total: r.puntaje_total,
+        });
+      }
+    }
+
+    const salaLabel = (salaId: number, nombre: string | null | undefined) =>
+      nombre ?? `Sala ${salaId}`;
+    const aulaLabel = (aula: { comision: string; turno: string } | null | undefined) =>
+      aula ? `${aula.comision} - ${aula.turno}` : null;
+    const apellidoDe = (
+      p: { primer_apellido: string | null; segundo_apellido: string | null } | null | undefined
+    ) => [p?.primer_apellido, p?.segundo_apellido].filter(Boolean).join(" ");
+
+    const filas: ExportFila[] = [];
+
+    for (const ev of evaluaciones) {
+      const est: any = ev.estudiantes;
+      const persona = est?.personas ?? null;
+      const escuela = est?.escuela ?? null;
+      const aulaActiva = est?.aulas?.[0]?.aula ?? null;
+
+      const areasFila: ExportAreaFila[] = areas.map((a: any) => {
+        const ea = ev.evaluaciones_estudiante_area.find((x: any) => x.area_id === a.id) ?? null;
+        const regla = reglasMap.get(`${a.id}__${ev.sala_id}`) ?? null;
+        return {
+          area_id: a.id,
+          aprobadas: ea?.puntaje ?? null,
+          total: regla?.puntaje_total ?? null,
+          aprueba_con: regla?.aprueba_con ?? null,
+          estado: ea?.estado_id ?? null,
+          observacion: ea?.observacion ?? null,
+        };
+      });
+
+      const terminada = ev.estado_id === "A" || ev.estado_id === "D";
+      filas.push({
+        zona: escuela?.zona?.nombre ?? null,
+        escuela: escuela?.nombre ?? "",
+        sala: salaLabel(ev.sala_id, ev.salas?.nombre),
+        aula: aulaLabel(ev.aulas as any) ?? aulaLabel(aulaActiva),
+        apellido: apellidoDe(persona),
+        nombre: persona?.nombre ?? "",
+        dni: persona?.dni ?? null,
+        tipo: ev.tipo_id,
+        estado: ev.estado_id,
+        fecha: ev.fecha_creacion.toISOString(),
+        areas_aprobadas: terminada ? areasFila.filter((a) => a.estado === "A").length : null,
+        areas: areasFila,
+      });
+    }
+
+    const evaluadosPorTipo = new Set(
+      evaluaciones.map((ev: any) => `${ev.estudiante_id}__${ev.tipo_id}`)
+    );
+    for (const est of estudiantes as any[]) {
+      for (const tipo of TIPOS_EXPORT) {
+        if (evaluadosPorTipo.has(`${est.id}__${tipo}`)) continue;
+        filas.push({
+          zona: est.escuela?.zona?.nombre ?? null,
+          escuela: est.escuela?.nombre ?? "",
+          sala: salaLabel(est.sala_id, est.salas?.nombre),
+          aula: aulaLabel(est.aulas?.[0]?.aula ?? null),
+          apellido: apellidoDe(est.personas),
+          nombre: est.personas?.nombre ?? "",
+          dni: est.personas?.dni ?? null,
+          tipo,
+          estado: "sin_evaluar",
+          fecha: null,
+          areas_aprobadas: null,
+          areas: [],
+        });
+      }
+    }
+
+    const tipoOrden = (t: string) => (t === "inicial" ? 0 : 1);
+    filas.sort(
+      (a, b) =>
+        a.escuela.localeCompare(b.escuela, "es") ||
+        a.sala.localeCompare(b.sala, "es") ||
+        (a.aula ?? "").localeCompare(b.aula ?? "", "es") ||
+        a.apellido.localeCompare(b.apellido, "es") ||
+        a.nombre.localeCompare(b.nombre, "es") ||
+        tipoOrden(a.tipo) - tipoOrden(b.tipo)
+    );
+
+    const areaOrden = new Map(areas.map((a: any) => [a.id, a.orden]));
+    const reglas = reglasRows
+      .filter((r) => r.area_id && r.sala_id !== null)
+      .map((r: any) => ({
+        sala: salaLabel(r.sala_id, r.salas?.nombre),
+        area_id: r.area_id as string,
+        aprueba_con: r.aprueba_con,
+        puntaje_total: r.puntaje_total,
+      }))
+      .sort(
+        (a, b) =>
+          a.sala.localeCompare(b.sala, "es") ||
+          ((areaOrden.get(a.area_id) as number | undefined) ?? 0) -
+            ((areaOrden.get(b.area_id) as number | undefined) ?? 0)
+      );
+
+    return { periodo: params.periodo, areas, reglas, filas };
   }
 
   /**

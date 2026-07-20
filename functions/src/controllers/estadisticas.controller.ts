@@ -714,3 +714,32 @@ export async function getHeatmapAulas(req: AuthenticatedRequest, res: Response) 
     return res.status(500).json(commonResponse(false, "Error interno del servidor", null));
   }
 }
+
+/**
+ * Devuelve el dataset completo de evaluaciones de un período para el export
+ * a Excel del equipo PADI.
+ * Solo accesible para el rol `equipo_padi`.
+ *
+ * @route GET /estadisticas/padi/export-evaluaciones
+ * @queryparam periodo - Año del período (ej. 2025).
+ * @returns 200 con `ExportEvaluacionesResponse`, 400 si el período es inválido,
+ *          o 403 si el rol no tiene acceso.
+ */
+export async function getExportEvaluaciones(req: AuthenticatedRequest, res: Response) {
+  try {
+    const periodo = parsePeriodo(req.query.periodo);
+    if (!periodo) {
+      return res
+        .status(400)
+        .json(commonResponse(false, "Parámetros inválidos: se requiere periodo (año)", null));
+    }
+
+    const data = await service.getExportEvaluaciones({ periodo, rol: String(req.user!.rol) });
+    return res.status(200).json(commonResponse(true, "ok", data));
+  } catch (error: unknown) {
+    if (error instanceof AuthorizationError) {
+      return res.status(403).json(commonResponse(false, error.message, null));
+    }
+    return res.status(500).json(commonResponse(false, "Error interno del servidor", null));
+  }
+}
