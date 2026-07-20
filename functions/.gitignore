@@ -1,5 +1,6 @@
 node_modules
-# Keep environment variables out of version control
+# Keep environment variables and secrets out of version control
 .env
+*.local
 
 /src/generated/prisma

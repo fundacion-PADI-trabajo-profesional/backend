@@ -154,6 +154,10 @@ describe("aulas endpoints", () => {
   it("GET /docentes/aulas returns assigned aulas for logged docente", async () => {
     const { prismaMock } = mockAuthAs("docente", "docente-1");
 
+    // listByProfesor resuelve Profesores.id desde el usuario_id antes de buscar aulas
+    prismaMock.profesores = {
+      findFirst: vi.fn().mockResolvedValue({ id: "prof-1" }),
+    };
     prismaMock.profesoresAulas = {
       findMany: vi.fn().mockResolvedValue([
         {

@@ -748,4 +748,103 @@ export const EstadisticasRepository = {
         : null;
     });
   },
+
+  /**
+   * Obtiene todas las evaluaciones de un período (todos los tipos y estados)
+   * con los datos necesarios para el export a Excel: alumno, escuela, zona,
+   * sala, aula (de la evaluación y la activa actual del alumno) y resultados
+   * por área con observaciones.
+   *
+   * @param filtros.periodoStart - Fecha de inicio del período (inclusive).
+   * @param filtros.periodoEnd   - Fecha de fin del período (exclusiva).
+   * @returns Lista de evaluaciones con sus relaciones para el export.
+   */
+  async findEvaluacionesParaExport(filtros: { periodoStart: Date; periodoEnd: Date }) {
+    return withRLSContext(async (tx) => {
+      const rows = await tx.evaluacionEstudiante.findMany({
+        where: { fecha_creacion: { gte: filtros.periodoStart, lt: filtros.periodoEnd } },
+        select: {
+          id: true,
+          estudiante_id: true,
+          sala_id: true,
+          tipo_id: true,
+          estado_id: true,
+          fecha_creacion: true,
+          salas: { select: { nombre: true } },
+          aulas: { select: { comision: true, turno: true } },
+          estudiantes: {
+            select: {
+              personas: {
+                select: { nombre: true, primer_apellido: true, segundo_apellido: true, dni: true },
+              },
+              escuela: { select: { nombre: true, zona: { select: { nombre: true } } } },
+              aulas: {
+                where: { fecha_fin: null },
+                select: { aula: { select: { comision: true, turno: true } } },
+                take: 1,
+              },
+            },
+          },
+          evaluaciones_estudiante_area: {
+            select: { area_id: true, puntaje: true, estado_id: true, observacion: true },
+          },
+        },
+        take: MAX_EVALUACIONES_POR_QUERY + 1,
+      });
+
+      if (rows.length > MAX_EVALUACIONES_POR_QUERY) {
+        throw new Error(
+          `La consulta supera el límite de ${MAX_EVALUACIONES_POR_QUERY} evaluaciones.`
+        );
+      }
+
+      return rows;
+    });
+  },
+
+  /**
+   * Obtiene los estudiantes activos (sin fecha de baja) de escuelas no
+   * desvinculadas, con su aula activa actual. Se usa para generar las filas
+   * sintéticas "sin_evaluar" del export. Los estudiantes sin escuela asignada
+   * quedan excluidos por el filtro de relación.
+   */
+  async findEstudiantesActivosParaExport() {
+    return withRLSContext(async (tx) => {
+      return tx.estudiantes.findMany({
+        where: { fecha_baja: null, escuela: { desvinculada_at: null } },
+        select: {
+          id: true,
+          sala_id: true,
+          salas: { select: { nombre: true } },
+          personas: {
+            select: { nombre: true, primer_apellido: true, segundo_apellido: true, dni: true },
+          },
+          escuela: { select: { nombre: true, zona: { select: { nombre: true } } } },
+          aulas: {
+            where: { fecha_fin: null },
+            select: { aula: { select: { comision: true, turno: true } } },
+            take: 1,
+          },
+        },
+      });
+    });
+  },
+
+  /**
+   * Obtiene las reglas de aprobación completas (umbral y puntaje total) con
+   * el nombre de la sala, para el export a Excel y su tab de criterios.
+   */
+  async findReglasParaExport() {
+    return withRLSContext(async (tx) => {
+      return tx.reglasAprobacion.findMany({
+        select: {
+          area_id: true,
+          sala_id: true,
+          aprueba_con: true,
+          puntaje_total: true,
+          salas: { select: { nombre: true } },
+        },
+      });
+    });
+  },
 };

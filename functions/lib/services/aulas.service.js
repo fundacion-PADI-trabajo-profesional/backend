@@ -334,7 +334,7 @@ class AulasService {
         return (0, prismaClient_1.withRLSContextAsAdmin)(async (tx) => {
             void perms; // permisos ya verificados arriba
             return tx.estudiantesAulas.findMany({
-                where: { aula_id: aulaId, fecha_fin: null },
+                where: { aula_id: aulaId, fecha_fin: null, estudiante: { fecha_baja: null } },
                 include: {
                     estudiante: {
                         include: {

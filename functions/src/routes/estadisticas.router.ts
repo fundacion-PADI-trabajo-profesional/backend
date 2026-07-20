@@ -20,6 +20,7 @@ import {
   getProgresionEstudianteDocente,
   getProgresionEstudianteEscuela,
   getRendimientoNivelSocioeconomico,
+  getExportEvaluaciones,
 } from "../controllers/estadisticas.controller";
 import { requireRole } from "../middlewares/auth.middleware";
 
@@ -182,6 +183,18 @@ export function createEstadisticasRouter() {
    * @roles equipo_padi
    */
   router.get("/estadisticas/padi/cobertura-por-zona", requireRole("equipo_padi") as any, getCoberturaPorZona);
+
+  /**
+   * GET /estadisticas/padi/export-evaluaciones
+   * Dataset completo de evaluaciones del período para el export a Excel.
+   * @queryparam periodo - Año del período.
+   * @roles equipo_padi
+   */
+  router.get(
+    "/estadisticas/padi/export-evaluaciones",
+    requireRole("equipo_padi") as any,
+    getExportEvaluaciones
+  );
 
   /**
    * GET /estadisticas/padi/rendimiento-por-nivel-socioeconomico
