@@ -1,5 +1,6 @@
 import { withRLSContext, withRLSContextAsAdmin } from "../config/prismaClient";
 import { getSignedImageUrl } from "../utils/storage";
+import { esRespuestaCorrecta, apruebaPauta } from "../utils/pautas";
 
 /** Estado: no iniciada. */
 const ESTADO_NO_INICIADA = "N";
@@ -608,11 +609,7 @@ async function calculateAreaScore(
 
     if (qa.respuesta !== null && qa.respuesta !== undefined) {
       g.answered += 1;
-      // Para preguntas negativas (puntaje_invertido=true), aprueba cuando responde NO (0)
-      const esCorrecta = qa.preguntas.puntaje_invertido
-        ? qa.respuesta === 0
-        : qa.respuesta === 1;
-      if (esCorrecta) g.correct += 1;
+      if (esRespuestaCorrecta(qa.respuesta, qa.preguntas.puntaje_invertido)) g.correct += 1;
     }
 
     groups.set(groupKey, g);
@@ -628,8 +625,7 @@ async function calculateAreaScore(
   for (const [groupKey, g] of groups) {
     if (g.answered < g.total) completado = false;
 
-    const needed = Math.ceil(g.total / 2);
-    const apruebaGrupo = g.correct >= needed;
+    const apruebaGrupo = apruebaPauta({ total: g.total, correctas: g.correct });
 
     const unique = Array.from(new Set(g.puntajes));
 

@@ -1,5 +1,6 @@
 import { EstadisticasRepository } from "../repositories/estadisticas.repository";
 import { AuthorizationError } from "../utils/errors";
+import { getPeriodoRange } from "../utils/periodo";
 
 export interface HeatmapResponse {
   periodo: number;
@@ -53,20 +54,6 @@ type Nivel = "zona" | "escuela" | "aula";
 function nombreEscuela(escuela: { nombre: string; desvinculada_at?: Date | null } | null): string {
   if (!escuela) return "";
   return escuela.desvinculada_at ? `${escuela.nombre} (Desvinculada)` : escuela.nombre;
-}
-
-/**
- * Calcula las fechas de inicio y fin de un año calendario completo en UTC.
- *
- * @param anio - Año a calcular (ej. 2024).
- * @returns Objeto con `periodoStart` (1 de enero 00:00 UTC) y `periodoEnd`
- *          (1 de enero del año siguiente 00:00 UTC, exclusivo).
- */
-function getPeriodoRange(anio: number) {
-  return {
-    periodoStart: new Date(Date.UTC(anio, 0, 1)),
-    periodoEnd: new Date(Date.UTC(anio + 1, 0, 1)),
-  };
 }
 
 /**
