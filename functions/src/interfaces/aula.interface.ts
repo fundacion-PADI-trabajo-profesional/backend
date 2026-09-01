@@ -1,3 +1,5 @@
+import type { Turno } from "../utils/turno";
+
 /**
  * DTO para la creación de un aula.
  *
@@ -10,8 +12,8 @@ export interface CreateAulaDto {
   sala_id: number;
   /** Nombre de la comisión, por ejemplo `"Delfines"` o `"Única"`. */
   comision: string;
-  /** Turno del aula: `"Mañana"`, `"Tarde"`, etc. */
-  turno: string;
+  /** Turno canónico del aula: `"Mañana"`, `"Tarde"` o `"Completo"`. */
+  turno: Turno;
   /**
    * ID de la escuela a la que pertenece el aula.
    * Requerido para usuarios con rol `admin` o `encargado_zona`.

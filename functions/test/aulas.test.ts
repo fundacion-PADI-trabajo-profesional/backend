@@ -108,6 +108,61 @@ describe("aulas endpoints", () => {
     expect(prismaMock.aulas.update).toHaveBeenCalled();
   });
 
+  it("POST /aulas normaliza variantes de turno al valor canónico", async () => {
+    const { prismaMock } = mockAuthAs("director", "director-1", { escuela_id: "esc1" });
+
+    prismaMock.salas = { findUnique: vi.fn().mockResolvedValue({ id: 3 }) };
+    prismaMock.aulas = {
+      create: vi.fn().mockResolvedValue({ id: "a1", sala_id: 3, comision: "Delfines", turno: "Mañana", escuela_id: "esc1" }),
+    };
+
+    const res = await request(app)
+      .post("/aulas")
+      .set("Authorization", "Bearer fake-token")
+      .send({ sala_id: 3, comision: "Delfines", turno: "manana" });
+
+    expect(res.status).toBe(201);
+    expect(prismaMock.aulas.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ turno: "Mañana" }) })
+    );
+  });
+
+  it("POST /aulas con turno no reconocido → 400 con mensaje específico", async () => {
+    const { prismaMock } = mockAuthAs("director", "director-1", { escuela_id: "esc1" });
+
+    prismaMock.salas = { findUnique: vi.fn().mockResolvedValue({ id: 3 }) };
+    prismaMock.aulas = { create: vi.fn() };
+
+    const res = await request(app)
+      .post("/aulas")
+      .set("Authorization", "Bearer fake-token")
+      .send({ sala_id: 3, comision: "Delfines", turno: "noche" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe("Turno inválido: usar Mañana, Tarde o Completo");
+    expect(prismaMock.aulas.create).not.toHaveBeenCalled();
+  });
+
+  it("PUT /aulas/:id normaliza variantes de turno al valor canónico", async () => {
+    const aulaId = "a1";
+    const { prismaMock } = mockAuthAs("equipo_padi", "padi-1");
+
+    prismaMock.aulas = {
+      findUnique: vi.fn().mockResolvedValue({ id: aulaId, escuela_id: "esc1" }),
+      update: vi.fn().mockResolvedValue({ id: aulaId, turno: "Completo" }),
+    };
+
+    const res = await request(app)
+      .put(`/aulas/${aulaId}`)
+      .set("Authorization", "Bearer fake-token")
+      .send({ turno: "COMPLETO" });
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.aulas.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ turno: "Completo" }) })
+    );
+  });
+
   it("DELETE /aulas/:id deletes aula for equipo_padi", async () => {
     const aulaId = "a1";
     const { prismaMock } = mockAuthAs("equipo_padi", "padi-1");

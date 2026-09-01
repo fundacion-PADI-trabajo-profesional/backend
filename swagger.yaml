@@ -2510,8 +2510,11 @@ paths:
           required: false
           schema:
             type: string
-            maxLength: 40
-          description: Filtra por turno del aula; ausente = todos
+            enum: [Mañana, Tarde, Completo]
+          description: >-
+            Filtra por turno del aula (turno canónico); ausente = todos. Se aceptan
+            variantes de mayúsculas/acentos/espacios y sinónimos de "Completo"
+            (p. ej. "manana", "TARDE", "único", "jornada completa").
       responses:
         '200':
           description: Reporte de la escuela
@@ -2707,12 +2710,15 @@ components:
             comparativo: { type: object, nullable: true }
         turno:
           type: string
+          enum: [Mañana, Tarde, Completo]
           nullable: true
-          description: Filtro de turno aplicado (eco del query param); null = sin filtro
+          description: Turno canónico filtrado (eco normalizado del query param); null = sin filtro
         turnos:
           type: array
-          items: { type: string }
-          description: Turnos distintos disponibles para la escuela y período, independiente del filtro aplicado
+          items: { type: string, enum: [Mañana, Tarde, Completo] }
+          description: >-
+            Turnos canónicos disponibles para la escuela y período (deduplicados, en orden
+            Mañana/Tarde/Completo), independiente del filtro aplicado
 
     MessageResponse:
       type: object

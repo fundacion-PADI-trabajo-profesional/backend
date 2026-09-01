@@ -3,11 +3,10 @@ import type { AuthenticatedRequest } from "../middlewares/auth.middleware";
 import { commonResponse } from "../interfaces/common-response.interface";
 import { ReporteEscuelaService } from "../services/reporte-escuela.service";
 import { AuthorizationError } from "../utils/errors";
+import { normalizarTurno } from "../utils/turno";
 
 const service = new ReporteEscuelaService();
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-const TURNO_MAX_LEN = 40;
 
 /**
  * GET /reportes/escuela?escuela_id=<uuid>&periodo=<año>&turno=<opcional>
@@ -24,15 +23,11 @@ export async function getReporteEscuela(req: AuthenticatedRequest, res: Response
 
     let turno: string | null = null;
     if (req.query.turno !== undefined) {
-      const turnoRaw = String(req.query.turno);
-      // El trim es SOLO para validar (vacío/demasiado largo): los turnos se guardan verbatim
-      // (ver ReporteEscuelaRepository.findTurnos), así que un turno con espacios (p.ej. "Mañana ")
-      // tiene que matchear tal cual contra su propio valor del catálogo. Si trimeáramos antes de
-      // pasarlo al servicio, ese filtro nunca encontraría evaluaciones y devolvería un reporte vacío.
-      if (turnoRaw.trim().length === 0 || turnoRaw.trim().length > TURNO_MAX_LEN) {
+      const turnoCanonico = normalizarTurno(req.query.turno);
+      if (!turnoCanonico) {
         return res.status(400).json(commonResponse(false, "Parámetros inválidos: turno inválido", null));
       }
-      turno = turnoRaw;
+      turno = turnoCanonico;
     }
 
     const data = await service.getReporteEscuela({ escuelaId, periodo, rol: String(req.user!.rol), turno });
