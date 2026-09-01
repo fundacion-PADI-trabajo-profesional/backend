@@ -46,6 +46,8 @@ tags:
     description: Gestión de encargados de zona
   - name: Estadisticas
     description: Métricas y reportes analíticos por nivel de acceso (padi, zona, escuela, docente)
+  - name: Reportes
+    description: Documentos de devolución a las escuelas (reporte de escuela en PDF)
 
 # ─────────────────────────────────────────────
 # PATHS
@@ -2477,6 +2479,57 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /reportes/escuela:
+    get:
+      tags: [Reportes]
+      summary: Reporte de escuela (datos del PDF)
+      description: |
+        Devuelve el reporte completo de una escuela para un año: los tres modos (inicial, cierre,
+        inicial vs cierre), el resumen de la escuela y una sección por sala con las cuatro estadísticas
+        (totales, por área, nómina, pautas más desaprobadas). El PDF se genera en el cliente.
+        Solo `equipo_padi`. Definiciones de cálculo en `feature-reporte-escuela/spec.md` §4.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: escuela_id
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: periodo
+          required: true
+          schema:
+            type: integer
+            minimum: 2000
+            maximum: 2100
+          description: Año calendario de las evaluaciones (ej. 2025)
+      responses:
+        '200':
+          description: Reporte de la escuela
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/CommonResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ReporteEscuela'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Escuela no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+
 # ─────────────────────────────────────────────
 # COMPONENTS
 # ─────────────────────────────────────────────
@@ -2519,6 +2572,132 @@ components:
               example: VALIDATION_ERROR
             description:
               type: string
+
+    ReportePorArea:
+      type: object
+      properties:
+        area_id: { type: string }
+        evaluados: { type: integer }
+        aprobados: { type: integer }
+
+    ReportePautasArea:
+      type: object
+      properties:
+        area_id: { type: string }
+        items:
+          type: array
+          maxItems: 3
+          items:
+            type: object
+            properties:
+              numero: { type: integer, nullable: true }
+              texto: { type: string }
+              desaprobaron: { type: integer }
+              evaluados: { type: integer }
+
+    ReporteResultadoTipo:
+      type: object
+      description: Resultado de una sala para un tipo de evaluación (inicial o cierre)
+      properties:
+        evaluados: { type: integer }
+        aprobados: { type: integer }
+        cierra_con:
+          type: object
+          nullable: true
+          description: Solo en cierre. Aprobados al terminar el año sobre el total de evaluados en el año.
+          properties:
+            aprobados: { type: integer }
+            total: { type: integer }
+        por_area:
+          type: array
+          items: { $ref: '#/components/schemas/ReportePorArea' }
+        estudiantes:
+          type: array
+          description: Ordenados por cantidad de áreas desaprobadas y apellido
+          items:
+            type: object
+            properties:
+              estudiante_id: { type: string }
+              nombre: { type: string, example: "Acosta, Julián" }
+              aprobado: { type: boolean }
+              areas:
+                type: object
+                additionalProperties: { type: string, enum: [A, D], nullable: true }
+        pautas:
+          type: array
+          items: { $ref: '#/components/schemas/ReportePautasArea' }
+
+    ReporteComparativo:
+      type: object
+      description: Inicial vs cierre. Solo se reevalúa a quienes no pasaron la inicial.
+      properties:
+        base: { type: integer }
+        aprobaron_inicial: { type: integer }
+        reevaluados: { type: integer }
+        recuperaron: { type: integer }
+        persisten: { type: integer }
+        pendientes: { type: integer }
+        cierra_con: { type: integer }
+        por_area:
+          type: array
+          items:
+            type: object
+            properties:
+              area_id: { type: string }
+              aprobados_inicial: { type: integer }
+              aprobados_cierre: { type: integer }
+              sin_dato: { type: integer }
+        estudiantes:
+          type: array
+          description: Solo quienes no aprobaron la inicial
+          items:
+            type: object
+            properties:
+              estudiante_id: { type: string }
+              nombre: { type: string }
+              resultado: { type: string, enum: [recupero, persiste, pendiente] }
+              areas:
+                type: object
+                additionalProperties: { type: string, enum: [ok, recupero, persiste, nueva, pendiente] }
+        pautas:
+          type: array
+          items: { $ref: '#/components/schemas/ReportePautasArea' }
+
+    ReporteEscuela:
+      type: object
+      properties:
+        escuela:
+          type: object
+          properties:
+            id: { type: string }
+            nombre: { type: string }
+        periodo: { type: integer }
+        generado_en: { type: string, format: date-time }
+        areas:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              nombre: { type: string }
+              orden: { type: integer }
+        salas:
+          type: array
+          items:
+            type: object
+            properties:
+              sala_id: { type: integer }
+              sala: { type: string, example: "Sala de 5" }
+              inicial: { allOf: [{ $ref: '#/components/schemas/ReporteResultadoTipo' }], nullable: true }
+              cierre: { allOf: [{ $ref: '#/components/schemas/ReporteResultadoTipo' }], nullable: true }
+              comparativo: { allOf: [{ $ref: '#/components/schemas/ReporteComparativo' }], nullable: true }
+        resumen:
+          type: object
+          description: Sumas de las salas presentes; cada modo es null si ninguna sala lo tiene
+          properties:
+            inicial: { type: object, nullable: true }
+            cierre: { type: object, nullable: true }
+            comparativo: { type: object, nullable: true }
 
     MessageResponse:
       type: object

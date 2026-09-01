@@ -182,4 +182,15 @@ describe("Frontend/Backend contract alignment", () => {
     expect(fn).toContain("/estadisticas/padi/export-evaluaciones");
     expect(fn).toContain("periodo=");
   });
+
+  // reporte de escuela (PDF)
+
+  it("getReporteEscuela usa la ruta y los query params del backend", () => {
+    const src = readFrontendApiFile("reportes.ts");
+    const fn = extractBlockByAnchor(src, "export async function getReporteEscuela");
+
+    expect(fn).toContain("/reportes/escuela");
+    expect(fn).toContain("escuela_id");
+    expect(fn).toContain("periodo");
+  });
 });
