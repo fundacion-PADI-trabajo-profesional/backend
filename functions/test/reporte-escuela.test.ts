@@ -72,12 +72,34 @@ describe("GET /reportes/escuela", () => {
     expect(llamada).not.toHaveProperty("turno");
   });
 
-  it("turno inválido (41 caracteres) → 400", async () => {
+  it("turno inválido (41 caracteres) → 400 con mensaje específico de turno", async () => {
     mockAuthAs("equipo_padi");
     const turnoLargo = "a".repeat(41);
     const res = await request(app).get(`${URL}&turno=${turnoLargo}`).set("Authorization", "Bearer fake-token");
     expect(res.status).toBe(400);
     expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe("Parámetros inválidos: turno inválido");
+  });
+
+  it("turno en blanco (solo espacios) → 400 con mensaje específico de turno", async () => {
+    mockAuthAs("equipo_padi");
+    const res = await request(app).get(`${URL}&turno=%20%20`).set("Authorization", "Bearer fake-token");
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe("Parámetros inválidos: turno inválido");
+  });
+
+  it("turno con espacio al final → se pasa SIN trim al repositorio (los turnos se guardan verbatim)", async () => {
+    mockAuthAs("equipo_padi");
+    mockRepoOk();
+    const res = await request(app).get(`${URL}&turno=${encodeURIComponent("mañana ")}`).set("Authorization", "Bearer fake-token");
+    expect(res.status).toBe(200);
+    expect(res.body.data.turno).toBe("mañana ");
+    expect(ReporteEscuelaRepository.findEvaluacionesTerminadas).toHaveBeenCalledWith({
+      escuelaId: ESC,
+      periodoStart: new Date("2025-01-01T00:00:00.000Z"),
+      periodoEnd: new Date("2026-01-01T00:00:00.000Z"),
+      turno: "mañana ",
+    });
   });
 
   it("sin evaluaciones → 200 con salas vacías y no consulta respuestas", async () => {

@@ -24,9 +24,13 @@ export async function getReporteEscuela(req: AuthenticatedRequest, res: Response
 
     let turno: string | null = null;
     if (req.query.turno !== undefined) {
-      const turnoRaw = String(req.query.turno).trim();
-      if (turnoRaw.length === 0 || turnoRaw.length > TURNO_MAX_LEN) {
-        return res.status(400).json(commonResponse(false, "Parámetros inválidos: se requieren escuela_id (uuid) y periodo (año); turno inválido", null));
+      const turnoRaw = String(req.query.turno);
+      // El trim es SOLO para validar (vacío/demasiado largo): los turnos se guardan verbatim
+      // (ver ReporteEscuelaRepository.findTurnos), así que un turno con espacios (p.ej. "Mañana ")
+      // tiene que matchear tal cual contra su propio valor del catálogo. Si trimeáramos antes de
+      // pasarlo al servicio, ese filtro nunca encontraría evaluaciones y devolvería un reporte vacío.
+      if (turnoRaw.trim().length === 0 || turnoRaw.trim().length > TURNO_MAX_LEN) {
+        return res.status(400).json(commonResponse(false, "Parámetros inválidos: turno inválido", null));
       }
       turno = turnoRaw;
     }
