@@ -163,6 +163,25 @@ describe("aulas endpoints", () => {
     );
   });
 
+  it("PUT /aulas/:id sin turno en el body no lo toca (no se envia la clave turno)", async () => {
+    const aulaId = "a1";
+    const { prismaMock } = mockAuthAs("equipo_padi", "padi-1");
+
+    prismaMock.aulas = {
+      findUnique: vi.fn().mockResolvedValue({ id: aulaId, escuela_id: "esc1" }),
+      update: vi.fn().mockResolvedValue({ id: aulaId, comision: "X" }),
+    };
+
+    const res = await request(app)
+      .put(`/aulas/${aulaId}`)
+      .set("Authorization", "Bearer fake-token")
+      .send({ comision: "X" });
+
+    expect(res.status).toBe(200);
+    const llamada = (prismaMock.aulas.update as any).mock.calls[0][0];
+    expect(llamada.data).not.toHaveProperty("turno");
+  });
+
   it("DELETE /aulas/:id deletes aula for equipo_padi", async () => {
     const aulaId = "a1";
     const { prismaMock } = mockAuthAs("equipo_padi", "padi-1");

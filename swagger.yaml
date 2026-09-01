@@ -429,7 +429,12 @@ paths:
                   example: 3
                 turno:
                   type: string
+                  enum: [Mañana, Tarde, Completo]
                   example: Mañana
+                  description: >-
+                    Se aceptan variantes de mayúsculas/acentos y sinónimos de completo;
+                    se guarda el valor canónico. Si no matchea ninguno, 400 con
+                    mensaje "Turno inválido: usar Mañana, Tarde o Completo".
                 escuela_id:
                   type: string
                   example: "abc123"
@@ -469,6 +474,12 @@ paths:
                   type: string
                 turno:
                   type: string
+                  enum: [Mañana, Tarde, Completo]
+                  description: >-
+                    Opcional; si se omite, el turno actual no se modifica. Se aceptan
+                    variantes de mayúsculas/acentos y sinónimos de completo; se guarda
+                    el valor canónico. Si no matchea ninguno, 400 con mensaje
+                    "Turno inválido: usar Mañana, Tarde o Completo".
       responses:
         '200':
           description: Aula actualizada

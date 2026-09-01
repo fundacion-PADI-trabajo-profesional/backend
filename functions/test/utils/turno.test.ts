@@ -13,9 +13,11 @@ describe("normalizarTurno", () => {
     ["Tarde", "Tarde"],
     ["tarde", "Tarde"],
     ["completo", "Completo"],
+    ["completa", "Completo"],
     ["Único", "Completo"],
     ["unico", "Completo"],
     ["jornada completa", "Completo"],
+    ["doble", "Completo"],
   ])("normaliza %j → %j", (raw, esperado) => {
     expect(normalizarTurno(raw)).toBe(esperado);
   });
