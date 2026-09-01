@@ -192,5 +192,6 @@ describe("Frontend/Backend contract alignment", () => {
     expect(fn).toContain("/reportes/escuela");
     expect(fn).toContain("escuela_id");
     expect(fn).toContain("periodo");
+    expect(fn).toContain("turno");
   });
 });

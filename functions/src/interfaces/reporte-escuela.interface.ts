@@ -45,6 +45,10 @@ export interface ReporteInput {
   catalogos: CatalogosReporte;
   evaluaciones: EvaluacionReporteRow[];
   respuestas: RespuestaReporteRow[];
+  /** Filtro de turno aplicado (`null` = sin filtro), para eco en la salida. */
+  turno: string | null;
+  /** Turnos distintos disponibles para la escuela+período, independiente del filtro aplicado. */
+  turnos: string[];
 }
 
 // ── Contrato de salida (`data` del ResponseModel) ─────────────────────────────
@@ -139,4 +143,8 @@ export interface ReporteEscuela {
     cierre: ResumenCierre | null;
     comparativo: ResumenComparativo | null;
   };
+  /** Filtro de turno aplicado (eco del query param); `null` = sin filtro. */
+  turno: string | null;
+  /** Turnos distintos disponibles para la escuela+período, valores tal como están guardados, orden asc. */
+  turnos: string[];
 }

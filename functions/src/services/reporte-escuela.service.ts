@@ -17,23 +17,26 @@ export class ReporteEscuelaService {
 
   /**
    * Reporte completo de una escuela para un año (los tres modos, resumen y salas).
+   * `turno`, si se pasa, filtra las evaluaciones a las de aulas con ese turno.
    * @returns el reporte, o `null` si la escuela no existe.
    */
-  async getReporteEscuela(params: { escuelaId: string; periodo: number; rol: string }): Promise<ReporteEscuela | null> {
+  async getReporteEscuela(params: { escuelaId: string; periodo: number; rol: string; turno?: string | null }): Promise<ReporteEscuela | null> {
     this.validateRol(params.rol, "equipo_padi");
 
     const escuela = await this.repo.findEscuela(params.escuelaId);
     if (!escuela) return null;
 
+    const turno = params.turno ?? null;
     const { periodoStart, periodoEnd } = getPeriodoRange(params.periodo);
-    const [catalogos, evaluaciones] = await Promise.all([
+    const [catalogos, evaluaciones, turnos] = await Promise.all([
       this.repo.findCatalogos(),
-      this.repo.findEvaluacionesTerminadas({ escuelaId: params.escuelaId, periodoStart, periodoEnd }),
+      this.repo.findEvaluacionesTerminadas({ escuelaId: params.escuelaId, periodoStart, periodoEnd, ...(turno !== null ? { turno } : {}) }),
+      this.repo.findTurnos({ escuelaId: params.escuelaId, periodoStart, periodoEnd }),
     ]);
     const respuestas = evaluaciones.length > 0
       ? await this.repo.findRespuestas({ evaluacionIds: evaluaciones.map((e) => e.id) })
       : [];
 
-    return buildReporteEscuela({ escuela, periodo: params.periodo, generadoEn: new Date(), catalogos, evaluaciones, respuestas });
+    return buildReporteEscuela({ escuela, periodo: params.periodo, generadoEn: new Date(), catalogos, evaluaciones, respuestas, turno, turnos });
   }
 }

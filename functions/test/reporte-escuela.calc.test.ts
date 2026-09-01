@@ -13,6 +13,14 @@ describe("buildReporteEscuela — encabezado y catálogos", () => {
     expect(r.areas.map((a) => a.id)).toEqual(["sm", "cl", "cog", "se"]);
     expect(r.salas).toEqual([]);
     expect(r.resumen).toEqual({ inicial: null, cierre: null, comparativo: null });
+    expect(r.turno).toBeNull();
+    expect(r.turnos).toEqual([]);
+  });
+
+  it("pasa turno y turnos tal cual desde el input", () => {
+    const r = buildReporteEscuela(mkInput([], [], 2025, "mañana", ["mañana", "tarde"]));
+    expect(r.turno).toBe("mañana");
+    expect(r.turnos).toEqual(["mañana", "tarde"]);
   });
 });
 
