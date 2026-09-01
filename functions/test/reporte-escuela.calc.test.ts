@@ -169,6 +169,65 @@ describe("buildReporteEscuela — pautas", () => {
     expect(sm.items.length).toBeLessThanOrEqual(3);
     expect(sm.items[2].texto).toBe("Consigna 3");
   });
+  it("trunca correctamente a 3 cuando hay más de 3 pautas activas, quedándose con las de mayor desaprobados", () => {
+    const evalsTop = [
+      mkEval({ id: "eta", est: "ta", tipo: "inicial" }),
+      mkEval({ id: "etb", est: "tb", tipo: "inicial" }),
+      mkEval({ id: "etc", est: "tc", tipo: "inicial" }),
+      mkEval({ id: "etd", est: "td", tipo: "inicial" }),
+    ];
+    // Insertadas fuera de orden (3, 1, 4, 2) a propósito: si la implementación recortara antes
+    // de ordenar (o no ordenara), el resultado dependería del orden de inserción y este test fallaría.
+    const respTop = [
+      // numero 3: 2 desaprueban
+      mkResp({ eval: "eta", area: "sm", pregunta: "g3", numero: 3, respuesta: 0 }),
+      mkResp({ eval: "etb", area: "sm", pregunta: "g3", numero: 3, respuesta: 0 }),
+      mkResp({ eval: "etc", area: "sm", pregunta: "g3", numero: 3, respuesta: 1 }),
+      mkResp({ eval: "etd", area: "sm", pregunta: "g3", numero: 3, respuesta: 1 }),
+      // numero 1: las 4 desaprueban
+      mkResp({ eval: "eta", area: "sm", pregunta: "g1", numero: 1, respuesta: 0 }),
+      mkResp({ eval: "etb", area: "sm", pregunta: "g1", numero: 1, respuesta: 0 }),
+      mkResp({ eval: "etc", area: "sm", pregunta: "g1", numero: 1, respuesta: 0 }),
+      mkResp({ eval: "etd", area: "sm", pregunta: "g1", numero: 1, respuesta: 0 }),
+      // numero 4: solo 1 desaprueba — debe quedar afuera del top 3
+      mkResp({ eval: "eta", area: "sm", pregunta: "g4", numero: 4, respuesta: 0 }),
+      mkResp({ eval: "etb", area: "sm", pregunta: "g4", numero: 4, respuesta: 1 }),
+      mkResp({ eval: "etc", area: "sm", pregunta: "g4", numero: 4, respuesta: 1 }),
+      mkResp({ eval: "etd", area: "sm", pregunta: "g4", numero: 4, respuesta: 1 }),
+      // numero 2: 3 desaprueban
+      mkResp({ eval: "eta", area: "sm", pregunta: "g2", numero: 2, respuesta: 0 }),
+      mkResp({ eval: "etb", area: "sm", pregunta: "g2", numero: 2, respuesta: 0 }),
+      mkResp({ eval: "etc", area: "sm", pregunta: "g2", numero: 2, respuesta: 0 }),
+      mkResp({ eval: "etd", area: "sm", pregunta: "g2", numero: 2, respuesta: 1 }),
+    ];
+    const rTop = buildReporteEscuela(mkInput(evalsTop, respTop));
+    const smTop = sala5(rTop).inicial!.pautas.find((p) => p.area_id === "sm")!;
+    expect(smTop.items).toHaveLength(3);
+    expect(smTop.items.map((i) => [i.numero, i.desaprobaron, i.evaluados])).toEqual([
+      [1, 4, 4],
+      [2, 3, 4],
+      [3, 2, 4],
+    ]);
+    expect(smTop.items.some((i) => i.numero === 4)).toBe(false);
+  });
+  it("una pauta sin numero (grupo Q:<id>) empatada en desaprobados va detrás de una numerada", () => {
+    const evalsNull = [
+      mkEval({ id: "exa", est: "xa", tipo: "inicial" }),
+      mkEval({ id: "exb", est: "xb", tipo: "inicial" }),
+    ];
+    const respNull = [
+      mkResp({ eval: "exa", area: "sm", pregunta: "pnum", numero: 1, respuesta: 0, titulo: "Numerada" }),
+      mkResp({ eval: "exb", area: "sm", pregunta: "pnum", numero: 1, respuesta: 1, titulo: "Numerada" }),
+      mkResp({ eval: "exa", area: "sm", pregunta: "qsn", numero: null, respuesta: 0, consigna: "Sin número" }),
+      mkResp({ eval: "exb", area: "sm", pregunta: "qsn", numero: null, respuesta: 1, consigna: "Sin número" }),
+    ];
+    const rNull = buildReporteEscuela(mkInput(evalsNull, respNull));
+    const smNull = sala5(rNull).inicial!.pautas.find((p) => p.area_id === "sm")!;
+    expect(smNull.items).toEqual([
+      { numero: 1, texto: "Numerada", desaprobaron: 1, evaluados: 2 },
+      { numero: null, texto: "Sin número", desaprobaron: 1, evaluados: 2 },
+    ]);
+  });
   it("las pautas del comparativo son las del cierre", () => {
     const r = buildReporteEscuela(mkInput([
       mkEval({ id: "i1", est: "a", tipo: "inicial", desaprueba: ["sm"] }),
