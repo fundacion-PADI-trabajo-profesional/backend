@@ -3,12 +3,13 @@ import type { AuthenticatedRequest } from "../middlewares/auth.middleware";
 import { commonResponse } from "../interfaces/common-response.interface";
 import { ReporteEscuelaService } from "../services/reporte-escuela.service";
 import { AuthorizationError } from "../utils/errors";
+import { normalizarTurno } from "../utils/turno";
 
 const service = new ReporteEscuelaService();
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * GET /reportes/escuela?escuela_id=<uuid>&periodo=<año>
+ * GET /reportes/escuela?escuela_id=<uuid>&periodo=<año>&turno=<opcional>
  * Reporte de escuela para el PDF. Solo `equipo_padi`.
  * @returns 200 con `ReporteEscuela`; 400 parámetros inválidos; 403 sin permiso; 404 escuela inexistente.
  */
@@ -20,7 +21,16 @@ export async function getReporteEscuela(req: AuthenticatedRequest, res: Response
       return res.status(400).json(commonResponse(false, "Parámetros inválidos: se requieren escuela_id (uuid) y periodo (año)", null));
     }
 
-    const data = await service.getReporteEscuela({ escuelaId, periodo, rol: String(req.user!.rol) });
+    let turno: string | null = null;
+    if (req.query.turno !== undefined) {
+      const turnoCanonico = normalizarTurno(req.query.turno);
+      if (!turnoCanonico) {
+        return res.status(400).json(commonResponse(false, "Parámetros inválidos: turno inválido", null));
+      }
+      turno = turnoCanonico;
+    }
+
+    const data = await service.getReporteEscuela({ escuelaId, periodo, rol: String(req.user!.rol), turno });
     if (!data) return res.status(404).json(commonResponse(false, "Escuela no encontrada", null));
 
     return res.status(200).json(commonResponse(true, "ok", data));

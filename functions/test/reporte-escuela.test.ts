@@ -11,7 +11,7 @@ afterEach(() => vi.restoreAllMocks());
 const ESC = "9a1de644-815e-46d1-bb8f-aa1837f8a88b";
 const URL = `/reportes/escuela?escuela_id=${ESC}&periodo=2025`;
 
-function mockRepoOk() {
+function mockRepoOk(turnosCrudos: string[] = ["Mañana", "Tarde"]) {
   vi.spyOn(ReporteEscuelaRepository, "findEscuela").mockResolvedValue(ESCUELA);
   vi.spyOn(ReporteEscuelaRepository, "findCatalogos").mockResolvedValue(CATALOGOS);
   vi.spyOn(ReporteEscuelaRepository, "findEvaluacionesTerminadas").mockResolvedValue([
@@ -22,6 +22,7 @@ function mockRepoOk() {
     mkResp({ eval: "e1", area: "sm", pregunta: "p1", numero: 1, respuesta: 1 }),
     mkResp({ eval: "e2", area: "sm", pregunta: "p1", numero: 1, respuesta: 0 }),
   ]);
+  vi.spyOn(ReporteEscuelaRepository, "findTurnosCrudos").mockResolvedValue(turnosCrudos);
 }
 
 describe("GET /reportes/escuela", () => {
@@ -42,6 +43,70 @@ describe("GET /reportes/escuela", () => {
       periodoEnd: new Date("2026-01-01T00:00:00.000Z"),
     });
     expect(ReporteEscuelaRepository.findRespuestas).toHaveBeenCalledWith({ evaluacionIds: ["e1", "e2"] });
+    expect(res.body.data.turno).toBeNull();
+    expect(res.body.data.turnos).toEqual(["Mañana", "Tarde"]);
+  });
+
+  it("con turno → se normaliza, se expande a sus variantes crudas para filtrar y se refleja canónico en la respuesta", async () => {
+    mockAuthAs("equipo_padi");
+    mockRepoOk(["Mañana", "mañana ", "Tarde"]);
+    const res = await request(app).get(`${URL}&turno=manana`).set("Authorization", "Bearer fake-token");
+    expect(res.status).toBe(200);
+    expect(res.body.data.turno).toBe("Mañana");
+    expect(res.body.data.turnos).toEqual(["Mañana", "Tarde"]);
+    expect(ReporteEscuelaRepository.findEvaluacionesTerminadas).toHaveBeenCalledWith({
+      escuelaId: ESC,
+      periodoStart: new Date("2025-01-01T00:00:00.000Z"),
+      periodoEnd: new Date("2026-01-01T00:00:00.000Z"),
+      turnos: ["Mañana", "mañana "],
+    });
+  });
+
+  it("sin turno → el repositorio se llama sin filtro de turno y turno responde null", async () => {
+    mockAuthAs("equipo_padi");
+    mockRepoOk();
+    const res = await request(app).get(URL).set("Authorization", "Bearer fake-token");
+    expect(res.status).toBe(200);
+    expect(res.body.data.turno).toBeNull();
+    const llamada = (ReporteEscuelaRepository.findEvaluacionesTerminadas as any).mock.calls[0][0];
+    expect(llamada).not.toHaveProperty("turnos");
+  });
+
+  it("turno no reconocido → 400 con mensaje específico de turno", async () => {
+    mockAuthAs("equipo_padi");
+    const res = await request(app).get(`${URL}&turno=noche`).set("Authorization", "Bearer fake-token");
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toBe("Parámetros inválidos: turno inválido");
+  });
+
+  it("turno en blanco (solo espacios) → 400 con mensaje específico de turno", async () => {
+    mockAuthAs("equipo_padi");
+    const res = await request(app).get(`${URL}&turno=%20%20`).set("Authorization", "Bearer fake-token");
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe("Parámetros inválidos: turno inválido");
+  });
+
+  it("turno con variantes de mayúsculas/acentos → se acepta y normaliza", async () => {
+    mockAuthAs("equipo_padi");
+    mockRepoOk(["Mañana", "Tarde"]);
+    const res = await request(app).get(`${URL}&turno=${encodeURIComponent("TARDE")}`).set("Authorization", "Bearer fake-token");
+    expect(res.status).toBe(200);
+    expect(res.body.data.turno).toBe("Tarde");
+    expect(ReporteEscuelaRepository.findEvaluacionesTerminadas).toHaveBeenCalledWith({
+      escuelaId: ESC,
+      periodoStart: new Date("2025-01-01T00:00:00.000Z"),
+      periodoEnd: new Date("2026-01-01T00:00:00.000Z"),
+      turnos: ["Tarde"],
+    });
+  });
+
+  it("catálogo de turnos: valores crudos no reconocidos se ignoran, resultado deduplicado y en orden canónico", async () => {
+    mockAuthAs("equipo_padi");
+    mockRepoOk(["Tarde", "TARDE", "Completo", "otro raro", "Mañana"]);
+    const res = await request(app).get(URL).set("Authorization", "Bearer fake-token");
+    expect(res.status).toBe(200);
+    expect(res.body.data.turnos).toEqual(["Mañana", "Tarde", "Completo"]);
   });
 
   it("sin evaluaciones → 200 con salas vacías y no consulta respuestas", async () => {
@@ -49,11 +114,14 @@ describe("GET /reportes/escuela", () => {
     vi.spyOn(ReporteEscuelaRepository, "findEscuela").mockResolvedValue(ESCUELA);
     vi.spyOn(ReporteEscuelaRepository, "findCatalogos").mockResolvedValue(CATALOGOS);
     vi.spyOn(ReporteEscuelaRepository, "findEvaluacionesTerminadas").mockResolvedValue([]);
+    vi.spyOn(ReporteEscuelaRepository, "findTurnosCrudos").mockResolvedValue([]);
     const spyResp = vi.spyOn(ReporteEscuelaRepository, "findRespuestas").mockResolvedValue([]);
     const res = await request(app).get(URL).set("Authorization", "Bearer fake-token");
     expect(res.status).toBe(200);
     expect(res.body.data.salas).toEqual([]);
     expect(res.body.data.resumen).toEqual({ inicial: null, cierre: null, comparativo: null });
+    expect(res.body.data.turno).toBeNull();
+    expect(res.body.data.turnos).toEqual([]);
     expect(spyResp).not.toHaveBeenCalled();
   });
 

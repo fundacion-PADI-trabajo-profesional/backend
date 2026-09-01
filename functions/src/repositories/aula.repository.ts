@@ -1,4 +1,5 @@
 import { withRLSContext, withRLSContextAsAdmin } from "../config/prismaClient";
+import type { Turno } from "../utils/turno";
 
 /**
  * Datos requeridos para crear un aula nueva.
@@ -8,8 +9,8 @@ export interface CreateAulaData {
   sala_id: number;
   /** Comisión del aula (p. ej. `"A"`, `"B"`). */
   comision: string;
-  /** Turno del aula (p. ej. `"Mañana"`, `"Tarde"`). */
-  turno: string;
+  /** Turno canónico del aula: `"Mañana"`, `"Tarde"` o `"Completo"`. */
+  turno: Turno;
   /** UUID de la escuela a la que pertenece el aula. */
   escuela_id: string;
 }
@@ -22,8 +23,8 @@ export interface UpdateAulaData {
   sala_id?: number;
   /** Nueva comisión. */
   comision?: string;
-  /** Nuevo turno. */
-  turno?: string;
+  /** Nuevo turno canónico. */
+  turno?: Turno;
 }
 
 /**

@@ -30,16 +30,41 @@ export const ReporteEscuelaRepository = {
   },
 
   /**
-   * Evaluaciones terminadas (A/D) de los estudiantes de la escuela dentro del período,
-   * con persona y estado por área.
+   * Turnos distintos de las aulas de la escuela que tienen evaluaciones terminadas (A/D) en el período.
+   * Valores tal como están guardados (crudos, sin normalizar), orden asc, independiente del filtro `turno`.
+   * El servicio los agrupa por turno canónico (ver `normalizarTurno`) para armar el catálogo y expandir el filtro.
    */
-  async findEvaluacionesTerminadas(f: { escuelaId: string; periodoStart: Date; periodoEnd: Date }): Promise<EvaluacionReporteRow[]> {
+  async findTurnosCrudos(f: { escuelaId: string; periodoStart: Date; periodoEnd: Date }): Promise<string[]> {
+    return withRLSContext(async (tx) => {
+      const rows = await tx.aulas.findMany({
+        where: {
+          escuela_id: f.escuelaId,
+          evaluaciones_estudiante: { some: { estado_id: { in: ["A", "D"] }, fecha_creacion: { gte: f.periodoStart, lt: f.periodoEnd } } },
+        },
+        select: { turno: true },
+        distinct: ["turno"],
+        orderBy: { turno: "asc" },
+      });
+      return rows.map((r) => r.turno);
+    });
+  },
+
+  /**
+   * Evaluaciones terminadas (A/D) de los estudiantes de la escuela dentro del período,
+   * con persona y estado por área. Si se pasa `turnos`, se restringe a evaluaciones cuya aula
+   * tenga uno de esos turnos crudos (`aula_id` es nullable: sin filtro, las evaluaciones sin aula
+   * también entran). Un array vacío es intencional (turno canónico sin variantes crudas en esta
+   * escuela+período): Prisma traduce `in: []` a "ningún resultado", que es el comportamiento
+   * correcto para ese caso.
+   */
+  async findEvaluacionesTerminadas(f: { escuelaId: string; periodoStart: Date; periodoEnd: Date; turnos?: string[] }): Promise<EvaluacionReporteRow[]> {
     return withRLSContext(async (tx) => {
       const rows = await tx.evaluacionEstudiante.findMany({
         where: {
           estado_id: { in: ["A", "D"] },
           fecha_creacion: { gte: f.periodoStart, lt: f.periodoEnd },
           estudiantes: { is: { escuela_id: f.escuelaId } },
+          ...(f.turnos !== undefined ? { aulas: { is: { turno: { in: f.turnos } } } } : {}),
         },
         select: {
           id: true, estudiante_id: true, sala_id: true, tipo_id: true, estado_id: true, fecha_creacion: true,

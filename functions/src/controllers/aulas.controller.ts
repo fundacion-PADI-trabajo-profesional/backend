@@ -2,6 +2,7 @@ import type { Response } from "express";
 import { AulasService } from "../services/aulas.service";
 import { commonResponse } from "../interfaces/common-response.interface";
 import { AuthenticatedRequest } from "../middlewares/auth.middleware";
+import { normalizarTurno, Turno } from "../utils/turno";
 
 const service = new AulasService();
 
@@ -11,7 +12,8 @@ const service = new AulasService();
  * `POST /aulas`
  *
  * @param req - Request autenticado. Body: `{ sala_id, turno, escuela_id, comision? }`. `comision` por defecto es `"Única"`.
- * @param res - `201` con el aula creada, `400` si faltan `sala_id` o `turno`.
+ *   `turno` se normaliza al valor canónico (`Mañana`, `Tarde`, `Completo`).
+ * @param res - `201` con el aula creada, `400` si faltan `sala_id` o `turno`, o si `turno` no es reconocido.
  */
 export async function createAula(req: AuthenticatedRequest, res: Response) {
   try {
@@ -28,12 +30,19 @@ export async function createAula(req: AuthenticatedRequest, res: Response) {
         );
     }
 
+    const turnoCanonico = normalizarTurno(turno);
+    if (!turnoCanonico) {
+      return res
+        .status(400)
+        .json(commonResponse(false, "Turno inválido: usar Mañana, Tarde o Completo", null));
+    }
+
     const user = { id: req.user!.id, rol: req.user!.rol };
     const data = await service.create(
       {
         sala_id: Number(sala_id),
         comision,
-        turno,
+        turno: turnoCanonico,
         escuela_id: escuela_id ? String(escuela_id) : undefined,
       },
       user,
@@ -98,7 +107,8 @@ export async function listAulas(req: AuthenticatedRequest, res: Response) {
  * `PUT /aulas/:id`
  *
  * @param req - Request autenticado. Param: `id`. Body: `{ sala_id?, comision?, turno? }`.
- * @param res - `200` con el aula actualizada, `400` si falta el ID o la actualización falla.
+ *   `turno`, si se envía, se normaliza al valor canónico (`Mañana`, `Tarde`, `Completo`).
+ * @param res - `200` con el aula actualizada, `400` si falta el ID, si `turno` no es reconocido, o si la actualización falla.
  */
 export async function updateAula(req: AuthenticatedRequest, res: Response) {
   try {
@@ -115,6 +125,17 @@ export async function updateAula(req: AuthenticatedRequest, res: Response) {
         );
     }
 
+    let turnoCanonico: Turno | undefined;
+    if (turno !== undefined) {
+      const normalizado = normalizarTurno(turno);
+      if (!normalizado) {
+        return res
+          .status(400)
+          .json(commonResponse(false, "Turno inválido: usar Mañana, Tarde o Completo", null));
+      }
+      turnoCanonico = normalizado;
+    }
+
     const user = { id: req.user!.id, rol: req.user!.rol };
 
     const data = await service.update(
@@ -122,7 +143,7 @@ export async function updateAula(req: AuthenticatedRequest, res: Response) {
       {
         sala_id: sala_id !== undefined ? Number(sala_id) : undefined,
         comision,
-        turno,
+        turno: turnoCanonico,
       },
       user,
     );

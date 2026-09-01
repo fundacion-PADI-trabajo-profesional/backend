@@ -429,7 +429,12 @@ paths:
                   example: 3
                 turno:
                   type: string
+                  enum: [Mañana, Tarde, Completo]
                   example: Mañana
+                  description: >-
+                    Se aceptan variantes de mayúsculas/acentos y sinónimos de completo;
+                    se guarda el valor canónico. Si no matchea ninguno, 400 con
+                    mensaje "Turno inválido: usar Mañana, Tarde o Completo".
                 escuela_id:
                   type: string
                   example: "abc123"
@@ -469,6 +474,12 @@ paths:
                   type: string
                 turno:
                   type: string
+                  enum: [Mañana, Tarde, Completo]
+                  description: >-
+                    Opcional; si se omite, el turno actual no se modifica. Se aceptan
+                    variantes de mayúsculas/acentos y sinónimos de completo; se guarda
+                    el valor canónico. Si no matchea ninguno, 400 con mensaje
+                    "Turno inválido: usar Mañana, Tarde o Completo".
       responses:
         '200':
           description: Aula actualizada
@@ -2505,6 +2516,16 @@ paths:
             minimum: 2000
             maximum: 2100
           description: Año calendario de las evaluaciones (ej. 2025)
+        - in: query
+          name: turno
+          required: false
+          schema:
+            type: string
+            enum: [Mañana, Tarde, Completo]
+          description: >-
+            Filtra por turno del aula (turno canónico); ausente = todos. Se aceptan
+            variantes de mayúsculas/acentos/espacios y sinónimos de "Completo"
+            (p. ej. "manana", "TARDE", "único", "jornada completa").
       responses:
         '200':
           description: Reporte de la escuela
@@ -2698,6 +2719,17 @@ components:
             inicial: { type: object, nullable: true }
             cierre: { type: object, nullable: true }
             comparativo: { type: object, nullable: true }
+        turno:
+          type: string
+          enum: [Mañana, Tarde, Completo]
+          nullable: true
+          description: Turno canónico filtrado (eco normalizado del query param); null = sin filtro
+        turnos:
+          type: array
+          items: { type: string, enum: [Mañana, Tarde, Completo] }
+          description: >-
+            Turnos canónicos disponibles para la escuela y período (deduplicados, en orden
+            Mañana/Tarde/Completo), independiente del filtro aplicado
 
     MessageResponse:
       type: object

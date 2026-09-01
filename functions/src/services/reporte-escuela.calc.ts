@@ -327,5 +327,7 @@ export function buildReporteEscuela(input: ReporteInput): ReporteEscuela {
       cierre: resumenCierre(salas, areas, evaluaciones),
       comparativo: resumenComparativo(salas, areas),
     },
+    turno: input.turno,
+    turnos: input.turnos,
   };
 }

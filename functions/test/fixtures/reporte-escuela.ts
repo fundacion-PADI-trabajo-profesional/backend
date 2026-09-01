@@ -48,6 +48,12 @@ export function mkResp(o: {
   };
 }
 
-export function mkInput(evaluaciones: EvaluacionReporteRow[], respuestas: RespuestaReporteRow[] = [], periodo = 2025): ReporteInput {
-  return { escuela: ESCUELA, periodo, generadoEn: GENERADO, catalogos: CATALOGOS, evaluaciones, respuestas };
+export function mkInput(
+  evaluaciones: EvaluacionReporteRow[],
+  respuestas: RespuestaReporteRow[] = [],
+  periodo = 2025,
+  turno: string | null = null,
+  turnos: string[] = [],
+): ReporteInput {
+  return { escuela: ESCUELA, periodo, generadoEn: GENERADO, catalogos: CATALOGOS, evaluaciones, respuestas, turno, turnos };
 }
