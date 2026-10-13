@@ -189,6 +189,8 @@ model Preguntas {
   id                                     String                                @id
   sala_id                                Int?                                  @db.SmallInt
   numero                                 Int?
+  /** Posición de la parte dentro de su pauta (mismo numero). Nulo = después de las ordenadas, por id. */
+  orden                                  Int?
   grupopregunta                          String?
   area_id                                String?
   tipopregunta                           String?
