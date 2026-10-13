@@ -350,7 +350,8 @@ export const EvaluacionRepository = {
           area_id: areaId,
           OR: [{ activa: true }, { activa: null }],
         },
-        orderBy: [{ numero: "asc" }, { id: "asc" }],
+        // Pauta por numero; dentro de la pauta, el orden del cuadernillo (orden) y, a falta de él, el id
+        orderBy: [{ numero: "asc" }, { orden: "asc" }, { id: "asc" }],
       });
 
       console.log(
