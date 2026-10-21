@@ -268,3 +268,19 @@ describe("buildReporteEscuela — resumen de escuela", () => {
     expect(r.resumen.comparativo!.por_sala.find((s) => s.sala_id === 3)).toMatchObject({ base: 2, aprobaron_inicial: 1, pendientes: 1, persisten: 0 });
   });
 });
+
+describe("buildReporteEscuela — pautas con mínimo del cuadernillo", () => {
+  // Intrusos de sala 5: tres partes y aprueba con 3 de 3 (minimo_aprobacion = 3).
+  // e1 acierta las tres; e2 acierta dos, que con la mitad aprobaría pero con el mínimo no.
+  const evals = [mkEval({ id: "e1", est: "a", tipo: "inicial" }), mkEval({ id: "e2", est: "b", tipo: "inicial" })];
+  const resp = ["e1", "e2"].flatMap((ev) => [
+    mkResp({ eval: ev, area: "cl", pregunta: "i1", numero: 5, respuesta: 1, minimo: 3, titulo: "Intrusos" }),
+    mkResp({ eval: ev, area: "cl", pregunta: "i2", numero: 5, respuesta: 1, minimo: 3, titulo: "Intrusos" }),
+    mkResp({ eval: ev, area: "cl", pregunta: "i3", numero: 5, respuesta: ev === "e1" ? 1 : 0, minimo: 3, titulo: "Intrusos" }),
+  ]);
+  const cl = sala5(buildReporteEscuela(mkInput(evals, resp))).inicial!.pautas.find((p) => p.area_id === "cl")!;
+
+  it("cuenta como desaprobada la pauta que no llega al mínimo aunque supere la mitad", () => {
+    expect(cl.items).toEqual([{ numero: 5, texto: "Intrusos", desaprobaron: 1, evaluados: 2 }]);
+  });
+});

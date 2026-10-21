@@ -97,7 +97,7 @@ export const ReporteEscuelaRepository = {
           select: {
             respuesta: true,
             evaluaciones_estudiante_area: { select: { evaluacion_estudiante_id: true, area_id: true } },
-            preguntas: { select: { id: true, numero: true, activa: true, puntaje_invertido: true, titulo: true, consigna: true } },
+            preguntas: { select: { id: true, numero: true, activa: true, puntaje_invertido: true, minimo_aprobacion: true, titulo: true, consigna: true } },
           },
         });
         out.push(...rows);

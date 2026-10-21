@@ -205,6 +205,8 @@ model Preguntas {
   activa                                 Boolean?
   puntaje_invertido                      Boolean?                              @default(false)
   imagen_url      String?
+  /** Partes correctas con las que se aprueba la pauta (mismo valor en todas sus partes). Nulo = la mitad redondeada hacia arriba. */
+  minimo_aprobacion                      Int?                                  @db.SmallInt
   evaluaciones_estudiante_area_preguntas EvaluacionesEstudianteAreaPreguntas[]
   areas                                  Areas?                                @relation(fields: [area_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "preguntas_area_id_fkey1")
   salas                                  Salas?                                @relation(fields: [sala_id], references: [id], onDelete: NoAction, onUpdate: NoAction)

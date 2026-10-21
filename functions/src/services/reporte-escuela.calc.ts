@@ -3,7 +3,7 @@ import type {
   ResultadoTipo, EstudianteResultado, PautasArea, PautaItem, Comparativo, EstudianteComparativo,
   EstadoAreaComparativo, SalaReporte, ResumenTipo, ResumenCierre, ResumenComparativo, PorArea, CierraCon,
 } from "../interfaces/reporte-escuela.interface";
-import { esRespuestaCorrecta, apruebaPauta, pautaCompleta, claveGrupoPauta } from "../utils/pautas";
+import { esRespuestaCorrecta, apruebaPauta, pautaCompleta, claveGrupoPauta, minimoDePartes } from "../utils/pautas";
 
 const TOP_PAUTAS = 3;
 
@@ -44,7 +44,7 @@ function deduplicar(evaluaciones: Ev[]): Ev[] {
 
 // ── Pautas ────────────────────────────────────────────────────────────────────
 
-interface PautaAgregada { evaluacionId: string; areaId: string; grupo: string; numero: number | null; texto: string; total: number; respondidas: number; correctas: number }
+interface PautaAgregada { evaluacionId: string; areaId: string; grupo: string; numero: number | null; texto: string; total: number; respondidas: number; correctas: number; minimo: number | null }
 
 /** Agrupa las sub-preguntas activas por (evaluación, área, grupo). */
 export function agruparPautas(respuestas: RespuestaReporteRow[]): Map<string, PautaAgregada[]> {
@@ -58,10 +58,11 @@ export function agruparPautas(respuestas: RespuestaReporteRow[]): Map<string, Pa
     const k = `${evaluacionId}|${areaId}|${grupo}`;
     let g = porClave.get(k);
     if (!g) {
-      g = { evaluacionId, areaId, grupo, numero: p.numero, texto: p.titulo ?? p.consigna ?? `Pauta ${grupo}`, total: 0, respondidas: 0, correctas: 0 };
+      g = { evaluacionId, areaId, grupo, numero: p.numero, texto: p.titulo ?? p.consigna ?? `Pauta ${grupo}`, total: 0, respondidas: 0, correctas: 0, minimo: null };
       porClave.set(k, g);
     }
     g.total += 1;
+    g.minimo = minimoDePartes([g.minimo, p.minimo_aprobacion]);
     if (r.respuesta !== null && r.respuesta !== undefined) g.respondidas += 1;
     if (esRespuestaCorrecta(r.respuesta, p.puntaje_invertido)) g.correctas += 1;
   }
