@@ -63,7 +63,7 @@ select 'area' as nivel, sala_id, area_id, estado_actual, estado_nuevo, count(*) 
 from nuevo
 group by 1, 2, 3, 4, 5
 union all
-select 'evaluacion', null, null, estado_actual, estado_nuevo, count(*), 0
+select 'evaluacion', null::smallint, null::text, estado_actual, estado_nuevo, count(*), 0::bigint
 from eval_nuevo
 where estado_actual <> estado_nuevo
 group by 1, 2, 3, 4, 5
