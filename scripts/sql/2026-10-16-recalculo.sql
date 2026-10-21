@@ -1,4 +1,5 @@
 -- Cambio 4, paso 3b: aplica el recálculo (correr después de revisar el dry run). Una sola sentencia.
+-- Solo áreas que quedan completas con el catálogo actual (ver CTE `aplicables`).
 -- Devuelve cuántas áreas y cuántas evaluaciones cambiaron.
 with partes as (
   -- cada pregunta activa de la sala/área de cada área ya completada (estado A o D), con su respuesta si la hay
@@ -38,11 +39,17 @@ nuevo as (
   from areas a
   left join reglas_aprobacion ra on ra.sala_id = a.sala_id and ra.area_id = a.area_id
 ),
+aplicables as (
+  -- Política (Nish, 16/10): no se toca un área que pasaría a "en progreso" (le falta alguna
+  -- respuesta según el catálogo actual); conserva su estado y puntaje hasta que alguien la abra.
+  -- Para incluirlas, sacar el where.
+  select * from nuevo where estado_nuevo <> 'E'
+),
 estados as (
   -- estado de cada área de cada evaluación después del cambio
   select ea.evaluacion_estudiante_id, coalesce(n.estado_nuevo, ea.estado_id) as estado
   from evaluaciones_estudiante_area ea
-  left join nuevo n on n.area_eval_id = ea.id
+  left join aplicables n on n.area_eval_id = ea.id
 ),
 eval_nuevo as (
   -- misma regla que computeEvaluacionEstadoFromAreas
@@ -55,13 +62,13 @@ eval_nuevo as (
   from estados es
   join evaluaciones_estudiante e on e.id = es.evaluacion_estudiante_id
   where e.estado_id in ('N', 'E', 'A', 'D')
-    and exists (select 1 from nuevo n where n.evaluacion_estudiante_id = es.evaluacion_estudiante_id and n.estado_nuevo <> n.estado_actual)
+    and exists (select 1 from aplicables n where n.evaluacion_estudiante_id = es.evaluacion_estudiante_id and n.estado_nuevo <> n.estado_actual)
   group by 1, 2
 ),
 upd_areas as (
   update evaluaciones_estudiante_area ea
   set estado_id = n.estado_nuevo, puntaje = n.puntaje
-  from nuevo n
+  from aplicables n
   where ea.id = n.area_eval_id and (ea.estado_id <> n.estado_nuevo or ea.puntaje is distinct from n.puntaje)
   returning ea.id
 ),
