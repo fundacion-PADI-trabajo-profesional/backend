@@ -1,6 +1,6 @@
 import { withRLSContext, withRLSContextAsAdmin } from "../config/prismaClient";
 import { getSignedImageUrl } from "../utils/storage";
-import { esRespuestaCorrecta, apruebaPauta } from "../utils/pautas";
+import { esRespuestaCorrecta, apruebaPauta, minimoDePartes } from "../utils/pautas";
 
 /** Estado: no iniciada. */
 const ESTADO_NO_INICIADA = "N";
@@ -209,7 +209,7 @@ export const EvaluacionRepository = {
               estados_evaluacion: true,
               evaluaciones_estudiante_area_preguntas: {
                 include: {
-                  preguntas: { select: { id: true, numero: true, activa: true, puntaje: true, puntaje_invertido: true } },
+                  preguntas: { select: { id: true, numero: true, activa: true, puntaje: true, puntaje_invertido: true, minimo_aprobacion: true } },
                 },
               },
             },
@@ -225,24 +225,22 @@ export const EvaluacionRepository = {
         const qas = area.evaluaciones_estudiante_area_preguntas || [];
         const activos = qas.filter((qa: any) => qa.preguntas && (qa.preguntas.activa === true || qa.preguntas.activa === null));
 
-        type GroupStats = { total: number; correct: number; answered: number; puntajes: number[] };
+        type GroupStats = { total: number; correct: number; answered: number; puntajes: number[]; minimos: (number | null)[] };
         const groups = new Map<number | string, GroupStats>();
 
         for (const qa of activos) {
           const groupKey = qa.preguntas.numero ?? `Q:${qa.pregunta_id}`;
-          const g = groups.get(groupKey) ?? { total: 0, correct: 0, answered: 0, puntajes: [] };
+          const g = groups.get(groupKey) ?? { total: 0, correct: 0, answered: 0, puntajes: [], minimos: [] };
 
           g.total += 1;
 
           const p = qa.preguntas.puntaje;
           g.puntajes.push((p === null || p === undefined) ? 1 : Number(p));
+          g.minimos.push(qa.preguntas.minimo_aprobacion ?? null);
 
           if (qa.respuesta !== null && qa.respuesta !== undefined) {
             g.answered += 1;
-            const esCorrecta = qa.preguntas.puntaje_invertido
-              ? qa.respuesta === 0
-              : qa.respuesta === 1;
-            if (esCorrecta) g.correct += 1;
+            if (esRespuestaCorrecta(qa.respuesta, qa.preguntas.puntaje_invertido)) g.correct += 1;
           }
 
           groups.set(groupKey, g);
@@ -254,8 +252,7 @@ export const EvaluacionRepository = {
         let puntajeFinal = 0;
 
         for (const [, g] of groups) {
-          const needed = Math.ceil(g.total / 2);
-          const apruebaGrupo = g.correct >= needed;
+          const apruebaGrupo = apruebaPauta({ total: g.total, correctas: g.correct, minimo: minimoDePartes(g.minimos) });
 
           const unique = Array.from(new Set(g.puntajes));
           const groupValue = unique.length === 1 ? unique[0] : Math.max(...unique);
@@ -565,7 +562,7 @@ async function calculateAreaScore(
   const qas = await tx.evaluacionesEstudianteAreaPreguntas.findMany({
     where: { evaluaciones_area_id: evaluacionAreaId },
     include: {
-      preguntas: { select: { id: true, numero: true, activa: true, puntaje: true, puntaje_invertido: true } },
+      preguntas: { select: { id: true, numero: true, activa: true, puntaje: true, puntaje_invertido: true, minimo_aprobacion: true } },
     },
   });
 
@@ -596,17 +593,18 @@ async function calculateAreaScore(
     };
   }
 
-  type GroupStats = { total: number; answered: number; correct: number; puntajes: number[] };
+  type GroupStats = { total: number; answered: number; correct: number; puntajes: number[]; minimos: (number | null)[] };
   const groups = new Map<number | string, GroupStats>();
 
   for (const qa of activos) {
     const groupKey = qa.preguntas.numero ?? `Q:${qa.pregunta_id}`;
-    const g = groups.get(groupKey) ?? { total: 0, answered: 0, correct: 0, puntajes: [] };
+    const g = groups.get(groupKey) ?? { total: 0, answered: 0, correct: 0, puntajes: [], minimos: [] };
 
     g.total += 1;
 
     const p = qa.preguntas.puntaje;
     g.puntajes.push((p === null || p === undefined) ? 1 : Number(p));
+          g.minimos.push(qa.preguntas.minimo_aprobacion ?? null);
 
     if (qa.respuesta !== null && qa.respuesta !== undefined) {
       g.answered += 1;
@@ -626,7 +624,7 @@ async function calculateAreaScore(
   for (const [groupKey, g] of groups) {
     if (g.answered < g.total) completado = false;
 
-    const apruebaGrupo = apruebaPauta({ total: g.total, correctas: g.correct });
+    const apruebaGrupo = apruebaPauta({ total: g.total, correctas: g.correct, minimo: minimoDePartes(g.minimos) });
 
     const unique = Array.from(new Set(g.puntajes));
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { apruebaPauta, pautaCompleta, esRespuestaCorrecta, claveGrupoPauta } from "../../src/utils/pautas";
+import { apruebaPauta, pautaCompleta, esRespuestaCorrecta, claveGrupoPauta, minimoPauta, minimoDePartes } from "../../src/utils/pautas";
 
 describe("esRespuestaCorrecta", () => {
   it("pregunta normal: 1 es correcta, 0 no", () => {
@@ -27,6 +27,34 @@ describe("apruebaPauta", () => {
     expect(apruebaPauta({ total: 3, correctas: 1 })).toBe(false);
     expect(apruebaPauta({ total: 3, correctas: 2 })).toBe(true);
     expect(apruebaPauta({ total: 4, correctas: 2 })).toBe(true);
+  });
+
+  it("con mínimo cargado, aprueba con ese mínimo y no con la mitad", () => {
+    expect(apruebaPauta({ total: 3, correctas: 2, minimo: 3 })).toBe(false);
+    expect(apruebaPauta({ total: 3, correctas: 3, minimo: 3 })).toBe(true);
+    expect(apruebaPauta({ total: 4, correctas: 2, minimo: 3 })).toBe(false);
+    expect(apruebaPauta({ total: 5, correctas: 3, minimo: 4 })).toBe(false);
+    expect(apruebaPauta({ total: 5, correctas: 4, minimo: 4 })).toBe(true);
+  });
+
+  it("mínimo null o undefined cae a la mitad redondeada hacia arriba", () => {
+    expect(apruebaPauta({ total: 4, correctas: 2, minimo: null })).toBe(true);
+    expect(apruebaPauta({ total: 5, correctas: 3, minimo: undefined })).toBe(true);
+  });
+});
+
+describe("minimoPauta y minimoDePartes", () => {
+  it("minimoPauta devuelve el cargado o la mitad", () => {
+    expect(minimoPauta({ total: 5, minimo: 4 })).toBe(4);
+    expect(minimoPauta({ total: 5 })).toBe(3);
+    expect(minimoPauta({ total: 1, minimo: null })).toBe(1);
+  });
+
+  it("minimoDePartes: null si ninguna parte trae valor; si difieren, el más alto", () => {
+    expect(minimoDePartes([null, undefined])).toBeNull();
+    expect(minimoDePartes([3, 3, 3])).toBe(3);
+    expect(minimoDePartes([null, 3, 2])).toBe(3);
+    expect(minimoDePartes([])).toBeNull();
   });
 });
 

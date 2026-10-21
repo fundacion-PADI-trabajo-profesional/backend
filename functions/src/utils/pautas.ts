@@ -13,9 +13,23 @@ export function esRespuestaCorrecta(
   return puntajeInvertido ? respuesta === 0 : respuesta === 1;
 }
 
-/** La pauta se aprueba con al menos la mitad (redondeada hacia arriba) de sub-preguntas correctas. */
-export function apruebaPauta(g: { total: number; correctas: number }): boolean {
-  return g.correctas >= Math.ceil(g.total / 2);
+/**
+ * Partes correctas con las que se aprueba la pauta: el mínimo cargado en las
+ * preguntas (`minimo_aprobacion`, el del cuadernillo) o, si no hay, la mitad
+ * redondeada hacia arriba.
+ */
+export function minimoPauta(g: { total: number; minimo?: number | null }): number {
+  return g.minimo === null || g.minimo === undefined ? Math.ceil(g.total / 2) : g.minimo;
+}
+
+export function apruebaPauta(g: { total: number; correctas: number; minimo?: number | null }): boolean {
+  return g.correctas >= minimoPauta(g);
+}
+
+/** El mínimo de una pauta a partir de sus partes: todas traen el mismo valor; si difieren, el más alto. */
+export function minimoDePartes(minimos: (number | null | undefined)[]): number | null {
+  const valores = minimos.filter((m): m is number => typeof m === "number");
+  return valores.length ? Math.max(...valores) : null;
 }
 
 /** La pauta está completa cuando todas sus sub-preguntas tienen respuesta. */

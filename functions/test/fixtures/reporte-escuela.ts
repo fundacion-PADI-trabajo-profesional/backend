@@ -36,14 +36,14 @@ export function mkEval(o: {
 /** Una sub-pregunta respondida de una pauta. */
 export function mkResp(o: {
   eval: string; area: string; pregunta: string; numero: number | null; respuesta: number | null;
-  invertida?: boolean; activa?: boolean | null; titulo?: string | null; consigna?: string | null;
+  invertida?: boolean; activa?: boolean | null; titulo?: string | null; consigna?: string | null; minimo?: number | null;
 }): RespuestaReporteRow {
   return {
     respuesta: o.respuesta,
     evaluaciones_estudiante_area: { evaluacion_estudiante_id: o.eval, area_id: o.area },
     preguntas: {
       id: o.pregunta, numero: o.numero, activa: o.activa === undefined ? true : o.activa,
-      puntaje_invertido: o.invertida ?? false, titulo: o.titulo ?? null, consigna: o.consigna ?? `Consigna ${o.numero}`,
+      puntaje_invertido: o.invertida ?? false, minimo_aprobacion: o.minimo ?? null, titulo: o.titulo ?? null, consigna: o.consigna ?? `Consigna ${o.numero}`,
     },
   };
 }

@@ -28,6 +28,8 @@ export interface RespuestaReporteRow {
     numero: number | null;
     activa: boolean | null;
     puntaje_invertido: boolean | null;
+    /** Partes correctas con las que aprueba la pauta; null = la mitad redondeada hacia arriba. */
+    minimo_aprobacion?: number | null;
     titulo: string | null;
     consigna: string | null;
   };
