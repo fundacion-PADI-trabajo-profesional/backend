@@ -5,7 +5,9 @@
 alter table preguntas add column if not exists minimo_aprobacion smallint;
 
 -- 2) Valores del cuadernillo + sala 3 Comunicación y Lenguaje como seis pautas.
--- Debe devolver: renumeradas = 6, reglas = 1, partes_con_minimo = 40.
+-- Debe devolver: renumeradas = 6, reglas = 1, partes_con_minimo = 40. Si renumeradas da menos de 6, algún
+-- título de sala 3 CL no coincidió exactamente (acentos/espacios): avisar antes de seguir, el resto ya quedó aplicado.
+-- Chequeo previo opcional (tiene que devolver 0 filas): select sala_id, area_id, count(*) from reglas_aprobacion group by 1, 2 having count(*) > 1;
 with renum as (
   update preguntas p set numero = v.numero
   from (values

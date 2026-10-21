@@ -1,6 +1,9 @@
 -- Cambio 4, paso 3a: qué cambiaría el recálculo. SOLO LEE. Una sola sentencia.
 -- Filas 'area': por sala/área, cuántas áreas pasan de estado_actual a estado_nuevo (y cuántas cambian de puntaje).
--- Filas 'evaluacion': cuántas evaluaciones cambian de estado. Lo normal: A->D en algunas; A/D->E tendría que ser 0.
+-- Filas 'evaluacion': cuántas evaluaciones cambian de estado (solo las que tienen un área que cambia).
+-- Lo esperable: A->D en algunas (mínimos nuevos y sala 3 CL). A/D->E son áreas que el código viejo dio por
+-- terminadas con alguna parte de una pauta sin responder (el wizard guarda solo las partes tocadas); desde
+-- este cambio el backend las considera en progreso, y el evaluador tiene que completar esas partes.
 with partes as (
   -- cada pregunta activa de la sala/área de cada área ya completada (estado A o D), con su respuesta si la hay
   select ea.id as area_eval_id, ea.evaluacion_estudiante_id, ea.estado_id as estado_actual, ea.puntaje as puntaje_actual,
@@ -56,6 +59,7 @@ eval_nuevo as (
   from estados es
   join evaluaciones_estudiante e on e.id = es.evaluacion_estudiante_id
   where e.estado_id in ('N', 'E', 'A', 'D')
+    and exists (select 1 from nuevo n where n.evaluacion_estudiante_id = es.evaluacion_estudiante_id and n.estado_nuevo <> n.estado_actual)
   group by 1, 2
 )
 select 'area' as nivel, sala_id, area_id, estado_actual, estado_nuevo, count(*) as cantidad,

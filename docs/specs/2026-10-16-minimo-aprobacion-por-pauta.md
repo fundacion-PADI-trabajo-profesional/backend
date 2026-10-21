@@ -58,7 +58,16 @@ cuadernillo son las pautas 1, 2 y 3; el área tiene 6 y aprueba con 5 de 6.
 4. Reporte de escuela: `reporte-escuela.repository.ts` selecciona
    `minimo_aprobacion`; `RespuestaReporteRow.preguntas.minimo_aprobacion`;
    `agruparPautas` del calc acumula el mínimo. Test en `reporte-escuela.calc.test.ts`.
-5. `swagger.yaml`: campo en el esquema de pregunta.
+5. Corrección de paso, encontrada en la revisión: `calculateAreaScore` y `findById`
+   contaban las partes de una pauta por las filas de respuesta que existían, no por
+   las preguntas del catálogo. Como el wizard guarda solo las partes tocadas, una
+   pauta con una parte nunca tocada se daba por completa (y con mínimo fijo nunca
+   aprobaría). Ahora `agruparPorPauta` (utils) arma las pautas desde las preguntas
+   activas de la sala/área y cruza las filas; una parte sin fila es una parte sin
+   responder. Es lo mismo que hace el SQL de recálculo. El reporte de escuela no
+   necesita el catálogo: solo recibe áreas en estado A/D, que tras este cambio y el
+   recálculo tienen todas sus partes con fila.
+   (`swagger.yaml` no documenta los campos de pregunta; no se toca.)
 6. Scripts SQL en `scripts/sql/` (los corre Nish en Supabase, en este orden):
    - `2026-10-16-minimo-aprobacion.sql`: alter table + mínimos del template +
      renumerado sala 3 CL + regla 5/6. **Antes de mergear el backend** (Prisma

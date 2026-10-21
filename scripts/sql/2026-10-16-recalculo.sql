@@ -55,6 +55,7 @@ eval_nuevo as (
   from estados es
   join evaluaciones_estudiante e on e.id = es.evaluacion_estudiante_id
   where e.estado_id in ('N', 'E', 'A', 'D')
+    and exists (select 1 from nuevo n where n.evaluacion_estudiante_id = es.evaluacion_estudiante_id and n.estado_nuevo <> n.estado_actual)
   group by 1, 2
 ),
 upd_areas as (

@@ -1,6 +1,6 @@
 import { withRLSContext, withRLSContextAsAdmin } from "../config/prismaClient";
 import { getSignedImageUrl } from "../utils/storage";
-import { esRespuestaCorrecta, apruebaPauta, minimoDePartes } from "../utils/pautas";
+import { apruebaPauta, agruparPorPauta } from "../utils/pautas";
 
 /** Estado: no iniciada. */
 const ESTADO_NO_INICIADA = "N";
@@ -220,56 +220,35 @@ export const EvaluacionRepository = {
 
       if (!evaluacion) return null;
 
-      // Enriquecemos cada área con aciertos/total por GRUPO
+      // Enriquecemos cada área con aciertos/total por pauta. Las partes se cuentan
+      // desde el catálogo de la sala (una parte sin fila es una parte sin responder).
+      const areaIds = evaluacion.evaluaciones_estudiante_area.map((a: any) => a.area_id);
+      const catalogo = areaIds.length === 0 ? [] : await tx.preguntas.findMany({
+        where: { sala_id: evaluacion.sala_id, area_id: { in: areaIds }, OR: [{ activa: true }, { activa: null }] },
+        select: { id: true, area_id: true, numero: true, puntaje: true, puntaje_invertido: true, minimo_aprobacion: true },
+      });
+
       for (const area of evaluacion.evaluaciones_estudiante_area) {
-        const qas = area.evaluaciones_estudiante_area_preguntas || [];
-        const activos = qas.filter((qa: any) => qa.preguntas && (qa.preguntas.activa === true || qa.preguntas.activa === null));
+        const filas = area.evaluaciones_estudiante_area_preguntas || [];
+        const respuestaPor = new Map<string, number | null>(filas.map((f: any) => [f.pregunta_id, f.respuesta]));
+        const groups = agruparPorPauta(catalogo.filter((p: any) => p.area_id === area.area_id), respuestaPor);
 
-        type GroupStats = { total: number; correct: number; answered: number; puntajes: number[]; minimos: (number | null)[] };
-        const groups = new Map<number | string, GroupStats>();
-
-        for (const qa of activos) {
-          const groupKey = qa.preguntas.numero ?? `Q:${qa.pregunta_id}`;
-          const g = groups.get(groupKey) ?? { total: 0, correct: 0, answered: 0, puntajes: [], minimos: [] };
-
-          g.total += 1;
-
-          const p = qa.preguntas.puntaje;
-          g.puntajes.push((p === null || p === undefined) ? 1 : Number(p));
-          g.minimos.push(qa.preguntas.minimo_aprobacion ?? null);
-
-          if (qa.respuesta !== null && qa.respuesta !== undefined) {
-            g.answered += 1;
-            if (esRespuestaCorrecta(qa.respuesta, qa.preguntas.puntaje_invertido)) g.correct += 1;
-          }
-
-          groups.set(groupKey, g);
-        }
-
-        const totalGrupos = groups.size;
         let gruposAprobados = 0;
         let totalPuntosPosibles = 0;
         let puntajeFinal = 0;
-
-        for (const [, g] of groups) {
-          const apruebaGrupo = apruebaPauta({ total: g.total, correctas: g.correct, minimo: minimoDePartes(g.minimos) });
-
-          const unique = Array.from(new Set(g.puntajes));
-          const groupValue = unique.length === 1 ? unique[0] : Math.max(...unique);
-
-          totalPuntosPosibles += groupValue;
-
-          if (apruebaGrupo) {
+        for (const g of groups.values()) {
+          totalPuntosPosibles += g.valor;
+          if (apruebaPauta({ total: g.total, correctas: g.correctas, minimo: g.minimo })) {
             gruposAprobados += 1;
-            puntajeFinal += groupValue;
+            puntajeFinal += g.valor;
           }
         }
 
         (area as any).aciertos_individuales = gruposAprobados;
-        (area as any).totalPreguntas = totalGrupos;
+        (area as any).totalPreguntas = groups.size;
         (area as any).totalPuntosPosibles = totalPuntosPosibles;
         (area as any).puntajeFinal = puntajeFinal;
-        (area as any).gruposRespondidos = Array.from(groups.values()).filter(g => g.answered === g.total).length;
+        (area as any).gruposRespondidos = Array.from(groups.values()).filter((g) => g.respondidas === g.total).length;
       }
 
       return evaluacion;
@@ -559,88 +538,51 @@ async function calculateAreaScore(
   const ESTADO_APROBADA = "A";
   const ESTADO_DESAPROBADA = "D";
 
-  const qas = await tx.evaluacionesEstudianteAreaPreguntas.findMany({
-    where: { evaluaciones_area_id: evaluacionAreaId },
-    include: {
-      preguntas: { select: { id: true, numero: true, activa: true, puntaje: true, puntaje_invertido: true, minimo_aprobacion: true } },
-    },
-  });
-
-  const activos = qas.filter((qa: any) => qa.preguntas && (qa.preguntas.activa === true || qa.preguntas.activa === null));
-
-  // Total de grupos (ítems) que existen en el área para esta sala,
-  // independientemente de si ya fueron respondidos.
-  const todasLasPreguntas = await tx.preguntas.findMany({
+  // Las partes de cada pauta salen del catálogo de preguntas activas de la sala/área,
+  // no de las filas de respuesta: el wizard guarda solo las partes tocadas, así que
+  // una parte sin fila es una parte sin responder (ver agruparPorPauta).
+  const preguntasActivas = await tx.preguntas.findMany({
     where: {
       sala_id: salaId,
       area_id: areaId,
       OR: [{ activa: true }, { activa: null }],
     },
-    select: { id: true, numero: true },
+    select: { id: true, numero: true, puntaje: true, puntaje_invertido: true, minimo_aprobacion: true },
   });
-  const totalGruposReales = new Set(
-    todasLasPreguntas.map((p: any) => p.numero ?? `Q:${p.id}`)
-  ).size;
 
-  if (activos.length === 0) {
+  const filas = await tx.evaluacionesEstudianteAreaPreguntas.findMany({
+    where: { evaluaciones_area_id: evaluacionAreaId },
+    select: { pregunta_id: true, respuesta: true },
+  });
+  const respuestaPor = new Map<string, number | null>(filas.map((f: any) => [f.pregunta_id, f.respuesta]));
+
+  const groups = agruparPorPauta(preguntasActivas, respuestaPor);
+  const totalGrupos = groups.size;
+
+  const algunaRespondida = Array.from(groups.values()).some((g) => g.respondidas > 0);
+  if (!algunaRespondida) {
     return {
       puntajeFinal: 0,
       completado: false,
       totalPuntosPosibles: 0,
       estadoFinalArea: ESTADO_EN_PROGRESO,
       aciertosIndividuales: 0,
-      totalPreguntasActivas: totalGruposReales,
+      totalPreguntasActivas: totalGrupos,
     };
   }
 
-  type GroupStats = { total: number; answered: number; correct: number; puntajes: number[]; minimos: (number | null)[] };
-  const groups = new Map<number | string, GroupStats>();
-
-  for (const qa of activos) {
-    const groupKey = qa.preguntas.numero ?? `Q:${qa.pregunta_id}`;
-    const g = groups.get(groupKey) ?? { total: 0, answered: 0, correct: 0, puntajes: [], minimos: [] };
-
-    g.total += 1;
-
-    const p = qa.preguntas.puntaje;
-    g.puntajes.push((p === null || p === undefined) ? 1 : Number(p));
-          g.minimos.push(qa.preguntas.minimo_aprobacion ?? null);
-
-    if (qa.respuesta !== null && qa.respuesta !== undefined) {
-      g.answered += 1;
-      if (esRespuestaCorrecta(qa.respuesta, qa.preguntas.puntaje_invertido)) g.correct += 1;
-    }
-
-    groups.set(groupKey, g);
-  }
-
-  const totalGrupos = totalGruposReales;
-  // completado = todos los grupos del área tienen todas sus sub-preguntas respondidas
-  let completado = groups.size === totalGruposReales;
+  // completado = todas las pautas del área tienen todas sus partes respondidas
+  let completado = totalGrupos > 0;
   let gruposAprobados = 0;
   let puntajeFinal = 0;
   let totalPuntosPosibles = 0;
 
-  for (const [groupKey, g] of groups) {
-    if (g.answered < g.total) completado = false;
-
-    const apruebaGrupo = apruebaPauta({ total: g.total, correctas: g.correct, minimo: minimoDePartes(g.minimos) });
-
-    const unique = Array.from(new Set(g.puntajes));
-
-    let groupValue: number;
-    if (unique.length === 1) {
-      groupValue = unique[0];
-    } else {
-      groupValue = Math.max(...unique);
-      console.warn(`[calculateAreaScore] Grupo ${String(groupKey)} tiene puntajes distintos:`, unique, "-> usando", groupValue);
-    }
-
-    totalPuntosPosibles += groupValue;
-
-    if (apruebaGrupo) {
+  for (const g of groups.values()) {
+    if (g.respondidas < g.total) completado = false;
+    totalPuntosPosibles += g.valor;
+    if (apruebaPauta({ total: g.total, correctas: g.correctas, minimo: g.minimo })) {
       gruposAprobados += 1;
-      puntajeFinal += groupValue;
+      puntajeFinal += g.valor;
     }
   }
 
@@ -658,12 +600,9 @@ async function calculateAreaScore(
       ? Number(areaRule.aprueba_con)
       : Math.ceil(totalPuntosPosibles * 0.6);
 
-  let estadoFinalArea = ESTADO_EN_PROGRESO;
-  if (completado) {
-    estadoFinalArea = puntajeFinal >= requiredToPass ? ESTADO_APROBADA : ESTADO_DESAPROBADA;
-  } else if (Array.from(groups.values()).some(g => g.answered > 0)) {
-    estadoFinalArea = ESTADO_EN_PROGRESO;
-  }
+  const estadoFinalArea = !completado
+    ? ESTADO_EN_PROGRESO
+    : puntajeFinal >= requiredToPass ? ESTADO_APROBADA : ESTADO_DESAPROBADA;
 
   return {
     puntajeFinal,
