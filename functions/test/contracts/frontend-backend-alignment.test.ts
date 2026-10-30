@@ -163,6 +163,14 @@ describe("Frontend/Backend contract alignment", () => {
     expect(fn).toContain("/auth/update-password");
   });
 
+  it("auth.solicitarReenvioInvitacion llama a POST /auth/reenviar-invitacion con email", () => {
+    const src = readFrontendApiFile("auth.ts");
+    const fn = extractBlockByAnchor(src, "export async function solicitarReenvioInvitacion");
+
+    expect(fn).toContain("/auth/reenviar-invitacion");
+    expect(fn).toContain("email");
+  });
+
   it("auth.updateProfileData llama a PUT /auth/profile con userId", () => {
     const src = readFrontendApiFile("auth.ts");
     const fn = extractBlockByAnchor(src, "export async function updateProfileData");

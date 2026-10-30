@@ -6,7 +6,7 @@ info:
 
     ## Autenticación
     La mayoría de los endpoints requieren un token JWT en el header `Authorization: Bearer <token>`.
-    Los endpoints bajo `/auth/login`, `/auth/register`, `/auth/refresh-token`, `/auth/reset-password-request` y `/auth/update-password` son públicos.
+    Los endpoints bajo `/auth/login`, `/auth/register`, `/auth/refresh-token`, `/auth/reset-password-request`, `/auth/update-password` y `/auth/reenviar-invitacion` son públicos.
 
   version: 2.0.0
 
@@ -169,6 +169,33 @@ paths:
       responses:
         '200':
           description: Email de recuperación enviado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/reenviar-invitacion:
+    post:
+      tags: [Auth]
+      summary: Autoservicio del link de activación (reenvía la invitación a una cuenta pendiente)
+      description: Responde siempre el mismo mensaje, exista o no la cuenta, para no revelar qué correos están registrados.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Pedido recibido (se envía el correo solo si la cuenta existe y está pendiente)
           content:
             application/json:
               schema:

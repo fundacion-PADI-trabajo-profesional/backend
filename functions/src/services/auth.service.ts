@@ -1,4 +1,5 @@
 import { getSupabase } from "../config/supabaseClient";
+import { reenviarInvitacion, type ResultadoReenvio } from "./admin.service";
 import { withRLSContext } from "../config/prismaClient";
 
 const UNIQUE_VIOLATION = "23505";
@@ -338,6 +339,25 @@ export class AuthService {
     if (error) throw new Error(traducirErrorAuth(error));
 
     return { message: "Correo de recuperación enviado exitosamente." };
+  }
+
+  /**
+   * Autoservicio del link de activación: si el correo es de una cuenta que todavía
+   * no se activó, le reenvía la invitación. Devuelve qué pasó; el controller responde
+   * siempre lo mismo hacia afuera para no revelar qué correos están registrados.
+   */
+  static async reenviarInvitacionPorEmail(email: string): Promise<ResultadoReenvio | "no_registrada"> {
+    const supabase = getSupabase();
+    if (!supabase) throw new Error("Supabase client no está disponible.");
+
+    const { data: perfil } = await (supabase as any)
+      .from("usuarios")
+      .select("id, email, nombre, apellido, rol")
+      .eq("email", email)
+      .maybeSingle();
+
+    if (!perfil) return "no_registrada";
+    return reenviarInvitacion(supabase, perfil);
   }
 
   /**

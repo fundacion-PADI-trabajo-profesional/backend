@@ -39,6 +39,38 @@ export interface BulkCreateResult {
  * invitación crea primero la cuenta en Auth y luego el perfil en la tabla `usuarios`;
  * si el segundo paso falla, realiza rollback eliminando el usuario de Auth.
  */
+/** Qué pasó al reenviar una invitación: se mandó, o la cuenta ya estaba activa y no corresponde. */
+export type ResultadoReenvio = "enviada" | "ya_activa";
+
+/**
+ * Reenvía el mail de invitación de Supabase a un usuario que todavía no activó su
+ * cuenta. Lo usan el panel de PADI (`AdminService.resendInvite`, por id) y el
+ * autoservicio público (`AuthService.reenviarInvitacionPorEmail`, por correo).
+ * El link que llega vence según "Email OTP expiration" del proyecto (tope 24 h).
+ */
+export async function reenviarInvitacion(
+  supabase: NonNullable<ReturnType<typeof getSupabase>>,
+  perfil: { id: string; email: string; nombre: string; apellido: string; rol: string }
+): Promise<ResultadoReenvio> {
+  // Puede no existir en Auth si hubo un error al crear: en ese caso inviteUserByEmail la crea
+  const { data: authUser } = await supabase.auth.admin.getUserById(perfil.id);
+  if (authUser?.user?.last_sign_in_at) return "ya_activa";
+
+  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+  const { error } = await supabase.auth.admin.inviteUserByEmail(perfil.email, {
+    redirectTo: `${frontendUrl}/cambiar-contrasena-temporal`,
+    data: { nombre: perfil.nombre, apellido: perfil.apellido, rol: perfil.rol },
+  });
+
+  if (error) {
+    if (error.message.toLowerCase().includes("rate limit")) {
+      throw new Error("Se realizaron demasiados intentos de envío. Esperá unos minutos antes de volver a intentarlo.");
+    }
+    throw new Error(`Error al reenviar invitación: ${error.message}`);
+  }
+  return "enviada";
+}
+
 export class AdminService {
   /**
    * Invita a un usuario nuevo al sistema desde el panel de administración.
@@ -284,31 +316,9 @@ export class AdminService {
       throw new Error("Usuario no encontrado.");
     }
 
-    // Verificar estado en Supabase Auth (puede no existir si hubo un error al crear)
-    const { data: authUser } = await supabase.auth.admin.getUserById(userId);
-
-    if (authUser?.user?.last_sign_in_at) {
+    const resultado = await reenviarInvitacion(supabase, { id: userId, ...profile });
+    if (resultado === "ya_activa") {
       throw new Error("El usuario ya activó su cuenta. No es necesario reenviar la invitación.");
-    }
-
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-    const redirectTo = `${frontendUrl}/cambiar-contrasena-temporal`;
-
-    // inviteUserByEmail crea la cuenta en Auth si no existe, o reenvía el email si ya existe
-    const { error: inviteError } = await supabase.auth.admin.inviteUserByEmail(profile.email, {
-      redirectTo,
-      data: {
-        nombre: profile.nombre,
-        apellido: profile.apellido,
-        rol: profile.rol,
-      },
-    });
-
-    if (inviteError) {
-      if (inviteError.message.toLowerCase().includes("rate limit")) {
-        throw new Error("Se realizaron demasiados intentos de envío. Esperá unos minutos antes de volver a intentarlo.");
-      }
-      throw new Error(`Error al reenviar invitación: ${inviteError.message}`);
     }
   }
 
