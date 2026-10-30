@@ -25,6 +25,7 @@ const authLimiter = rateLimit({
  * - `POST /auth/refresh-token` — renovación del token de acceso.
  * - `POST /auth/reset-password-request` — solicita el envío del email de recuperación.
  * - `POST /auth/update-password` — actualiza la contraseña usando el token de recuperación.
+ * - `POST /auth/reenviar-invitacion` — autoservicio: reenvía el link de activación a una cuenta pendiente.
  *
  * @returns Router de Express con las rutas públicas de autenticación.
  */
@@ -36,6 +37,7 @@ export function createAuthRouter() {
     router.post("/auth/refresh-token", authLimiter, AuthController.refreshToken);
     router.post("/auth/reset-password-request", authLimiter, AuthController.requestPasswordReset);
     router.post("/auth/update-password", authLimiter, AuthController.updatePassword);
+    router.post("/auth/reenviar-invitacion", authLimiter, AuthController.reenviarInvitacion);
 
     return router;
 }

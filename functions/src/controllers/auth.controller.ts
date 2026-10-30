@@ -10,6 +10,10 @@ import { AuthenticatedRequest } from "../middlewares/auth.middleware";
  * son públicos (no requieren token JWT). `updateProfile` requiere token válido y que el usuario se encuentre 
  * autenticado.
  */
+/** Misma respuesta para cuenta inexistente, ya activa o invitación reenviada. */
+export const MENSAJE_REENVIO_INVITACION =
+  "Si tu cuenta está pendiente de activación, en unos minutos te llega un correo con un link nuevo. Si ya la habías activado, usá «¿Olvidaste tu contraseña?».";
+
 export class AuthController {
   /**
    * Autentica un usuario con email y contraseña.
@@ -130,6 +134,31 @@ export class AuthController {
 
       const response = await AuthService.sendPasswordResetEmail(email);
       res.status(200).json(response);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      res.status(400).json({ message });
+    }
+  }
+
+  /**
+   * Autoservicio del link de activación: reenvía la invitación a quien todavía no
+   * activó su cuenta, sin que intervenga el Equipo PADI.
+   *
+   * `POST /auth/reenviar-invitacion`
+   *
+   * @param req - Body: `{ email }`.
+   * @param res - `200` con el mismo mensaje exista o no la cuenta (no revela qué correos
+   * están registrados); `400` si falta el email, tiene mal formato o Supabase limitó los envíos.
+   */
+  static async reenviarInvitacion(req: Request, res: Response) {
+    try {
+      const email = typeof req.body?.email === "string" ? req.body.email.trim() : "";
+      if (!email) throw new Error("El correo electrónico es obligatorio.");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("El formato del correo electrónico no es válido.");
+
+      const resultado = await AuthService.reenviarInvitacionPorEmail(email);
+      console.log(`[auth] reenviar-invitacion: ${resultado}`);
+      res.status(200).json({ message: MENSAJE_REENVIO_INVITACION });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       res.status(400).json({ message });
