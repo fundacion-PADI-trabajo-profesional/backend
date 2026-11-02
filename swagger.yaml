@@ -376,7 +376,10 @@ paths:
     post:
       tags: [Admin]
       summary: Reenviar email de invitación
-      description: Requiere rol `equipo_padi`.
+      description: |
+        Requiere rol `equipo_padi`. Solo para cuentas que todavía no se activaron.
+        Si el perfil no tiene cuenta en Supabase Auth (resto de una baja incompleta) responde `400`
+        y no crea una cuenta nueva: hay que eliminar el usuario y volver a crearlo.
       security:
         - bearerAuth: []
       parameters:
@@ -399,7 +402,14 @@ paths:
     delete:
       tags: [Admin]
       summary: Eliminar un usuario
-      description: Requiere rol `equipo_padi`. Un admin no puede eliminarse a sí mismo.
+      description: |
+        Requiere rol `equipo_padi`. Un admin no puede eliminarse a sí mismo.
+
+        Es una baja que preserva el historial: revoca el acceso en Supabase Auth y, en una sola
+        transacción, cierra las asignaciones activas del docente (escuelas y aulas), desvincula su
+        persona, quita su registro de encargado y borra el perfil. Persona, profesor y evaluaciones
+        se conservan. Si el perfil no se pudo eliminar responde `400` (el acceso ya quedó revocado;
+        volver a intentar). Repetible: si la cuenta de Auth ya no existe, igual limpia el perfil.
       security:
         - bearerAuth: []
       parameters:

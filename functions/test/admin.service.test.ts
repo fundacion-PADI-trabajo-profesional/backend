@@ -26,6 +26,7 @@ function buildPrismaMock() {
     personas: {
       deleteMany: vi.fn().mockResolvedValue({}),
       create: vi.fn().mockResolvedValue({ id: "persona-id" }),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     encargados: {
       deleteMany: vi.fn().mockResolvedValue({}),
@@ -33,6 +34,13 @@ function buildPrismaMock() {
     },
     profesoresEscuelas: {
       create: vi.fn().mockResolvedValue({}),
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
+    profesoresAulas: {
+      updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+    },
+    usuarioPerfil: {
+      deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
   };
   // withRLSContextAsAdmin usa prisma.$transaction directamente
@@ -68,6 +76,7 @@ function buildSupabaseMock(overrides: Record<string, any> = {}) {
       insert: vi.fn().mockResolvedValue({ error: null }),
       delete: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
       order: vi.fn().mockResolvedValue({ data: [], error: null }),
       single: vi.fn().mockResolvedValue({ data: null, error: null }),
     }),
@@ -174,17 +183,53 @@ describe("AdminService.createUser", () => {
     expect(mock.auth.admin.deleteUser).toHaveBeenCalledWith("new-user-id");
   });
 
-  it("hace rollback con mensaje de duplicado si profileError.code es 23505", async () => {
+  it("hace rollback con mensaje de duplicado si el perfil con ese mail tiene cuenta en Auth (23505)", async () => {
     const mock = buildSupabaseMock();
     mock.from.mockReturnValue({
       insert: vi.fn().mockResolvedValue({ error: { message: "dup", code: "23505" } }),
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: { id: "old-id" }, error: null }),
     });
+    mock.auth.admin.getUserById.mockResolvedValue({ data: { user: { id: "old-id" } }, error: null });
     vi.spyOn(supabaseClient, "getSupabase").mockReturnValue(mock as any);
+    const admin = vi.spyOn(prismaClient, "withRLSContextAsAdmin").mockImplementation(async (fn: any) => fn(buildPrismaMock()));
 
     await expect(AdminService.createUser(VALID_USER)).rejects.toThrow(
       "Ya existe un perfil con ese correo electrónico."
     );
     expect(mock.auth.admin.deleteUser).toHaveBeenCalledWith("new-user-id");
+    expect(admin).not.toHaveBeenCalled();
+  });
+
+  it("si el perfil con ese mail quedó sin cuenta en Auth (baja incompleta), lo limpia y reintenta el alta", async () => {
+    const mock = buildSupabaseMock();
+    const insert = vi
+      .fn()
+      .mockResolvedValueOnce({ error: { message: "dup", code: "23505" } })
+      .mockResolvedValueOnce({ error: null });
+    mock.from.mockReturnValue({
+      insert,
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: { id: "old-id" }, error: null }),
+    });
+    mock.auth.admin.getUserById.mockResolvedValue({
+      data: { user: null },
+      error: { message: "User not found", status: 404, code: "user_not_found" },
+    });
+    const prisma = buildPrismaMock();
+    vi.spyOn(supabaseClient, "getSupabase").mockReturnValue(mock as any);
+    vi.spyOn(prismaClient, "withRLSContextAsAdmin").mockImplementation(async (fn: any) => fn(prisma));
+
+    const result = await AdminService.createUser(VALID_USER);
+
+    expect(mock.auth.admin.getUserById).toHaveBeenCalledWith("old-id");
+    expect(prisma.personas.updateMany).toHaveBeenCalledWith({ where: { usuario_id: "old-id" }, data: { usuario_id: null } });
+    expect(prisma.usuarioPerfil.deleteMany).toHaveBeenCalledWith({ where: { id: "old-id" } });
+    expect(insert).toHaveBeenCalledTimes(2);
+    expect(mock.auth.admin.deleteUser).not.toHaveBeenCalled();
+    expect(result).toEqual({ id: "new-user-id", email: VALID_USER.email });
   });
 
   it("lanza error si nombre está vacío", async () => {
@@ -485,28 +530,21 @@ describe("AdminService.resendInvite", () => {
     await expect(AdminService.resendInvite("u1")).rejects.toThrow("Usuario no encontrado.");
   });
 
-  it("reenvía la invitación aunque el usuario de Auth no se encuentre (recuperación de estado inconsistente)", async () => {
-    // Si getUserById no devuelve un user, inviteUserByEmail actúa como creación
-    const mock = buildResendMock({ authUser: null });
+  it("si el perfil quedó sin cuenta en Auth (baja incompleta), no invita y pide eliminarlo y volver a crearlo", async () => {
+    // Invitar acá crearía una cuenta con otro id, que nunca podría loguearse ("Perfil de usuario no encontrado").
+    const mock = buildResendMock({ authUser: null, authError: { message: "User not found", status: 404 } });
     vi.spyOn(supabaseClient, "getSupabase").mockReturnValue(mock as any);
 
-    await expect(AdminService.resendInvite("u1")).resolves.toBeUndefined();
-    expect(mock.auth.admin.inviteUserByEmail).toHaveBeenCalledWith(
-      "inv@t.com",
-      expect.objectContaining({ redirectTo: expect.stringContaining("cambiar-contrasena-temporal") })
-    );
+    await expect(AdminService.resendInvite("u1")).rejects.toThrow(/sin cuenta de acceso/i);
+    expect(mock.auth.admin.inviteUserByEmail).not.toHaveBeenCalled();
   });
 
-  it("reenvía la invitación aunque getUserById retorne error (recuperación de estado inconsistente)", async () => {
-    // Si getUserById falla, inviteUserByEmail actúa como creación de la cuenta
-    const mock = buildResendMock({ authError: { message: "not found" } });
+  it("si Auth no responde (error distinto a not-found), no invita y avisa que no pudo verificar", async () => {
+    const mock = buildResendMock({ authUser: null, authError: { message: "fetch failed", status: 500 } });
     vi.spyOn(supabaseClient, "getSupabase").mockReturnValue(mock as any);
 
-    await expect(AdminService.resendInvite("u1")).resolves.toBeUndefined();
-    expect(mock.auth.admin.inviteUserByEmail).toHaveBeenCalledWith(
-      "inv@t.com",
-      expect.objectContaining({ redirectTo: expect.stringContaining("cambiar-contrasena-temporal") })
-    );
+    await expect(AdminService.resendInvite("u1")).rejects.toThrow(/no se pudo verificar/i);
+    expect(mock.auth.admin.inviteUserByEmail).not.toHaveBeenCalled();
   });
 
   it("lanza error si el usuario ya activó su cuenta (last_sign_in_at definido)", async () => {
@@ -542,50 +580,74 @@ describe("AdminService.resendInvite", () => {
 describe("AdminService.deleteUser", () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it("caso feliz: llama deleteUser en Auth y borra el perfil", async () => {
+  function setup({ authError = null, prisma = buildPrismaMock() }: { authError?: any; prisma?: any } = {}) {
     const mock = buildSupabaseMock();
-    const deleteMock = {
-      eq: vi.fn().mockResolvedValue({ error: null }),
-    };
-    mock.from.mockReturnValue({ delete: vi.fn().mockReturnValue(deleteMock) });
-    
+    mock.auth.admin.deleteUser.mockResolvedValue({ error: authError });
     vi.spyOn(supabaseClient, "getSupabase").mockReturnValue(mock as any);
+    const admin = vi.spyOn(prismaClient, "withRLSContextAsAdmin").mockImplementation(async (fn: any) => fn(prisma));
+    return { mock, prisma, admin };
+  }
+
+  it("revoca el acceso en Auth y elimina el perfil en una sola transacción (persona desvinculada, encargado fuera)", async () => {
+    const { mock, prisma, admin } = setup();
 
     await expect(AdminService.deleteUser("u-to-delete")).resolves.toBeUndefined();
+
     expect(mock.auth.admin.deleteUser).toHaveBeenCalledWith("u-to-delete");
-    expect(mock.from).toHaveBeenCalledWith("usuarios");
+    expect(admin).toHaveBeenCalledTimes(1);
+    expect(prisma.personas.updateMany).toHaveBeenCalledWith({ where: { usuario_id: "u-to-delete" }, data: { usuario_id: null } });
+    expect(prisma.encargados.deleteMany).toHaveBeenCalledWith({ where: { usuario_id: "u-to-delete" } });
+    expect(prisma.usuarioPerfil.deleteMany).toHaveBeenCalledWith({ where: { id: "u-to-delete" } });
+    // el perfil ya no se borra por fuera de la transacción
+    expect(mock.from).not.toHaveBeenCalled();
   });
 
-  it("no lanza error si Auth no encuentra al usuario (registro fantasma): limpia la tabla igual", async () => {
-    const mock = buildSupabaseMock();
-    mock.auth.admin.deleteUser.mockResolvedValue({
-      error: { message: "user not found" },
+  it("cierra las asignaciones activas del docente (escuelas y aulas) y conserva persona y profesor (histórico)", async () => {
+    const { prisma } = setup();
+
+    await AdminService.deleteUser("doc-1");
+
+    expect(prisma.profesoresEscuelas.updateMany).toHaveBeenCalledWith({
+      where: { profesor_id: "doc-1", fecha_fin: null },
+      data: { fecha_fin: expect.any(Date) },
     });
+    expect(prisma.profesoresAulas.updateMany).toHaveBeenCalledWith({
+      where: { profesor_id: "doc-1", fecha_fin: null },
+      data: { fecha_fin: expect.any(Date) },
+    });
+    expect(prisma.profesores.deleteMany).not.toHaveBeenCalled();
+    expect(prisma.personas.deleteMany).not.toHaveBeenCalled();
+  });
 
-    vi.spyOn(supabaseClient, "getSupabase").mockReturnValue(mock as any);
+  it("si el perfil no se puede eliminar, lanza error (no reporta éxito con el perfil todavía presente)", async () => {
+    const prisma = buildPrismaMock();
+    prisma.usuarioPerfil.deleteMany.mockRejectedValue(new Error("violates foreign key constraint"));
+    setup({ prisma });
 
-    // Ya no lanza: limpia el registro de usuarios aunque Auth no encuentre al usuario
+    await expect(AdminService.deleteUser("u-1")).rejects.toThrow(/no se pudo eliminar el perfil/i);
+  });
+
+  it("si Auth no encuentra al usuario (resto de una baja incompleta), igual limpia el perfil", async () => {
+    const { prisma } = setup({ authError: { message: "User not found", status: 404 } });
+
     await expect(AdminService.deleteUser("u-ghost")).resolves.toBeUndefined();
+    expect(prisma.usuarioPerfil.deleteMany).toHaveBeenCalledWith({ where: { id: "u-ghost" } });
   });
 
-  it("lanza error si Auth.admin.deleteUser falla con error distinto a not-found", async () => {
-    const mock = buildSupabaseMock();
-    mock.auth.admin.deleteUser.mockResolvedValue({
-      error: { message: "permission denied" },
-    });
-
-    vi.spyOn(supabaseClient, "getSupabase").mockReturnValue(mock as any);
+  it("si Auth falla con otro error, lanza y no toca el perfil", async () => {
+    const { admin } = setup({ authError: { message: "permission denied" } });
 
     await expect(AdminService.deleteUser("u-bad")).rejects.toThrow(
       "Error al revocar acceso de autenticación: permission denied"
     );
+    expect(admin).not.toHaveBeenCalled();
   });
 
   it("lanza error si el cliente de Supabase no está disponible", async () => {
     vi.spyOn(supabaseClient, "getSupabase").mockReturnValue(null);
-    
+
     await expect(AdminService.deleteUser("u1")).rejects.toThrow(
-      "Cliente de Supabase no disponible." 
+      "Cliente de Supabase no disponible."
     );
   });
 });
