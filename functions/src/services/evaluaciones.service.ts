@@ -1,7 +1,8 @@
 import { EvaluacionRepository } from "../repositories/evaluacion.repository";
 import type { CreateEvaluacionDTO } from "../interfaces/evaluacion.interface";
 import { withRLSContext } from "../config/prismaClient";
-import { TipoDuplicadoError, ValidationError } from "../utils/errors";
+import { AuthorizationError, NotFoundError, TipoDuplicadoError, ValidationError } from "../utils/errors";
+import { escuelaEnAlcance, type UsuarioAlcance } from "./alcance.service";
 import { anioDe, esTipoEvaluacion, mensajeTipoDuplicado, type TipoEvaluacion } from "../utils/evaluaciones-tipo";
 
 /**
@@ -220,6 +221,36 @@ export class EvaluacionService {
     return await this.repo.delete(id);
   }
 
+
+  /**
+   * Cambia el tipo (inicial/cierre) de una evaluación. El tipo es una etiqueta: no toca puntajes ni respuestas.
+   *
+   * Permisos como la lectura (ADR 0015): la docente solo las suyas; director y encargado dentro de su
+   * escuela/zona; equipo PADI cualquiera. Aplica el mismo freno de duplicados que el alta.
+   *
+   * @throws ValidationError (TIPO_INVALIDO), NotFoundError, AuthorizationError, TipoDuplicadoError
+   */
+  async cambiarTipo(id: string, tipoId: unknown, user: UsuarioAlcance) {
+    if (!esTipoEvaluacion(tipoId)) {
+      throw new ValidationError("tipo_id inválido: debe ser 'inicial' o 'cierre'", "TIPO_INVALIDO");
+    }
+    const evaluacion = await this.repo.findById(id);
+    if (!evaluacion) throw new NotFoundError("Evaluación no encontrada");
+
+    if (user.rol === "docente" && evaluacion.profesor_id !== user.id) {
+      throw new AuthorizationError("No tenés permiso para modificar una evaluación que no creaste.");
+    }
+    const escuelaEvaluacion = (evaluacion as any).estudiantes?.escuela_id as string | undefined;
+    if (!(await escuelaEnAlcance(user, escuelaEvaluacion))) {
+      throw new AuthorizationError("No tenés permiso para modificar evaluaciones de otra escuela.");
+    }
+
+    if (evaluacion.tipo_id === tipoId) return evaluacion;
+
+    await this.verificarTipoDuplicado(evaluacion.estudiante_id, evaluacion.sala_id, tipoId, evaluacion.fecha_creacion, id);
+    await this.repo.updateTipo(id, tipoId);
+    return await this.repo.findById(id);
+  }
 
   /**
    * Recupera las preguntas y respuestas asociadas a un área específica dentro de una evaluación.

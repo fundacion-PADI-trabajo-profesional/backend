@@ -5,7 +5,8 @@ import {
     getEvaluacionById,
     deleteEvaluacion,
     getPreguntasDeArea,
-    guardarRespuestasArea
+    guardarRespuestasArea,
+    patchEvaluacionTipo
 } from "../controllers/evaluaciones.controller";
 
 /**
@@ -34,6 +35,7 @@ export function createEvaluacionesRouter() {
     router.post("/evaluaciones", createEvaluacion);
     router.get("/evaluaciones", getEvaluaciones);
     router.get("/evaluaciones/:id", getEvaluacionById);
+    router.patch("/evaluaciones/:id", patchEvaluacionTipo);
     router.delete("/evaluaciones/:id", deleteEvaluacion);
     //endpoints para preguntas y respuestas de áreas específicas dentro de una evaluación
     router.get("/evaluaciones/:id/areas/:areaId/preguntas", getPreguntasDeArea);
