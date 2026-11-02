@@ -234,6 +234,31 @@ paths:
           $ref: '#/components/responses/BadRequest'
 
   /auth/profile:
+    get:
+      tags: [Auth]
+      summary: Perfil actual del usuario autenticado
+      description: |
+        Rol, escuela y nombre leídos de la base en este momento (lo mismo que `profile` en el login).
+        El frontend lo pide al abrir la app con sesión guardada: si Equipo PADI cambió el rol o la
+        escuela después del login, el navegador reemplaza su copia local en vez de seguir con la vieja.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Perfil actual en `data`
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/CommonResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
     put:
       tags: [Auth]
       summary: Actualizar perfil del usuario autenticado
