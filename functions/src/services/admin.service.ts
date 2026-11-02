@@ -39,8 +39,67 @@ export interface BulkCreateResult {
  * invitación crea primero la cuenta en Auth y luego el perfil en la tabla `usuarios`;
  * si el segundo paso falla, realiza rollback eliminando el usuario de Auth.
  */
-/** Qué pasó al reenviar una invitación: se mandó, o la cuenta ya estaba activa y no corresponde. */
-export type ResultadoReenvio = "enviada" | "ya_activa";
+/**
+ * Qué pasó al reenviar una invitación: se mandó, la cuenta ya estaba activa, o el perfil quedó
+ * sin cuenta en Auth (resto de una baja incompleta) y no corresponde invitar.
+ */
+export type ResultadoReenvio = "enviada" | "ya_activa" | "sin_cuenta";
+
+/** Supabase Auth no encuentra la cuenta: ya fue dada de baja o nunca llegó a crearse. */
+function esErrorNotFound(error: any): boolean {
+  return (
+    error?.status === 404 ||
+    error?.code === "user_not_found" ||
+    String(error?.message ?? "").toLowerCase().includes("not found")
+  );
+}
+
+/**
+ * Elimina el perfil de aplicación de un usuario dejando la base consistente, en una sola
+ * transacción: cierra sus asignaciones activas como docente (escuelas y aulas), desvincula su
+ * persona, quita su registro de encargado y borra la fila de `usuarios`. `personas`, `profesores`
+ * y las evaluaciones se conservan como histórico. Idempotente: si no hay nada que borrar, no falla.
+ */
+async function eliminarPerfil(userId: string): Promise<void> {
+  const ahora = new Date();
+  await withRLSContextAsAdmin(async (tx) => {
+    await tx.profesoresEscuelas.updateMany({
+      where: { profesor_id: userId, fecha_fin: null },
+      data: { fecha_fin: ahora },
+    });
+    await tx.profesoresAulas.updateMany({
+      where: { profesor_id: userId, fecha_fin: null },
+      data: { fecha_fin: ahora },
+    });
+    await tx.personas.updateMany({ where: { usuario_id: userId }, data: { usuario_id: null } });
+    await tx.encargados.deleteMany({ where: { usuario_id: userId } });
+    await tx.usuarioPerfil.deleteMany({ where: { id: userId } });
+  });
+}
+
+/**
+ * Si existe un perfil en `usuarios` con ese mail cuya cuenta de Auth ya no existe (resto de una
+ * baja incompleta), lo elimina y devuelve `true`. Si la cuenta existe o no se puede verificar,
+ * no toca nada y devuelve `false`.
+ */
+async function limpiarPerfilHuerfano(
+  supabase: NonNullable<ReturnType<typeof getSupabase>>,
+  email: string
+): Promise<boolean> {
+  const { data: perfil } = await (supabase as any)
+    .from("usuarios")
+    .select("id")
+    .eq("email", email)
+    .maybeSingle();
+  if (!perfil?.id) return false;
+
+  const { data: authUser, error } = await supabase.auth.admin.getUserById(perfil.id);
+  if (authUser?.user) return false;
+  if (error && !esErrorNotFound(error)) return false;
+
+  await eliminarPerfil(perfil.id);
+  return true;
+}
 
 /**
  * Reenvía el mail de invitación de Supabase a un usuario que todavía no activó su
@@ -52,9 +111,14 @@ export async function reenviarInvitacion(
   supabase: NonNullable<ReturnType<typeof getSupabase>>,
   perfil: { id: string; email: string; nombre: string; apellido: string; rol: string }
 ): Promise<ResultadoReenvio> {
-  // Puede no existir en Auth si hubo un error al crear: en ese caso inviteUserByEmail la crea
-  const { data: authUser } = await supabase.auth.admin.getUserById(perfil.id);
-  if (authUser?.user?.last_sign_in_at) return "ya_activa";
+  const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(perfil.id);
+  if (authError && !esErrorNotFound(authError)) {
+    throw new Error(`No se pudo verificar la cuenta de acceso: ${authError.message}`);
+  }
+  // Perfil sin cuenta en Auth (resto de una baja incompleta): invitar acá crearía una cuenta con
+  // otro id, que nunca podría loguearse ("Perfil de usuario no encontrado").
+  if (!authUser?.user) return "sin_cuenta";
+  if (authUser.user.last_sign_in_at) return "ya_activa";
 
   const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
   const { error } = await supabase.auth.admin.inviteUserByEmail(perfil.email, {
@@ -134,15 +198,23 @@ export class AdminService {
     const userId = authData.user.id;
 
     // Paso 2: Crear el perfil en 'usuarios' para que esté disponible al aceptar la invitación
-    const { error: profileError } = await (supabase as any)
-      .from("usuarios")
-      .insert({
+    const insertarPerfil = () =>
+      (supabase as any).from("usuarios").insert({
         id: userId,
         email: data.email,
         nombre: data.nombre.trim(),
         apellido: data.apellido.trim(),
         rol: data.rol,
       });
+
+    let { error: profileError } = await insertarPerfil();
+    if (profileError?.code === "23505") {
+      // Auth aceptó el mail, así que el perfil que choca no tiene cuenta: es el resto de una
+      // baja incompleta. Se limpia y se reintenta el alta.
+      if (await limpiarPerfilHuerfano(supabase, data.email)) {
+        ({ error: profileError } = await insertarPerfil());
+      }
+    }
 
     if (profileError) {
       // Rollback: borrar el usuario de Auth si no se pudo crear el perfil
@@ -320,6 +392,11 @@ export class AdminService {
     if (resultado === "ya_activa") {
       throw new Error("El usuario ya activó su cuenta. No es necesario reenviar la invitación.");
     }
+    if (resultado === "sin_cuenta") {
+      throw new Error(
+        "Este usuario quedó sin cuenta de acceso (baja incompleta). Eliminalo y volvé a crearlo."
+      );
+    }
   }
 
   /**
@@ -405,45 +482,36 @@ export class AdminService {
   }
 
   /**
-   * Revoca el acceso de un usuario al sistema preservando su historial.
+   * Da de baja a un usuario preservando su historial.
    *
    * @remarks
-   * En lugar de hacer un "Hard Delete" que podría romper o eliminar en cascada
-   * las evaluaciones históricas del docente, hacemos una baja lógica/revocación.
-   * Destruimos su cuenta en Supabase Auth (imposibilitando el login) y lo quitamos
-   * de la tabla de visualización del panel, pero preservamos sus tablas core.
+   * 1. Revoca el acceso en Supabase Auth (si la cuenta ya no existe, continúa: la baja es repetible).
+   * 2. En una sola transacción cierra sus asignaciones activas como docente, desvincula su
+   *    persona, quita su registro de encargado y borra el perfil de `usuarios`.
+   *    `personas`, `profesores` y las evaluaciones se conservan como histórico.
+   *
+   * Si el paso 2 falla, lanza error: el panel no debe reportar "eliminado" con el perfil todavía
+   * presente (un perfil sin cuenta de Auth bloquea el re-alta con el mismo mail y, si alguien le
+   * reenvía la invitación, termina con una cuenta de Auth que no puede loguearse).
    *
    * @param userId - UUID del usuario a dar de baja.
-   * @throws Error si Supabase Auth no puede eliminarlo.
+   * @throws Error si Supabase Auth no puede revocar el acceso o si el perfil no se pudo eliminar.
    */
   static async deleteUser(userId: string): Promise<void> {
     const supabase = getSupabase();
     if (!supabase) throw new Error("Cliente de Supabase no disponible.");
 
-    // Eliminar de Supabase Auth (Destruye el acceso real al sistema inmediatamente)
     const { error: authError } = await supabase.auth.admin.deleteUser(userId);
-    if (authError) {
-      // Si el usuario no existe en Auth (registro fantasma por rollback parcial),
-      // igual continuamos para limpiar el registro en la tabla usuarios.
-      const isNotFound =
-        authError.message?.toLowerCase().includes("not found") ||
-        (authError as any).status === 404 ||
-        (authError as any).code === "user_not_found";
-      if (!isNotFound) {
-        throw new Error(`Error al revocar acceso de autenticación: ${authError.message}`);
-      }
+    if (authError && !esErrorNotFound(authError)) {
+      throw new Error(`Error al revocar acceso de autenticación: ${authError.message}`);
     }
 
-    // Eliminar el perfil en la tabla de aplicación 'usuarios'.
-    const { error: profileError } = await (supabase as any)
-      .from("usuarios")
-      .delete()
-      .eq("id", userId);
-
-    if (profileError) {
-      console.error(
-        "El acceso fue revocado, pero el perfil visual se mantuvo por dependencias en la BD:", 
-        profileError.message
+    try {
+      await eliminarPerfil(userId);
+    } catch (error: any) {
+      console.error("deleteUser: acceso revocado pero el perfil no se pudo eliminar:", error?.message);
+      throw new Error(
+        `El acceso fue revocado pero no se pudo eliminar el perfil (${error?.message}). Volvé a intentar la eliminación.`
       );
     }
   }

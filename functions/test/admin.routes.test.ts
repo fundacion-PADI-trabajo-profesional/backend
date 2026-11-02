@@ -428,6 +428,31 @@ describe("POST /admin/users/:id/resend-invite", () => {
     expect(res.body.message).toContain("no encontrado");
   });
 
+  it("400: perfil sin cuenta en Auth (baja incompleta) → no reenvía ni crea otra cuenta", async () => {
+    const { supabaseMock } = mockAuthAs("equipo_padi", "admin-id");
+    supabaseMock.from = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({
+        data: { email: "doc@t.com", nombre: "María", apellido: "Doc", rol: "docente" },
+        error: null,
+      }),
+    });
+    supabaseMock.auth.admin.getUserById = vi.fn().mockResolvedValue({
+      data: { user: null },
+      error: { message: "User not found", status: 404 },
+    });
+    supabaseMock.auth.admin.inviteUserByEmail = vi.fn();
+
+    const res = await request(app)
+      .post("/admin/users/uid-2/resend-invite")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/sin cuenta de acceso/i);
+    expect(supabaseMock.auth.admin.inviteUserByEmail).not.toHaveBeenCalled();
+  });
+
   it("403: encargado_zona no puede reenviar invitaciones", async () => {
     mockAuthAs("encargado_zona", "enc-id");
 
@@ -463,6 +488,20 @@ describe("DELETE /admin/users/:id", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.message).toContain("eliminado");
+  });
+
+  it("400: si el perfil no se pudo eliminar, responde error y no dice 'eliminado'", async () => {
+    const { supabaseMock, prismaMock } = mockAuthAs("equipo_padi", "admin-id");
+    supabaseMock.auth.admin.deleteUser = vi.fn().mockResolvedValue({ error: null });
+    prismaMock.usuarioPerfil.deleteMany.mockRejectedValue(new Error("violates foreign key constraint"));
+
+    const res = await request(app)
+      .delete("/admin/users/target-user-id")
+      .set("Authorization", "Bearer valid-token");
+
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/no se pudo eliminar el perfil/i);
+    expect(res.body.message).not.toContain("eliminado exitosamente");
   });
 
   it("400: un admin no puede eliminarse a sí mismo", async () => {

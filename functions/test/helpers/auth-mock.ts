@@ -52,17 +52,27 @@ export function mockAuthAs(
             findMany: vi.fn().mockResolvedValue([]),
             update: vi.fn().mockResolvedValue({}),
             updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+            deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
         },
 
         profesoresAulas: {
             findMany: vi.fn().mockResolvedValue([]),
             findFirst: vi.fn().mockResolvedValue(null),
+            updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+        },
+        profesoresEscuelas: {
+            updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+        },
+        personas: {
+            updateMany: vi.fn().mockResolvedValue({ count: 0 }),
         },
         estudiantes: {},
         aulas: {
             findUnique: vi.fn().mockResolvedValue({ escuela_id: null }),
         },
-        encargados: {},
+        encargados: {
+            deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+        },
     };
 
     // Mockeamos withRLSContext y withRLSContextAsAdmin para que llamen fn(prismaMock)

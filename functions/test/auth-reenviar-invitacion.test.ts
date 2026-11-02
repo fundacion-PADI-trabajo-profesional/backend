@@ -5,6 +5,7 @@
  *   ✓ correo sin cuenta → "no_registrada", no llama a inviteUserByEmail
  *   ✓ cuenta ya activa (last_sign_in_at) → "ya_activa", no llama a inviteUserByEmail
  *   ✓ cuenta pendiente → "enviada", invita con redirectTo /cambiar-contrasena-temporal y los datos del perfil
+ *   ✓ perfil sin cuenta en Auth (baja incompleta) → "sin_cuenta", no invita (invitar crearía una cuenta con otro id)
  *   ✓ rate limit de Supabase → mensaje "demasiados intentos"
  *
  * [INTEGRACIÓN] POST /auth/reenviar-invitacion
@@ -22,9 +23,13 @@ const app = createApp();
 
 const PERFIL = { id: "u-1", email: "docente@padi.com", nombre: "Ana", apellido: "Pérez", rol: "docente" };
 
-function mockSupabase(o: { perfil?: any; lastSignIn?: string | null; inviteError?: any } = {}) {
+function mockSupabase(o: { perfil?: any; lastSignIn?: string | null; inviteError?: any; sinCuentaAuth?: boolean } = {}) {
   const invite = vi.fn().mockResolvedValue({ data: { user: { id: "u-1" } }, error: o.inviteError ?? null });
-  const getUserById = vi.fn().mockResolvedValue({ data: { user: { id: "u-1", last_sign_in_at: o.lastSignIn ?? null } } });
+  const getUserById = vi.fn().mockResolvedValue(
+    o.sinCuentaAuth
+      ? { data: { user: null }, error: { message: "User not found", status: 404 } }
+      : { data: { user: { id: "u-1", last_sign_in_at: o.lastSignIn ?? null } }, error: null }
+  );
   const maybeSingle = vi.fn().mockResolvedValue({ data: o.perfil === undefined ? PERFIL : o.perfil, error: null });
   const mock = {
     auth: { admin: { inviteUserByEmail: invite, getUserById } },
@@ -60,6 +65,12 @@ describe("AuthService.reenviarInvitacionPorEmail", () => {
     delete process.env.FRONTEND_URL;
   });
 
+  it("perfil sin cuenta en Auth (baja incompleta): sin_cuenta y no invita", async () => {
+    const m = mockSupabase({ sinCuentaAuth: true });
+    await expect(AuthService.reenviarInvitacionPorEmail(PERFIL.email)).resolves.toBe("sin_cuenta");
+    expect(m.invite).not.toHaveBeenCalled();
+  });
+
   it("rate limit de Supabase: mensaje de demasiados intentos", async () => {
     mockSupabase({ inviteError: { message: "email rate limit exceeded" } });
     await expect(AuthService.reenviarInvitacionPorEmail(PERFIL.email)).rejects.toThrow("demasiados intentos");
@@ -67,8 +78,8 @@ describe("AuthService.reenviarInvitacionPorEmail", () => {
 });
 
 describe("POST /auth/reenviar-invitacion", () => {
-  it("200 con el mismo mensaje: pendiente, inexistente y ya activa", async () => {
-    for (const caso of [{}, { perfil: null }, { lastSignIn: "2026-10-01T10:00:00Z" }]) {
+  it("200 con el mismo mensaje: pendiente, inexistente, ya activa y sin cuenta en Auth", async () => {
+    for (const caso of [{}, { perfil: null }, { lastSignIn: "2026-10-01T10:00:00Z" }, { sinCuentaAuth: true }]) {
       mockSupabase(caso);
       const res = await request(app).post("/auth/reenviar-invitacion").send({ email: "alguien@padi.com" });
       expect(res.status).toBe(200);
