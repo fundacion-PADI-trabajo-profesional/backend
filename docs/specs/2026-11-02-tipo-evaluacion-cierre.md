@@ -59,12 +59,10 @@ Spec hermana en el frontend: `frontend/docs/specs/2026-11-02-tipo-evaluacion-por
    de mergear el frontend.** Si el frontend nuevo sale antes, a un alumno con [inicial de marzo,
    "inicial" de octubre] la regla por defecto le propone cierre, la docente crea una tercera
    evaluación y, al corregir, quedan dos cierres.
-   - (a) Iniciales con `fecha_creacion >= 2026-10-01` cuyo alumno ya tenía una inicial anterior
-     en la misma sala **y no tiene cierre en esa sala y año** → pasan a `cierre`. Sin
-     ambigüedad. Los que ya tienen cierre van a la lista a revisar (b).
-   - (b) Iniciales desde el 1/10 **sin** inicial previa en la misma sala: ambiguas (alumno que
-     entró tarde, o inicial que nunca se cargó). Qué hacer lo define Cecilia; si confirma que no
-     hubo iniciales legítimas en octubre/noviembre, también pasan a cierre.
+   - Regla confirmada por Cecilia (2/11): las iniciales hasta mayo son legítimas; toda inicial
+     con `fecha_creacion >= 2026-06-01` es un cierre mal etiquetado y pasa a `cierre`.
+   - Excepción: si el alumno ya tiene un cierre en esa sala y año, no se toca; va a una lista
+     para revisar a mano con Cecilia (o quedarían dos cierres).
    - Antes de cada paso, un `SELECT` con los mismos filtros muestra qué filas se van a tocar; el
      `UPDATE` va en un bloque `DO` atómico con el conteo esperado como precondición.
    - Después del (a)/(b), si no quedan duplicados, se puede agregar un índice único parcial
@@ -87,8 +85,9 @@ frontend (gotcha del 30/10).
   hasta corregirlos. Primero el freno en la app y la corrección; el índice, después.
 - **Editar cualquier campo de la evaluación**: solo el tipo tiene un caso de uso real; lo demás
   (alumno, sala) se resuelve borrando y volviendo a crear, como hoy.
-- **Corregir "todo lo de octubre" sin mirar el historial**: pisaría iniciales legítimas de
-  chicos nuevos. Se separa en (a) seguro y (b) a confirmar.
+- **Corregir por historial (solo las que tienen inicial previa)**: era la regla antes de
+  hablar con Cecilia; ella confirmó que no hubo iniciales legítimas después de mayo, así que el
+  corte por fecha alcanza y es más simple.
 
 ## Verificación
 
