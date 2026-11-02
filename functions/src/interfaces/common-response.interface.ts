@@ -33,6 +33,8 @@ export interface ResponseModel {
     code?: string;
     /** Descripción técnica del error para facilitar el debugging. */
     description?: string;
+    /** Datos estructurados del error (p. ej. `evaluacion_existente` en un `TIPO_DUPLICADO`). */
+    details?: Record<string, unknown>;
   };
 }
 
