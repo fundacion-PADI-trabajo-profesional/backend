@@ -3,6 +3,8 @@ import { EvaluacionService } from "../services/evaluaciones.service";
 import { commonResponse } from "../interfaces/common-response.interface";
 import { AuthenticatedRequest } from "../middlewares/auth.middleware";
 import { withRLSContext } from "../config/prismaClient";
+import { AuthorizationError, NotFoundError, TipoDuplicadoError, ValidationError } from "../utils/errors";
+import { escuelaEnAlcance } from "../services/alcance.service";
 
 const service = new EvaluacionService();
 
@@ -21,9 +23,24 @@ export async function createEvaluacion(req: AuthenticatedRequest, res: Response)
     const data = await service.createEvaluacion(req.body, user);
     res.status(201).json(commonResponse(true, "Evaluación creada con éxito", data));
   } catch (error: any) {
+    if (error instanceof TipoDuplicadoError) {
+      return res.status(400).json(respuestaTipoDuplicado(error));
+    }
+    if (error instanceof ValidationError) {
+      return res.status(400).json(commonResponse(false, error.message, null, { code: error.code, description: error.message }));
+    }
     const message = error.message || "Error al crear evaluación";
     res.status(400).json(commonResponse(false, message, null, { code: "CREATE_ERROR" }));
   }
+}
+
+/** 400 de duplicado: el código fijo y la evaluación existente en `error.details` para que el cliente pueda enlazarla. */
+function respuestaTipoDuplicado(error: TipoDuplicadoError) {
+  return commonResponse(false, error.message, null, {
+    code: error.code,
+    description: error.message,
+    details: { evaluacion_existente: error.evaluacionExistente },
+  });
 }
 
 /**
@@ -142,32 +159,46 @@ export async function getEvaluacionById(req: AuthenticatedRequest, res: Response
         return res.status(403).json(commonResponse(false, "No tienes permisos para ver esta evaluación.", null));
       }
     }
-    if (rol === "director" && userEscuelaId) {
-      const escuelaEvaluacion = (data as any).estudiantes?.escuela_id ?? (data as any).escuela_id;
-      if (escuelaEvaluacion && escuelaEvaluacion !== userEscuelaId) {
-        return res.status(403).json(commonResponse(false, "No tienes permisos para ver esta evaluación.", null));
-      }
-    }
-    // Encargado de Zona: solo puede ver evaluaciones de escuelas de su zona  
-    if (rol === "encargado_zona") {
-      const escuelaEvaluacion = (data as any).estudiantes?.escuela_id;
-      if (escuelaEvaluacion) {
-        const encargado = await withRLSContext(async (tx) => {
-          return tx.encargados.findUnique({
-            where: { usuario_id: userId },
-            include: { zona: { include: { escuelas: { select: { id: true } } } } },
-          });
-        });
-        const escuelasDeZona: string[] = encargado?.zona?.escuelas.map((e: any) => e.id) ?? [];
-        if (!escuelasDeZona.includes(escuelaEvaluacion)) {
-          return res.status(403).json(commonResponse(false, "No tienes permisos para ver esta evaluación.", null));
-        }
-      }
+    // Director y encargado: solo evaluaciones de su escuela / de escuelas de su zona (ADR 0015).
+    const escuelaEvaluacion = (data as any).estudiantes?.escuela_id ?? (data as any).escuela_id;
+    if (!(await escuelaEnAlcance({ id: userId, rol, escuela_id: userEscuelaId }, escuelaEvaluacion))) {
+      return res.status(403).json(commonResponse(false, "No tienes permisos para ver esta evaluación.", null));
     }
 
     res.status(200).json(commonResponse(true, "ok", data));
   } catch (error: any) {
     res.status(404).json(commonResponse(false, "Evaluación no encontrada", null));
+  }
+}
+
+
+/**
+ * Cambia solo el tipo (inicial/cierre) de una evaluación. Body: `{ tipo_id }`; cualquier otro campo se ignora.
+ *
+ * @remarks
+ * - 200 con la evaluación completa (misma forma que `GET /evaluaciones/:id`).
+ * - 400 `TIPO_INVALIDO` o `TIPO_DUPLICADO` (con `error.details.evaluacion_existente`).
+ * - 403 fuera de alcance (docente ajena, director/encargado de otra escuela/zona). 404 si no existe.
+ */
+export async function patchEvaluacionTipo(req: AuthenticatedRequest, res: Response) {
+  try {
+    const { id: userId, rol, escuela_id } = req.user!;
+    const data = await service.cambiarTipo(req.params.id, req.body?.tipo_id, { id: userId, rol, escuela_id });
+    res.status(200).json(commonResponse(true, "Tipo de evaluación actualizado", data));
+  } catch (error: any) {
+    if (error instanceof TipoDuplicadoError) {
+      return res.status(400).json(respuestaTipoDuplicado(error));
+    }
+    if (error instanceof ValidationError) {
+      return res.status(400).json(commonResponse(false, error.message, null, { code: error.code, description: error.message }));
+    }
+    if (error instanceof AuthorizationError) {
+      return res.status(403).json(commonResponse(false, error.message, null, { code: "FORBIDDEN", description: error.message }));
+    }
+    if (error instanceof NotFoundError) {
+      return res.status(404).json(commonResponse(false, error.message, null, { code: "NOT_FOUND" }));
+    }
+    res.status(500).json(commonResponse(false, error?.message || "Error al cambiar el tipo de la evaluación", null, { code: "INTERNAL_ERROR" }));
   }
 }
 
@@ -222,20 +253,8 @@ export async function getPreguntasDeArea(req: AuthenticatedRequest, res: Respons
         return res.status(403).json(commonResponse(false, "No tienes permisos para ver esta evaluación.", null));
       }
     }
-    if (rol === "director" && userEscuelaId && escuelaEvaluacion && escuelaEvaluacion !== userEscuelaId) {
+    if (!(await escuelaEnAlcance({ id: userId, rol, escuela_id: userEscuelaId }, escuelaEvaluacion))) {
       return res.status(403).json(commonResponse(false, "No tienes permisos para ver esta evaluación.", null));
-    }
-    if (rol === "encargado_zona" && escuelaEvaluacion) {
-      const encargado = await withRLSContext(async (tx) => {
-        return tx.encargados.findUnique({
-          where: { usuario_id: userId },
-          include: { zona: { include: { escuelas: { select: { id: true } } } } },
-        });
-      });
-      const escuelasDeZona: string[] = encargado?.zona?.escuelas.map((e: any) => e.id) ?? [];
-      if (!escuelasDeZona.includes(escuelaEvaluacion)) {
-        return res.status(403).json(commonResponse(false, "No tienes permisos para ver esta evaluación.", null));
-      }
     }
 
     const data = await service.getPreguntasArea(id, areaId);
@@ -278,20 +297,8 @@ export async function guardarRespuestasArea(req: AuthenticatedRequest, res: Resp
         return res.status(403).json(commonResponse(false, "No tienes permisos para modificar esta evaluación.", null));
       }
     }
-    if (rol === "director" && userEscuelaId && escuelaEvaluacion && escuelaEvaluacion !== userEscuelaId) {
+    if (!(await escuelaEnAlcance({ id: userId, rol, escuela_id: userEscuelaId }, escuelaEvaluacion))) {
       return res.status(403).json(commonResponse(false, "No tienes permisos para modificar esta evaluación.", null));
-    }
-    if (rol === "encargado_zona" && escuelaEvaluacion) {
-      const encargado = await withRLSContext(async (tx) => {
-        return tx.encargados.findUnique({
-          where: { usuario_id: userId },
-          include: { zona: { include: { escuelas: { select: { id: true } } } } },
-        });
-      });
-      const escuelasDeZona: string[] = encargado?.zona?.escuelas.map((e: any) => e.id) ?? [];
-      if (!escuelasDeZona.includes(escuelaEvaluacion)) {
-        return res.status(403).json(commonResponse(false, "No tienes permisos para modificar esta evaluación.", null));
-      }
     }
 
     const data = await service.guardarRespuestas(id, areaId, questions);

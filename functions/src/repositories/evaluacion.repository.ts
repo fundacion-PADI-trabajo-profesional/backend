@@ -1,4 +1,5 @@
 import { withRLSContext, withRLSContextAsAdmin } from "../config/prismaClient";
+import { rangoAnioUTC } from "../utils/evaluaciones-tipo";
 import { getSignedImageUrl } from "../utils/storage";
 import { apruebaPauta, agruparPorPauta } from "../utils/pautas";
 
@@ -165,6 +166,41 @@ export const EvaluacionRepository = {
           },
         },
       });
+    });
+  },
+
+  /**
+   * Busca una evaluación del mismo tipo para el mismo alumno, sala y año calendario (UTC).
+   * Devuelve la más antigua, o null si no hay. `excluirId` deja afuera la propia evaluación
+   * cuando se está cambiando el tipo de una existente.
+   */
+  async findDuplicadoTipo(params: {
+    estudianteId: string;
+    salaId: number;
+    tipoId: string;
+    anio: number;
+    excluirId?: string;
+  }): Promise<{ id: string; tipo_id: string; fecha_creacion: Date } | null> {
+    return withRLSContextAsAdmin(async (tx) => {
+      const where: Record<string, unknown> = {
+        estudiante_id: params.estudianteId,
+        sala_id: params.salaId,
+        tipo_id: params.tipoId,
+        fecha_creacion: rangoAnioUTC(params.anio),
+      };
+      if (params.excluirId) where.id = { not: params.excluirId };
+      return tx.evaluacionEstudiante.findFirst({
+        where,
+        orderBy: { fecha_creacion: "asc" },
+        select: { id: true, tipo_id: true, fecha_creacion: true },
+      });
+    });
+  },
+
+  /** Cambia solo el tipo de una evaluación; puntajes y respuestas no se tocan. */
+  async updateTipo(id: string, tipoId: string): Promise<void> {
+    await withRLSContextAsAdmin(async (tx) => {
+      await tx.evaluacionEstudiante.update({ where: { id }, data: { tipo_id: tipoId } });
     });
   },
 

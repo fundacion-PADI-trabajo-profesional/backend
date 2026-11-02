@@ -1179,7 +1179,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/CommonResponse'
         '400':
-          $ref: '#/components/responses/BadRequest'
+          description: |
+            Datos inválidos. `error.code` distingue:
+            - `TIPO_INVALIDO`: `tipo_id` no es `inicial` ni `cierre`.
+            - `TIPO_DUPLICADO`: el alumno ya tiene una evaluación del mismo tipo en la misma sala y año
+              calendario. `message` trae el texto para la persona y `error.details.evaluacion_existente`
+              `{ id, tipo_id, fecha_creacion }` la evaluación que ya existe.
+            - `CREATE_ERROR`: cualquier otro error del alta.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
 
@@ -1194,6 +1204,49 @@ paths:
       responses:
         '200':
           description: Detalle de la evaluación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Evaluaciones]
+      summary: Cambiar el tipo (inicial/cierre) de una evaluación
+      description: |
+        Único campo editable: `tipo_id`. Cualquier otro campo del body se ignora. No toca puntajes ni respuestas.
+        Permisos como la lectura (ADR 0015): la docente solo sus propias evaluaciones; el director las de su
+        escuela; el encargado las de escuelas de su zona; Equipo PADI cualquiera.
+        Aplica el mismo freno que el alta: un alumno tiene como mucho una evaluación de cada tipo por sala y año.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tipo_id]
+              properties:
+                tipo_id:
+                  type: string
+                  enum: [inicial, cierre]
+      responses:
+        '200':
+          description: Tipo actualizado. `data` es la evaluación completa (misma forma que `GET /evaluaciones/{id}`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          description: '`error.code` = `TIPO_INVALIDO` o `TIPO_DUPLICADO` (ver `POST /evaluaciones`).'
           content:
             application/json:
               schema:

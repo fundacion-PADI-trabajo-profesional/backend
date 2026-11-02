@@ -1,6 +1,9 @@
 import { EvaluacionRepository } from "../repositories/evaluacion.repository";
 import type { CreateEvaluacionDTO } from "../interfaces/evaluacion.interface";
 import { withRLSContext } from "../config/prismaClient";
+import { AuthorizationError, NotFoundError, TipoDuplicadoError, ValidationError } from "../utils/errors";
+import { escuelaEnAlcance, type UsuarioAlcance } from "./alcance.service";
+import { anioDe, esTipoEvaluacion, mensajeTipoDuplicado, type TipoEvaluacion } from "../utils/evaluaciones-tipo";
 
 /**
  * Servicio de gestión de evaluaciones infantiles.
@@ -75,6 +78,9 @@ export class EvaluacionService {
     if (!allowedRoles.includes(user.rol)) {
       throw new Error("No tienes permisos para crear evaluaciones.");
     }
+    if (!esTipoEvaluacion(data.tipo_id)) {
+      throw new ValidationError("tipo_id inválido: debe ser 'inicial' o 'cierre'", "TIPO_INVALIDO");
+    }
 
     let profesorIdFinal = data.profesor_id;
     if (user.rol === "docente" || user.rol === "director") {
@@ -97,14 +103,42 @@ export class EvaluacionService {
       aulaId = data.aula_id;
     }
 
+    const fechaCreacion = new Date(data.fecha_creacion);
+    await this.verificarTipoDuplicado(estudiante.id, salaId, data.tipo_id, fechaCreacion);
+
     return await this.repo.create({
       estudiante_id: estudiante.id,
       profesor_id: profesorIdFinal,
       sala_id: salaId,
       aula_id: aulaId,
       tipo_id: data.tipo_id,
-      fecha_creacion: new Date(data.fecha_creacion)
+      fecha_creacion: fechaCreacion
     });
+  }
+
+  /**
+   * Un alumno tiene como mucho una evaluación de cada tipo por sala y año calendario.
+   * Consulta como admin porque la evaluación previa puede ser de otra docente.
+   *
+   * @throws TipoDuplicadoError con la evaluación existente, para que el cliente pueda ofrecer ir a ella.
+   */
+  private async verificarTipoDuplicado(
+    estudianteId: string,
+    salaId: number,
+    tipoId: TipoEvaluacion,
+    fecha: Date,
+    excluirId?: string
+  ): Promise<void> {
+    const existente = await this.repo.findDuplicadoTipo({
+      estudianteId,
+      salaId,
+      tipoId,
+      anio: anioDe(fecha),
+      ...(excluirId ? { excluirId } : {}),
+    });
+    if (existente) {
+      throw new TipoDuplicadoError(mensajeTipoDuplicado(tipoId, salaId, existente.fecha_creacion), existente);
+    }
   }
 
 
@@ -187,6 +221,36 @@ export class EvaluacionService {
     return await this.repo.delete(id);
   }
 
+
+  /**
+   * Cambia el tipo (inicial/cierre) de una evaluación. El tipo es una etiqueta: no toca puntajes ni respuestas.
+   *
+   * Permisos como la lectura (ADR 0015): la docente solo las suyas; director y encargado dentro de su
+   * escuela/zona; equipo PADI cualquiera. Aplica el mismo freno de duplicados que el alta.
+   *
+   * @throws ValidationError (TIPO_INVALIDO), NotFoundError, AuthorizationError, TipoDuplicadoError
+   */
+  async cambiarTipo(id: string, tipoId: unknown, user: UsuarioAlcance) {
+    if (!esTipoEvaluacion(tipoId)) {
+      throw new ValidationError("tipo_id inválido: debe ser 'inicial' o 'cierre'", "TIPO_INVALIDO");
+    }
+    const evaluacion = await this.repo.findById(id);
+    if (!evaluacion) throw new NotFoundError("Evaluación no encontrada");
+
+    if (user.rol === "docente" && evaluacion.profesor_id !== user.id) {
+      throw new AuthorizationError("No tenés permiso para modificar una evaluación que no creaste.");
+    }
+    const escuelaEvaluacion = (evaluacion as any).estudiantes?.escuela_id as string | undefined;
+    if (!(await escuelaEnAlcance(user, escuelaEvaluacion))) {
+      throw new AuthorizationError("No tenés permiso para modificar evaluaciones de otra escuela.");
+    }
+
+    if (evaluacion.tipo_id === tipoId) return evaluacion;
+
+    await this.verificarTipoDuplicado(evaluacion.estudiante_id, evaluacion.sala_id, tipoId, evaluacion.fecha_creacion, id);
+    await this.repo.updateTipo(id, tipoId);
+    return await this.repo.findById(id);
+  }
 
   /**
    * Recupera las preguntas y respuestas asociadas a un área específica dentro de una evaluación.
