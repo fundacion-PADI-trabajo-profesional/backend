@@ -47,6 +47,7 @@ export function createAuthRouter() {
  *
  * @remarks
  * Rutas expuestas:
+ * - `GET /auth/profile` — perfil actual (rol, escuela) del usuario autenticado; el frontend lo pide al abrir la app.
  * - `PUT /auth/profile` — actualiza nombre y apellido del usuario autenticado.
  *
  * Este router se registra detrás del middleware `requireAuth` en el entry point
@@ -57,6 +58,7 @@ export function createAuthRouter() {
 export function createAuthProtectedRouter() {
     const router = Router();
 
+    router.get("/auth/profile", AuthController.getProfile);
     router.put("/auth/profile", AuthController.updateProfile);
 
     return router;

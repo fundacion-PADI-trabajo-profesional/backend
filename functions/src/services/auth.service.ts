@@ -70,27 +70,49 @@ export class AuthService {
     if (error) throw new Error(traducirErrorAuth(error));
     if (error || !data?.user) throw new Error("Credenciales inválidas");
 
-    // Obtener perfil desde public.usuarios (debe existir para considerar el login válido)
-    const { data: profileData, error: profileError } = await (supabase as any)
-      .from("usuarios")
-      .select("*, escuela:escuelas(id, nombre)")
-      .eq("id", data.user.id)
-      .single();
-
-    if (profileError || !profileData) {
+    // El perfil de aplicación debe existir para considerar el login válido
+    const profile = await AuthService.getProfile(data.user.id);
+    if (!profile) {
       // Usuario existe en Auth pero no tiene perfil de aplicación => estado inconsistente
       // Lo tratamos como error de autenticación lógica.
       throw new Error("Perfil de usuario no encontrado. Por favor, contactá al administrador.");
     }
 
+    return { user: data.user, session: data.session, profile };
+  }
+
+  /**
+   * Perfil de aplicación actual de un usuario, con su escuela anidada.
+   *
+   * @remarks
+   * Es lo que el login devuelve como `profile`. La escuela sale del propio perfil
+   * (directores) o, para docentes, de su asignación activa más reciente en
+   * `_ProfesoresToEscuelas` (en `usuarios.escuela_id` los docentes tienen null).
+   * El frontend lo vuelve a pedir al abrir la app, porque el rol y la escuela pueden
+   * cambiar después de iniciar sesión.
+   *
+   * @param userId - UUID del usuario (siempre el del token).
+   * @returns El perfil, o `null` si ya no existe en `usuarios`.
+   */
+  static async getProfile(userId: string) {
+    const supabase = getSupabase();
+    if (!supabase) throw new Error("Supabase client no está disponible.");
+
+    const { data: profileData, error: profileError } = await (supabase as any)
+      .from("usuarios")
+      .select("*, escuela:escuelas(id, nombre)")
+      .eq("id", userId)
+      .single();
+
+    if (profileError || !profileData) return null;
+
     let profile = profileData;
 
-    // Para docentes, escuela_id en usuarios es null — su escuela viene de profesores_escuelas.
     if (profile.rol === "docente" && !profile.escuela) {
       const { data: escuelaData } = await (supabase as any)
         .from("_ProfesoresToEscuelas")
         .select("escuela:escuelas(id, nombre)")
-        .eq("profesor_id", data.user.id)
+        .eq("profesor_id", userId)
         .is("fecha_fin", null)
         .order("fecha_inicio", { ascending: false })
         .limit(1)
@@ -101,7 +123,7 @@ export class AuthService {
       }
     }
 
-    return { user: data.user, session: data.session, profile };
+    return profile;
   }
 
   /**

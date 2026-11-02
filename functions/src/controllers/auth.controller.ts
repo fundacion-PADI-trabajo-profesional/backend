@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { AuthService } from "../services/auth.service";
 import { AuthenticatedRequest } from "../middlewares/auth.middleware";
+import { commonResponse } from "../interfaces/common-response.interface";
 
 /**
  * Controlador HTTP para las operaciones de autenticación.
@@ -79,6 +80,34 @@ export class AuthController {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       res.status(401).json({ message });
+    }
+  }
+
+  /**
+   * Devuelve el perfil actual del usuario autenticado (rol, escuela, nombre), leído de la base.
+   *
+   * `GET /auth/profile`
+   *
+   * @remarks
+   * El frontend guarda el perfil al iniciar sesión; si Equipo PADI le cambia el rol o la
+   * escuela a alguien que ya entró, su navegador seguía con la copia vieja hasta que cerrara
+   * sesión. Este endpoint se pide al abrir la app para reemplazar esa copia.
+   *
+   * @param req - Request autenticado. El id sale siempre del token.
+   * @param res - `200` con el perfil en `data`; `404` si el perfil ya no existe en `usuarios`.
+   */
+  static async getProfile(req: AuthenticatedRequest, res: Response) {
+    try {
+      const profile = await AuthService.getProfile(req.user!.id);
+      if (!profile) {
+        return res
+          .status(404)
+          .json(commonResponse(false, "Perfil de usuario no encontrado.", null, { code: "NOT_FOUND" }));
+      }
+      return res.status(200).json(commonResponse(true, "ok", profile));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return res.status(500).json(commonResponse(false, message, null, { code: "INTERNAL_ERROR" }));
     }
   }
 

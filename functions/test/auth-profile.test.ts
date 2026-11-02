@@ -300,3 +300,70 @@ describe("POST /auth/update-password - actualización de contraseña con tokens"
         expect(res.body.message).toContain("inválido o ya expiró");
     });
 });
+// GET /auth/profile
+describe("GET /auth/profile - perfil actual", () => {
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+
+    /**
+     * Supabase como lo usa el login: `usuarios` con la escuela anidada y, para docentes,
+     * la escuela activa de `_ProfesoresToEscuelas` (select → eq → is → order → limit → single).
+     */
+    function mockSupabaseProfile(perfil: any, escuelaDocente: any = null) {
+        const single = vi.fn().mockResolvedValue({ data: perfil, error: null });
+        const singleEscuela = vi.fn().mockResolvedValue({ data: escuelaDocente, error: null });
+        const from = vi.fn().mockReturnValue({
+            select: () => ({
+                eq: () => ({
+                    single,
+                    is: () => ({ order: () => ({ limit: () => ({ single: singleEscuela }) }) }),
+                }),
+            }),
+        });
+        return { from, single, singleEscuela };
+    }
+
+    it("200 - devuelve el perfil actual de la base (el rol fresco, no el que guardó el navegador)", async () => {
+        const { supabaseMock } = mockAuthAs("docente", "u-1");
+        const perfil = { id: "u-1", email: "mj@padi.com", nombre: "María José", apellido: "Funes", rol: "docente", escuela_id: null, escuela: null };
+        const m = mockSupabaseProfile(perfil, { escuela: { id: "esc-1", nombre: "Escuela 1" } });
+        supabaseMock.from = m.from;
+
+        const res = await request(app).get("/auth/profile").set("Authorization", "Bearer valid-token");
+
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data).toMatchObject({ id: "u-1", rol: "docente", escuela: { id: "esc-1", nombre: "Escuela 1" } });
+        expect(m.from).toHaveBeenCalledWith("usuarios");
+        expect(m.from).toHaveBeenCalledWith("_ProfesoresToEscuelas");
+    });
+
+    it("200 - director: la escuela sale del propio perfil, sin consultar asignaciones de docente", async () => {
+        const { supabaseMock } = mockAuthAs("director", "d-1");
+        const perfil = { id: "d-1", rol: "director", escuela_id: "esc-9", escuela: { id: "esc-9", nombre: "Escuela 9" } };
+        const m = mockSupabaseProfile(perfil);
+        supabaseMock.from = m.from;
+
+        const res = await request(app).get("/auth/profile").set("Authorization", "Bearer valid-token");
+
+        expect(res.status).toBe(200);
+        expect(res.body.data).toMatchObject({ rol: "director", escuela_id: "esc-9", escuela: { id: "esc-9" } });
+        expect(m.from).not.toHaveBeenCalledWith("_ProfesoresToEscuelas");
+    });
+
+    it("404 - si el perfil ya no existe en la base", async () => {
+        const { supabaseMock } = mockAuthAs("docente", "u-1");
+        supabaseMock.from = mockSupabaseProfile(null).from;
+
+        const res = await request(app).get("/auth/profile").set("Authorization", "Bearer valid-token");
+
+        expect(res.status).toBe(404);
+        expect(res.body.success).toBe(false);
+    });
+
+    it("401 - sin token", async () => {
+        const res = await request(app).get("/auth/profile");
+        expect(res.status).toBe(401);
+    });
+});
