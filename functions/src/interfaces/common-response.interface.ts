@@ -55,7 +55,7 @@ export const commonResponse = (
   success: boolean,
   message: string,
   data: any = null,
-  error: { code?: string; description?: string } = {}
+  error: { code?: string; description?: string; details?: Record<string, unknown> } = {}
 ): ResponseModel => {
   return {
     success,

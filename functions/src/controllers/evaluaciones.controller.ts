@@ -3,6 +3,7 @@ import { EvaluacionService } from "../services/evaluaciones.service";
 import { commonResponse } from "../interfaces/common-response.interface";
 import { AuthenticatedRequest } from "../middlewares/auth.middleware";
 import { withRLSContext } from "../config/prismaClient";
+import { TipoDuplicadoError, ValidationError } from "../utils/errors";
 
 const service = new EvaluacionService();
 
@@ -21,9 +22,24 @@ export async function createEvaluacion(req: AuthenticatedRequest, res: Response)
     const data = await service.createEvaluacion(req.body, user);
     res.status(201).json(commonResponse(true, "Evaluación creada con éxito", data));
   } catch (error: any) {
+    if (error instanceof TipoDuplicadoError) {
+      return res.status(400).json(respuestaTipoDuplicado(error));
+    }
+    if (error instanceof ValidationError) {
+      return res.status(400).json(commonResponse(false, error.message, null, { code: error.code, description: error.message }));
+    }
     const message = error.message || "Error al crear evaluación";
     res.status(400).json(commonResponse(false, message, null, { code: "CREATE_ERROR" }));
   }
+}
+
+/** 400 de duplicado: el código fijo y la evaluación existente en `error.details` para que el cliente pueda enlazarla. */
+function respuestaTipoDuplicado(error: TipoDuplicadoError) {
+  return commonResponse(false, error.message, null, {
+    code: error.code,
+    description: error.message,
+    details: { evaluacion_existente: error.evaluacionExistente },
+  });
 }
 
 /**

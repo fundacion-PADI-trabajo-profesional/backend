@@ -1,6 +1,8 @@
 import { EvaluacionRepository } from "../repositories/evaluacion.repository";
 import type { CreateEvaluacionDTO } from "../interfaces/evaluacion.interface";
 import { withRLSContext } from "../config/prismaClient";
+import { TipoDuplicadoError, ValidationError } from "../utils/errors";
+import { anioDe, esTipoEvaluacion, mensajeTipoDuplicado, type TipoEvaluacion } from "../utils/evaluaciones-tipo";
 
 /**
  * Servicio de gestión de evaluaciones infantiles.
@@ -75,6 +77,9 @@ export class EvaluacionService {
     if (!allowedRoles.includes(user.rol)) {
       throw new Error("No tienes permisos para crear evaluaciones.");
     }
+    if (!esTipoEvaluacion(data.tipo_id)) {
+      throw new ValidationError("tipo_id inválido: debe ser 'inicial' o 'cierre'", "TIPO_INVALIDO");
+    }
 
     let profesorIdFinal = data.profesor_id;
     if (user.rol === "docente" || user.rol === "director") {
@@ -97,14 +102,42 @@ export class EvaluacionService {
       aulaId = data.aula_id;
     }
 
+    const fechaCreacion = new Date(data.fecha_creacion);
+    await this.verificarTipoDuplicado(estudiante.id, salaId, data.tipo_id, fechaCreacion);
+
     return await this.repo.create({
       estudiante_id: estudiante.id,
       profesor_id: profesorIdFinal,
       sala_id: salaId,
       aula_id: aulaId,
       tipo_id: data.tipo_id,
-      fecha_creacion: new Date(data.fecha_creacion)
+      fecha_creacion: fechaCreacion
     });
+  }
+
+  /**
+   * Un alumno tiene como mucho una evaluación de cada tipo por sala y año calendario.
+   * Consulta como admin porque la evaluación previa puede ser de otra docente.
+   *
+   * @throws TipoDuplicadoError con la evaluación existente, para que el cliente pueda ofrecer ir a ella.
+   */
+  private async verificarTipoDuplicado(
+    estudianteId: string,
+    salaId: number,
+    tipoId: TipoEvaluacion,
+    fecha: Date,
+    excluirId?: string
+  ): Promise<void> {
+    const existente = await this.repo.findDuplicadoTipo({
+      estudianteId,
+      salaId,
+      tipoId,
+      anio: anioDe(fecha),
+      ...(excluirId ? { excluirId } : {}),
+    });
+    if (existente) {
+      throw new TipoDuplicadoError(mensajeTipoDuplicado(tipoId, salaId, existente.fecha_creacion), existente);
+    }
   }
 
 

@@ -118,6 +118,7 @@ describe("evaluaciones instancias (API /evaluaciones)", () => {
     mockAuthAs("docente", "docente-1");
 
     vi.spyOn(EvaluacionService.prototype as any, "ensureProfesorRecord").mockResolvedValue(undefined);
+    vi.spyOn(EvaluacionRepository, "findDuplicadoTipo").mockResolvedValue(null); // sin evaluación previa del mismo tipo
     vi.spyOn(EvaluacionRepository, "findEstudianteByDni").mockResolvedValue({ id: "s1", sala_id: 1 } as any);
     vi.spyOn(EvaluacionRepository, "findActiveEstudianteAula").mockResolvedValue({
       aula: { id: "a1", sala_id: 3, escuela_id: "esc1" },
@@ -150,6 +151,7 @@ describe("evaluaciones instancias (API /evaluaciones)", () => {
     mockAuthAs("docente", "docente-real");
 
     vi.spyOn(EvaluacionService.prototype as any, "ensureProfesorRecord").mockResolvedValue(undefined);
+    vi.spyOn(EvaluacionRepository, "findDuplicadoTipo").mockResolvedValue(null); // sin evaluación previa del mismo tipo
     vi.spyOn(EvaluacionRepository, "findEstudianteByDni").mockResolvedValue({ id: "s1", sala_id: 1 } as any);
 
     const createSpy = vi.spyOn(EvaluacionRepository, "create").mockResolvedValue({ id: "e200" } as any);
@@ -175,6 +177,7 @@ describe("evaluaciones instancias (API /evaluaciones)", () => {
     mockAuthAs("docente", "docente-1");
 
     vi.spyOn(EvaluacionService.prototype as any, "ensureProfesorRecord").mockResolvedValue(undefined);
+    vi.spyOn(EvaluacionRepository, "findDuplicadoTipo").mockResolvedValue(null); // sin evaluación previa del mismo tipo
     vi.spyOn(EvaluacionRepository, "findEstudianteByDni").mockResolvedValue({ id: "s1", sala_id: 1 } as any);
     vi.spyOn(EvaluacionRepository, "findActiveEstudianteAula").mockResolvedValue(null as any);
 
@@ -198,6 +201,7 @@ describe("evaluaciones instancias (API /evaluaciones)", () => {
     mockAuthAs("equipo_padi", "padi-1");
 
     vi.spyOn(EvaluacionService.prototype as any, "ensureProfesorRecord").mockResolvedValue(undefined);
+    vi.spyOn(EvaluacionRepository, "findDuplicadoTipo").mockResolvedValue(null); // sin evaluación previa del mismo tipo
     vi.spyOn(EvaluacionRepository, "findEstudianteByDni").mockResolvedValue({
       id: "s1",
       sala_id: 1,
