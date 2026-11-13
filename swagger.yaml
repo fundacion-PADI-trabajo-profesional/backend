@@ -1116,7 +1116,7 @@ paths:
         Filtra según el rol del usuario autenticado.
         - `director`: solo ve evaluaciones de su escuela.
         - `encargado_zona`: ve evaluaciones de las escuelas de su zona.
-        - `docente`: requiere `profesorId` o `escuela_id` en query.
+        - `docente`: ve las evaluaciones de sus aulas activas más las que él mismo tomó; `profesorId` se ignora.
       security:
         - bearerAuth: []
       parameters:

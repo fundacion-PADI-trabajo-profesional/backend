@@ -50,7 +50,7 @@ function respuestaTipoDuplicado(error: TipoDuplicadoError) {
  * Las restricciones de acceso son estrictas:
  * - **Director**: solo ve evaluaciones de su escuela (forzado desde el token).
  * - **Encargado de zona**: solo ve evaluaciones de escuelas en su zona.
- * - **Docente**: requiere `profesorId` o `escuela_id` como filtro.
+ * - **Docente**: ve las evaluaciones de sus aulas activas más las que él tomó; `profesorId` se ignora.
  * - **Admin**: ve todas las evaluaciones.
  *
  * `GET /evaluaciones`
@@ -115,7 +115,11 @@ export async function getEvaluaciones(req: AuthenticatedRequest, res: Response) 
         // Sin aulas asignadas: solo ve sus propias evaluaciones
         filters.profesorId = userId;
       } else {
+        // El alcance del docente lo decide el servidor: se descarta el `profesorId` de la query
+        // (combinado con AND dejaba ver solo las propias) y se listan las de sus aulas más las que él tomó.
+        filters.profesorId = undefined;
         (filters as any).aulaIds = aulaIds;
+        (filters as any).incluirPropiasDe = userId;
       }
     }
     data = await service.listWithFilters(filters);
