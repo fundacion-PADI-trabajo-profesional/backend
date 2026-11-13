@@ -121,6 +121,8 @@ export const EvaluacionRepository = {
     escuelaId?: string;
     escuelaIds?: string[];
     aulaIds?: string[];
+    /** Con `aulaIds`: suma las evaluaciones tomadas por este profesor aunque no sean de esas aulas (o no tengan aula). */
+    incluirPropiasDe?: string;
   }) {
     return withRLSContextAsAdmin(async (tx) => {
       const where: any = {};
@@ -129,7 +131,9 @@ export const EvaluacionRepository = {
       if (filters?.salaId !== undefined) where.sala_id = filters.salaId;
       if (filters?.tipoId) where.tipo_id = filters.tipoId;
       if (filters?.estadoId) where.estado_id = filters.estadoId;
-      if (filters?.aulaIds && filters.aulaIds.length > 0) {
+      if (filters?.aulaIds && filters.aulaIds.length > 0 && filters.incluirPropiasDe) {
+        where.OR = [{ aula_id: { in: filters.aulaIds } }, { profesor_id: filters.incluirPropiasDe }];
+      } else if (filters?.aulaIds && filters.aulaIds.length > 0) {
         where.aula_id = { in: filters.aulaIds };
       } else if (filters?.escuelaId) {
         where.estudiantes = { escuela_id: filters.escuelaId };

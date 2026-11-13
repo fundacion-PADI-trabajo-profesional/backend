@@ -13,6 +13,7 @@ exports.desasignarEstudianteAula = desasignarEstudianteAula;
 exports.listAulaEstudiantes = listAulaEstudiantes;
 const aulas_service_1 = require("../services/aulas.service");
 const common_response_interface_1 = require("../interfaces/common-response.interface");
+const turno_1 = require("../utils/turno");
 const service = new aulas_service_1.AulasService();
 /**
  * Crea un nuevo aula en el sistema.
@@ -20,7 +21,8 @@ const service = new aulas_service_1.AulasService();
  * `POST /aulas`
  *
  * @param req - Request autenticado. Body: `{ sala_id, turno, escuela_id, comision? }`. `comision` por defecto es `"Única"`.
- * @param res - `201` con el aula creada, `400` si faltan `sala_id` o `turno`.
+ *   `turno` se normaliza al valor canónico (`Mañana`, `Tarde`, `Completo`).
+ * @param res - `201` con el aula creada, `400` si faltan `sala_id` o `turno`, o si `turno` no es reconocido.
  */
 async function createAula(req, res) {
     try {
@@ -33,11 +35,17 @@ async function createAula(req, res) {
                 code: "VALIDATION_ERROR",
             }));
         }
+        const turnoCanonico = (0, turno_1.normalizarTurno)(turno);
+        if (!turnoCanonico) {
+            return res
+                .status(400)
+                .json((0, common_response_interface_1.commonResponse)(false, "Turno inválido: usar Mañana, Tarde o Completo", null));
+        }
         const user = { id: req.user.id, rol: req.user.rol };
         const data = await service.create({
             sala_id: Number(sala_id),
             comision,
-            turno,
+            turno: turnoCanonico,
             escuela_id: escuela_id ? String(escuela_id) : undefined,
         }, user);
         return res
@@ -91,7 +99,8 @@ async function listAulas(req, res) {
  * `PUT /aulas/:id`
  *
  * @param req - Request autenticado. Param: `id`. Body: `{ sala_id?, comision?, turno? }`.
- * @param res - `200` con el aula actualizada, `400` si falta el ID o la actualización falla.
+ *   `turno`, si se envía, se normaliza al valor canónico (`Mañana`, `Tarde`, `Completo`).
+ * @param res - `200` con el aula actualizada, `400` si falta el ID, si `turno` no es reconocido, o si la actualización falla.
  */
 async function updateAula(req, res) {
     try {
@@ -104,11 +113,21 @@ async function updateAula(req, res) {
                 code: "VALIDATION_ERROR",
             }));
         }
+        let turnoCanonico;
+        if (turno !== undefined) {
+            const normalizado = (0, turno_1.normalizarTurno)(turno);
+            if (!normalizado) {
+                return res
+                    .status(400)
+                    .json((0, common_response_interface_1.commonResponse)(false, "Turno inválido: usar Mañana, Tarde o Completo", null));
+            }
+            turnoCanonico = normalizado;
+        }
         const user = { id: req.user.id, rol: req.user.rol };
         const data = await service.update(id, {
             sala_id: sala_id !== undefined ? Number(sala_id) : undefined,
             comision,
-            turno,
+            turno: turnoCanonico,
         }, user);
         return res
             .status(200)
