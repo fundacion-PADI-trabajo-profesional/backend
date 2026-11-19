@@ -3,6 +3,7 @@
 import { Prisma } from "@prisma/client"
 import { withRLSContext } from "../config/prismaClient"
 import { validarSalaCompatible, inscribirConTraslado } from "../helpers/inscripcion.helper"
+import { contextoPorEstudiante, SIN_CONTEXTO, type ContextoEvaluador } from "../utils/datos-evaluador"
 const { v4: uuidv4 } = require('uuid');
 
 /**
@@ -16,11 +17,13 @@ type EvaluacionAño = {
 }
 
 /**
- * Construye un mapa de historial de evaluaciones por estudiante.
+ * Construye, por estudiante, el historial de evaluaciones (semáforo) y el contexto del evaluador
+ * (tratamiento / CUD más reciente respondido, ADR 0020). Una sola consulta para los dos.
  */
 async function getEvaluacionesHistorialPorEstudiantes(tx: any, estudianteIds: string[]) {
     const historial = new Map<string, EvaluacionAño[]>()
-    if (estudianteIds.length === 0) return historial
+    let contexto = new Map<string, ContextoEvaluador>()
+    if (estudianteIds.length === 0) return { historial, contexto }
 
     const rows = await tx.evaluacionEstudiante.findMany({
         where: {
@@ -32,6 +35,8 @@ async function getEvaluacionesHistorialPorEstudiantes(tx: any, estudianteIds: st
             tipo_id: true,
             estado_id: true,
             sala_id: true,
+            en_tratamiento: true,
+            tiene_cud: true,
             salas: { select: { nombre: true } },
         },
         orderBy: [
@@ -56,7 +61,10 @@ async function getEvaluacionesHistorialPorEstudiantes(tx: any, estudianteIds: st
         historial.set(id, años.sort((a, b) => a.sala_id - b.sala_id))
     }
 
-    return historial
+    // Las filas ya vienen de la más nueva a la más vieja: es el orden que pide la regla.
+    contexto = contextoPorEstudiante(rows)
+
+    return { historial, contexto }
 }
 
 export interface CreateEstudianteData {
@@ -217,7 +225,7 @@ export const EstudianteRepository = {
 
             const estudianteIds = estudiantes.map((e: any) => e.id)
             if (estudianteIds.length === 0) return estudiantes
-            const historialPorEstudiante = await getEvaluacionesHistorialPorEstudiantes(tx, estudianteIds)
+            const { historial: historialPorEstudiante, contexto: contextoPorEst } = await getEvaluacionesHistorialPorEstudiantes(tx, estudianteIds)
 
             const asignacionesActivas = await tx.estudiantesAulas.findMany({
                 where: {
@@ -260,6 +268,7 @@ export const EstudianteRepository = {
                 },
                 aula_asignada: aulaActivaPorEstudiante.get(est.id) ?? null,
                 evaluaciones_historial: historialPorEstudiante.get(est.id) ?? [],
+                contexto_evaluador: contextoPorEst.get(est.id) ?? SIN_CONTEXTO,
             }))
         })
     },
@@ -311,7 +320,7 @@ export const EstudianteRepository = {
 
             const estudianteIds = estudiantes.map((e: any) => e.id)
             if (estudianteIds.length === 0) return estudiantes
-            const historialPorEstudiante = await getEvaluacionesHistorialPorEstudiantes(tx, estudianteIds)
+            const { historial: historialPorEstudiante, contexto: contextoPorEst } = await getEvaluacionesHistorialPorEstudiantes(tx, estudianteIds)
 
             const asignacionesActivas = await tx.estudiantesAulas.findMany({
                 where: {
@@ -354,6 +363,7 @@ export const EstudianteRepository = {
                 },
                 aula_asignada: aulaActivaPorEstudiante.get(est.id) ?? null,
                 evaluaciones_historial: historialPorEstudiante.get(est.id) ?? [],
+                contexto_evaluador: contextoPorEst.get(est.id) ?? SIN_CONTEXTO,
             }))
         })
     },
@@ -381,7 +391,7 @@ export const EstudianteRepository = {
 
             const estudianteIds = estudiantes.map((e: any) => e.id)
             if (estudianteIds.length === 0) return estudiantes
-            const historialPorEstudiante = await getEvaluacionesHistorialPorEstudiantes(tx, estudianteIds)
+            const { historial: historialPorEstudiante, contexto: contextoPorEst } = await getEvaluacionesHistorialPorEstudiantes(tx, estudianteIds)
 
             const asignacionesActivas = await tx.estudiantesAulas.findMany({
                 where: {
@@ -424,6 +434,7 @@ export const EstudianteRepository = {
                 },
                 aula_asignada: aulaActivaPorEstudiante.get(est.id) ?? null,
                 evaluaciones_historial: historialPorEstudiante.get(est.id) ?? [],
+                contexto_evaluador: contextoPorEst.get(est.id) ?? SIN_CONTEXTO,
             }))
         })
     },

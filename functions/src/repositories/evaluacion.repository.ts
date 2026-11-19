@@ -2,6 +2,7 @@ import { withRLSContext, withRLSContextAsAdmin } from "../config/prismaClient";
 import { rangoAnioUTC } from "../utils/evaluaciones-tipo";
 import { getSignedImageUrl } from "../utils/storage";
 import { apruebaPauta, agruparPorPauta } from "../utils/pautas";
+import type { DatosEvaluador } from "../utils/datos-evaluador";
 
 /** Estado: no iniciada. */
 const ESTADO_NO_INICIADA = "N";
@@ -205,6 +206,21 @@ export const EvaluacionRepository = {
   async updateTipo(id: string, tipoId: string): Promise<void> {
     await withRLSContextAsAdmin(async (tx) => {
       await tx.evaluacionEstudiante.update({ where: { id }, data: { tipo_id: tipoId } });
+    });
+  },
+
+  /** Reemplaza las respuestas de "Preguntas para el evaluador" (ADR 0020); puntajes y estado no se tocan. */
+  async updateDatosEvaluador(id: string, datos: DatosEvaluador): Promise<void> {
+    await withRLSContextAsAdmin(async (tx) => {
+      await tx.evaluacionEstudiante.update({
+        where: { id },
+        data: {
+          sesiones_completadas: datos.sesiones_completadas,
+          en_tratamiento: datos.en_tratamiento,
+          tiene_cud: datos.tiene_cud,
+          observaciones: datos.observaciones,
+        },
+      });
     });
   },
 

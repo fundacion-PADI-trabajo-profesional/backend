@@ -50,6 +50,11 @@ model EvaluacionEstudiante {
   estado_id                    String
   fecha_creacion               DateTime                     @default(now()) @db.Timestamptz(6)
   aula_id                      String?                      @db.Uuid
+  /// Preguntas para el evaluador (ADR 0020). Todas opcionales: null = sin responder.
+  sesiones_completadas         String?                      @db.VarChar
+  en_tratamiento               Boolean?
+  tiene_cud                    Boolean?
+  observaciones                String?                      @db.VarChar
   aulas                        Aulas?                       @relation(fields: [aula_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   estados_evaluacion           EstadosEvaluacion            @relation(fields: [estado_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "evaluaciones_estudiante_estado_fkey")
   estudiantes                  Estudiantes                  @relation(fields: [estudiante_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "evaluaciones_estudiante_estudiante_fkey")
