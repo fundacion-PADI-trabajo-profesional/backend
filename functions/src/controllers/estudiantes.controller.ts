@@ -105,6 +105,11 @@ export async function listEstudiantes(req: AuthenticatedRequest, res: Response) 
                 return res.status(403).json(commonResponse(false, "No tiene permisos para ver estudiantes de esa escuela.", null));
             }
             data = await service.listByEscuela(String(escuela_id), user);
+            // Este listado trae a toda la escuela, y la docente sólo puede abrir evaluaciones propias o de sus aulas:
+            // tratamiento/CUD (ADR 0020) no viajan acá. Los ve en GET /docentes/aulas, acotado a sus aulas.
+            if (Array.isArray(data)) {
+                data = data.map((est: any) => ({ ...est, contexto_evaluador: { en_tratamiento: null, tiene_cud: null } }));
+            }
         } else {
             // Encargados y equipo PADI: si viene escuela_id en el query, filtrar por escuela
             if (escuela_id) {

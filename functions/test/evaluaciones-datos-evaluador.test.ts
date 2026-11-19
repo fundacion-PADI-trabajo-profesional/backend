@@ -143,4 +143,14 @@ describe("PUT /evaluaciones/:id/datos-evaluador", () => {
     expect((await put()).status).toBe(403);
     expect(updateSpy).not.toHaveBeenCalled();
   });
+
+  it("alumno dado de baja → 403 y no guarda (solo lectura también en el backend)", async () => {
+    mockAuthAs("equipo_padi", "padi-1");
+    const updateSpy = preparar({ ...CIERRE, estudiantes: { escuela_id: "esc-a", fecha_baja: new Date("2026-09-01T00:00:00Z") } });
+
+    const res = await put();
+
+    expect(res.status).toBe(403);
+    expect(updateSpy).not.toHaveBeenCalled();
+  });
 });

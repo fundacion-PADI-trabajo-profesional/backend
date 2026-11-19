@@ -282,6 +282,11 @@ export class EvaluacionService {
       throw new AuthorizationError("No tenés permiso para modificar evaluaciones de otra escuela.");
     }
 
+    // Igual que el guardado de respuestas: las evaluaciones de un alumno dado de baja son de solo lectura.
+    if ((evaluacion as any).estudiantes?.fecha_baja) {
+      throw new AuthorizationError("No se pueden modificar evaluaciones de un estudiante dado de baja.");
+    }
+
     const datos = normalizarDatosEvaluador(body, evaluacion.tipo_id);
     await this.repo.updateDatosEvaluador(id, datos);
     return await this.repo.findById(id);

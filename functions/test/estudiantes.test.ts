@@ -551,6 +551,24 @@ describe("GET /estudiantes - docente with escuela_id param", () => {
     expect(res.status).toBe(200);
   });
 
+  it("docente: el listado de toda la escuela no lleva tratamiento/CUD (ADR 0020); equipo_padi sí", async () => {
+    const conContexto = [{ id: "s1", contexto_evaluador: { en_tratamiento: true, tiene_cud: true } }];
+    const { prismaMock } = mockAuthAs("docente", "doc-1");
+    prismaMock.personas = {
+      findUnique: vi.fn().mockResolvedValue({ profesores: [{ profesores_escuelas: [{ escuela_id: "esc-1" }] }] }),
+    };
+    vi.spyOn(EstudianteRepository, "listByEscuela").mockResolvedValue(conContexto as any);
+    const comoDocente = await request(app).get("/estudiantes?escuela_id=esc-1").set("Authorization", "Bearer fake-token");
+    expect(comoDocente.status).toBe(200);
+    expect(comoDocente.body.data[0].contexto_evaluador).toEqual({ en_tratamiento: null, tiene_cud: null });
+    vi.restoreAllMocks();
+
+    mockAuthAs("equipo_padi", "padi-1");
+    vi.spyOn(EstudianteRepository, "listByEscuela").mockResolvedValue(conContexto as any);
+    const comoPadi = await request(app).get("/estudiantes?escuela_id=esc-1").set("Authorization", "Bearer fake-token");
+    expect(comoPadi.body.data[0].contexto_evaluador).toEqual({ en_tratamiento: true, tiene_cud: true });
+  });
+
   it("docente without escuela_id returns 400", async () => {
     mockAuthAs("docente");
     const res = await request(app)
