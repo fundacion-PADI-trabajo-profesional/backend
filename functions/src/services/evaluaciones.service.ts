@@ -3,6 +3,7 @@ import type { CreateEvaluacionDTO } from "../interfaces/evaluacion.interface";
 import { withRLSContext } from "../config/prismaClient";
 import { AuthorizationError, NotFoundError, TipoDuplicadoError, ValidationError } from "../utils/errors";
 import { escuelaEnAlcance, type UsuarioAlcance } from "./alcance.service";
+import { normalizarDatosEvaluador } from "../utils/datos-evaluador";
 import { anioDe, esTipoEvaluacion, mensajeTipoDuplicado, type TipoEvaluacion } from "../utils/evaluaciones-tipo";
 
 /**
@@ -249,6 +250,45 @@ export class EvaluacionService {
 
     await this.verificarTipoDuplicado(evaluacion.estudiante_id, evaluacion.sala_id, tipoId, evaluacion.fecha_creacion, id);
     await this.repo.updateTipo(id, tipoId);
+    return await this.repo.findById(id);
+  }
+
+  /**
+   * Guarda las "Preguntas para el evaluador" (ADR 0020): sesiones (sólo cierre), tratamiento, CUD y observaciones.
+   * Reemplaza los cuatro campos; no toca puntajes, respuestas ni el estado de la evaluación.
+   *
+   * Permisos como el guardado de respuestas: la docente sobre las evaluaciones propias o de sus aulas activas;
+   * director y encargado dentro de su escuela/zona; equipo PADI cualquiera.
+   *
+   * @throws NotFoundError, AuthorizationError, ValidationError (DATOS_EVALUADOR_INVALIDOS)
+   */
+  async guardarDatosEvaluador(id: string, body: unknown, user: UsuarioAlcance) {
+    const evaluacion = await this.repo.findById(id);
+    if (!evaluacion) throw new NotFoundError("Evaluación no encontrada");
+
+    if (user.rol === "docente" && evaluacion.profesor_id !== user.id) {
+      const aulaId = evaluacion.aula_id;
+      const asignacion = !aulaId
+        ? null
+        : await withRLSContext(async (tx) =>
+            tx.profesoresAulas.findFirst({ where: { profesor_id: user.id, aula_id: aulaId, fecha_fin: null } }),
+          );
+      if (!asignacion) {
+        throw new AuthorizationError("No tenés permiso para modificar esta evaluación.");
+      }
+    }
+    const escuelaEvaluacion = (evaluacion as any).estudiantes?.escuela_id as string | undefined;
+    if (!(await escuelaEnAlcance(user, escuelaEvaluacion))) {
+      throw new AuthorizationError("No tenés permiso para modificar evaluaciones de otra escuela.");
+    }
+
+    // Igual que el guardado de respuestas: las evaluaciones de un alumno dado de baja son de solo lectura.
+    if ((evaluacion as any).estudiantes?.fecha_baja) {
+      throw new AuthorizationError("No se pueden modificar evaluaciones de un estudiante dado de baja.");
+    }
+
+    const datos = normalizarDatosEvaluador(body, evaluacion.tipo_id);
+    await this.repo.updateDatosEvaluador(id, datos);
     return await this.repo.findById(id);
   }
 

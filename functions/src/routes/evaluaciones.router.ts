@@ -6,7 +6,8 @@ import {
     deleteEvaluacion,
     getPreguntasDeArea,
     guardarRespuestasArea,
-    patchEvaluacionTipo
+    patchEvaluacionTipo,
+    putDatosEvaluador
 } from "../controllers/evaluaciones.controller";
 
 /**
@@ -21,6 +22,8 @@ import {
  * - `POST   /evaluaciones` — crea una nueva evaluación para un estudiante.
  * - `GET    /evaluaciones` — lista evaluaciones con filtros opcionales por rol.
  * - `GET    /evaluaciones/:id` — retorna el detalle completo de una evaluación.
+ * - `PUT    /evaluaciones/:id/datos-evaluador` — guarda las "Preguntas para el evaluador"
+ *   (sesiones, tratamiento, CUD, observaciones); no afecta puntajes.
  * - `DELETE /evaluaciones/:id` — elimina una evaluación y sus datos dependientes.
  * - `GET    /evaluaciones/:id/areas/:areaId/preguntas` — retorna las preguntas de un área
  *   junto con las respuestas previas del evaluador.
@@ -36,6 +39,7 @@ export function createEvaluacionesRouter() {
     router.get("/evaluaciones", getEvaluaciones);
     router.get("/evaluaciones/:id", getEvaluacionById);
     router.patch("/evaluaciones/:id", patchEvaluacionTipo);
+    router.put("/evaluaciones/:id/datos-evaluador", putDatosEvaluador);
     router.delete("/evaluaciones/:id", deleteEvaluacion);
     //endpoints para preguntas y respuestas de áreas específicas dentro de una evaluación
     router.get("/evaluaciones/:id/areas/:areaId/preguntas", getPreguntasDeArea);

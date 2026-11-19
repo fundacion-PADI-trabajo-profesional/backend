@@ -207,6 +207,36 @@ export async function patchEvaluacionTipo(req: AuthenticatedRequest, res: Respon
 }
 
 /**
+ * Guarda las "Preguntas para el evaluador" de una evaluación (ADR 0020).
+ *
+ * `PUT /evaluaciones/:id/datos-evaluador`
+ *
+ * Body: `{ sesiones_completadas, en_tratamiento, tiene_cud, observaciones }` (todos opcionales; lo que no
+ * viene queda en null). `sesiones_completadas` sólo se guarda en evaluaciones de cierre.
+ *
+ * - 200 con la evaluación actualizada (misma forma que `GET /evaluaciones/:id`).
+ * - 400 `DATOS_EVALUADOR_INVALIDOS`. 403 fuera de alcance. 404 si no existe.
+ */
+export async function putDatosEvaluador(req: AuthenticatedRequest, res: Response) {
+  try {
+    const { id: userId, rol, escuela_id } = req.user!;
+    const data = await service.guardarDatosEvaluador(req.params.id, req.body, { id: userId, rol, escuela_id });
+    res.status(200).json(commonResponse(true, "Datos del evaluador guardados", data));
+  } catch (error: any) {
+    if (error instanceof ValidationError) {
+      return res.status(400).json(commonResponse(false, error.message, null, { code: error.code, description: error.message }));
+    }
+    if (error instanceof AuthorizationError) {
+      return res.status(403).json(commonResponse(false, error.message, null, { code: "FORBIDDEN", description: error.message }));
+    }
+    if (error instanceof NotFoundError) {
+      return res.status(404).json(commonResponse(false, error.message, null, { code: "NOT_FOUND" }));
+    }
+    res.status(500).json(commonResponse(false, error?.message || "Error al guardar los datos del evaluador", null, { code: "INTERNAL_ERROR" }));
+  }
+}
+
+/**
  * Elimina una evaluación del sistema.
  *
  * `DELETE /evaluaciones/:id`

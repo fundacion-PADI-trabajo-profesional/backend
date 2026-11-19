@@ -191,6 +191,31 @@ describe("Frontend/Backend contract alignment", () => {
     expect(fn).toContain("periodo=");
   });
 
+  // preguntas para el evaluador (ADR 0020)
+
+  it("guardarDatosEvaluador usa PUT /evaluaciones/:id/datos-evaluador con los campos en snake_case", () => {
+    const src = readFrontendApiFile("evaluaciones.ts");
+    const fn = extractBlockByAnchor(src, "export async function guardarDatosEvaluador");
+
+    expect(fn).toContain("/datos-evaluador");
+    expect(fn).toContain('method: "PUT"');
+    for (const campo of ["sesiones_completadas", "en_tratamiento", "tiene_cud", "observaciones"]) {
+      expect(fn).toContain(campo);
+      expect(src).toContain(`data.${campo}`); // el detalle lee los mismos nombres que devuelve el backend
+    }
+  });
+
+  it("los listados de alumnos leen contexto_evaluador con en_tratamiento y tiene_cud", () => {
+    expect(readFrontendApiFile("estudiantes.ts")).toContain("contexto_evaluador");
+    const reglas = readFileSync(
+      join(process.env.FRONTEND_ROOT ?? join(process.cwd(), "..", "..", "frontend"), "src", "utils", "datosEvaluador.ts"),
+      "utf8",
+    );
+    expect(reglas).toContain("en_tratamiento: boolean | null");
+    expect(reglas).toContain("tiene_cud: boolean | null");
+    for (const rango of ["menos_5", "entre_5_y_9", "10_o_mas"]) expect(reglas).toContain(rango);
+  });
+
   // reporte de escuela (PDF)
 
   it("getReporteEscuela usa la ruta y los query params del backend", () => {

@@ -1279,6 +1279,64 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  /evaluaciones/{id}/datos-evaluador:
+    put:
+      tags: [Evaluaciones]
+      summary: Guardar las "Preguntas para el evaluador" de una evaluación
+      description: |
+        Datos de contexto que carga quien evalúa (ADR 0020). No suman puntaje ni cambian el estado de la evaluación.
+        Reemplaza los cuatro campos: lo que no viene en el body queda en `null` ("sin responder").
+        `sesiones_completadas` sólo se guarda en evaluaciones de cierre; en una inicial se guarda `null`.
+        Permisos como el guardado de respuestas: la docente sobre sus evaluaciones o las de sus aulas activas;
+        el director las de su escuela; el encargado las de escuelas de su zona; Equipo PADI cualquiera.
+        Los mismos campos vuelven en `GET /evaluaciones/{id}`. Los listados de estudiantes y de aulas del docente
+        incluyen por alumno `contexto_evaluador: { en_tratamiento, tiene_cud }` (el dato más reciente respondido).
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sesiones_completadas:
+                  type: string
+                  nullable: true
+                  enum: [menos_5, entre_5_y_9, 10_o_mas]
+                en_tratamiento:
+                  type: boolean
+                  nullable: true
+                tiene_cud:
+                  type: boolean
+                  nullable: true
+                  description: Certificado Único de Discapacidad.
+                observaciones:
+                  type: string
+                  nullable: true
+                  maxLength: 500
+      responses:
+        '200':
+          description: Datos guardados. `data` es la evaluación completa (misma forma que `GET /evaluaciones/{id}`).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '400':
+          description: '`error.code` = `DATOS_EVALUADOR_INVALIDOS`.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommonResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /evaluaciones/{id}/areas/{areaId}/preguntas:
     get:
       tags: [Evaluaciones]

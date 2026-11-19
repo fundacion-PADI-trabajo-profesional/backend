@@ -1,5 +1,6 @@
 import { withRLSContext, withRLSContextAsAdmin } from "../config/prismaClient";
 import type { Turno } from "../utils/turno";
+import { contextoPorEstudiante, SIN_CONTEXTO, type ContextoEvaluador } from "../utils/datos-evaluador";
 
 /**
  * Datos requeridos para crear un aula nueva.
@@ -280,6 +281,7 @@ export const AulasRepository = {
       const estudianteIds = aulas.flatMap((aula: any) => (aula.estudiantes || []).map((e: any) => e.id));
 
       const resumenPorEstudiante = new Map<string, { inicial: string | null; cierre: string | null }>();
+      let contextoPorEst = new Map<string, ContextoEvaluador>();
       if (estudianteIds.length > 0) {
         const evalRows = await tx.evaluacionEstudiante.findMany({
           where: {
@@ -292,9 +294,12 @@ export const AulasRepository = {
             estado_id: true,
             fecha_creacion: true,
             id: true,
+            en_tratamiento: true,
+            tiene_cud: true,
           },
           orderBy: [{ fecha_creacion: "desc" }, { id: "desc" }],
         });
+        contextoPorEst = contextoPorEstudiante(evalRows);
 
         for (const row of evalRows) {
           const current = resumenPorEstudiante.get(row.estudiante_id) || { inicial: null, cierre: null };
@@ -309,6 +314,7 @@ export const AulasRepository = {
         estudiantes: (aula.estudiantes || []).map((est: any) => ({
           ...est,
           evaluaciones_resumen: resumenPorEstudiante.get(est.id) ?? { inicial: null, cierre: null },
+          contexto_evaluador: contextoPorEst.get(est.id) ?? SIN_CONTEXTO,
         })),
       }));
     });
