@@ -1,7 +1,7 @@
 import { withRLSContext, withRLSContextAsAdmin } from "../config/prismaClient";
 import { rangoAnioUTC } from "../utils/evaluaciones-tipo";
 import { getSignedImageUrl } from "../utils/storage";
-import { apruebaPauta, agruparPorPauta } from "../utils/pautas";
+import { apruebaPauta, agruparPorPauta, avanceDeArea } from "../utils/pautas";
 import type { DatosEvaluador } from "../utils/datos-evaluador";
 
 /** Estado: no iniciada. */
@@ -147,6 +147,47 @@ export const EvaluacionRepository = {
         include: this._commonIncludes(),
         orderBy: { fecha_creacion: "desc" },
       });
+    });
+  },
+
+  /**
+   * Agrega a cada área de las evaluaciones dadas su avance de carga: `totalPreguntas` (pautas activas
+   * del área en la sala de la evaluación) y `gruposRespondidos` (pautas con todas sus partes
+   * respondidas). Son los mismos nombres que devuelve `findById`. Pensado para pocas evaluaciones
+   * (el historial de un alumno): hace dos consultas en total, no dos por evaluación.
+   */
+  async agregarAvancePorArea<T extends { sala_id: number; evaluaciones_estudiante_area?: any[] }>(evaluaciones: T[]): Promise<T[]> {
+    const areas = evaluaciones.flatMap((e) => e.evaluaciones_estudiante_area ?? []);
+    if (areas.length === 0) return evaluaciones;
+
+    return withRLSContextAsAdmin(async (tx) => {
+      const [catalogo, filas] = await Promise.all([
+        tx.preguntas.findMany({
+          where: { sala_id: { in: [...new Set(evaluaciones.map((e) => e.sala_id))] }, OR: [{ activa: true }, { activa: null }] },
+          select: { id: true, sala_id: true, area_id: true, numero: true },
+        }),
+        tx.evaluacionesEstudianteAreaPreguntas.findMany({
+          where: { evaluaciones_area_id: { in: areas.map((a) => a.id) } },
+          select: { evaluaciones_area_id: true, pregunta_id: true, respuesta: true },
+        }),
+      ]);
+
+      const respuestasPorArea = new Map<string, Map<string, number | null>>();
+      for (const f of filas as any[]) {
+        const m = respuestasPorArea.get(f.evaluaciones_area_id) ?? new Map<string, number | null>();
+        m.set(f.pregunta_id, f.respuesta);
+        respuestasPorArea.set(f.evaluaciones_area_id, m);
+      }
+
+      for (const ev of evaluaciones) {
+        for (const area of ev.evaluaciones_estudiante_area ?? []) {
+          const partes = (catalogo as any[]).filter((p) => p.sala_id === ev.sala_id && p.area_id === area.area_id);
+          const avance = avanceDeArea(partes, respuestasPorArea.get(area.id) ?? new Map());
+          area.totalPreguntas = avance.totalPautas;
+          area.gruposRespondidos = avance.pautasRespondidas;
+        }
+      }
+      return evaluaciones;
     });
   },
 
