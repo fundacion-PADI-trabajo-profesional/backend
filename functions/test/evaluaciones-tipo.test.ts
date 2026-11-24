@@ -17,6 +17,7 @@ function prepararAlta(duplicado: typeof EXISTENTE | null) {
   vi.spyOn(EvaluacionService.prototype as any, "ensureProfesorRecord").mockResolvedValue(undefined);
   vi.spyOn(EvaluacionRepository, "findEstudianteByDni").mockResolvedValue({ id: "s1", sala_id: 4 } as any);
   const dupSpy = vi.spyOn(EvaluacionRepository, "findDuplicadoTipo").mockResolvedValue(duplicado);
+  vi.spyOn(EvaluacionRepository, "findAulasActivasDeEstudiante").mockResolvedValue([]);
   const createSpy = vi.spyOn(EvaluacionRepository, "create").mockResolvedValue({ id: "e-new", tipo_id: "inicial" } as any);
   return { dupSpy, createSpy };
 }

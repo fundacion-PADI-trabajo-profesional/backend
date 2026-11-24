@@ -175,6 +175,22 @@ export const EvaluacionRepository = {
   },
 
   /**
+   * Aulas en las que el estudiante está asignado hoy (asignación sin `fecha_fin`), con su sala.
+   * Se usa para deducir el aula de una evaluación cuando el alta no la trae. Corre como admin, igual
+   * que `findActiveEstudianteAula`: quien evalúa puede no estar asignado al aula del alumno, y lo
+   * único que sale de acá es el id del aula que se guarda en la evaluación.
+   */
+  async findAulasActivasDeEstudiante(estudianteId: string): Promise<{ id: string; sala_id: number }[]> {
+    return withRLSContextAsAdmin(async (tx) => {
+      const filas = await tx.estudiantesAulas.findMany({
+        where: { estudiante_id: estudianteId, fecha_fin: null },
+        select: { aula: { select: { id: true, sala_id: true } } },
+      });
+      return filas.map((f) => f.aula);
+    });
+  },
+
+  /**
    * Busca una evaluación del mismo tipo para el mismo alumno, sala y año calendario (UTC).
    * Devuelve la más antigua, o null si no hay. `excluirId` deja afuera la propia evaluación
    * cuando se está cambiando el tipo de una existente.
