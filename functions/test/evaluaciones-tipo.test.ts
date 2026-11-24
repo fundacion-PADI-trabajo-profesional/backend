@@ -74,6 +74,65 @@ describe("POST /evaluaciones - freno de duplicados por tipo", () => {
   });
 });
 
+describe("POST /evaluaciones - no se crea una inicial después del cierre", () => {
+  const CIERRE = { id: "ev-c", tipo_id: "cierre", fecha_creacion: new Date("2026-10-20T00:00:00Z") };
+
+  /** El alumno tiene sólo un cierre: la consulta por "inicial" no encuentra nada, la de "cierre" sí. */
+  function prepararConCierre() {
+    const { dupSpy, createSpy } = prepararAlta(null);
+    dupSpy.mockImplementation(async (params: any) => (params.tipoId === "cierre" ? CIERRE : null));
+    return { dupSpy, createSpy };
+  }
+
+  it("inicial con fecha posterior a un cierre del mismo alumno, sala y año → 400 TIPO_DUPLICADO con el cierre para continuarlo", async () => {
+    mockAuthAs("docente", "docente-1");
+    const { createSpy } = prepararConCierre();
+
+    const res = await request(app).post("/evaluaciones").set("Authorization", "Bearer fake-token").send(body("inicial"));
+
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe("TIPO_DUPLICADO");
+    expect(res.body.message).toContain("ya tiene la evaluación de cierre de sala 4 cargada el 20/10/2026");
+    expect(res.body.error.details.evaluacion_existente.id).toBe("ev-c");
+    expect(createSpy).not.toHaveBeenCalled();
+  });
+
+  it("inicial el mismo día que el cierre → también se rechaza", async () => {
+    mockAuthAs("docente", "docente-1");
+    const { createSpy } = prepararConCierre();
+
+    const res = await request(app)
+      .post("/evaluaciones").set("Authorization", "Bearer fake-token")
+      .send({ ...body("inicial"), fecha_creacion: "2026-10-20" });
+
+    expect(res.status).toBe(400);
+    expect(createSpy).not.toHaveBeenCalled();
+  });
+
+  it("inicial con fecha anterior al cierre (carga atrasada de una inicial real) → 201", async () => {
+    mockAuthAs("docente", "docente-1");
+    const { createSpy } = prepararConCierre();
+
+    const res = await request(app)
+      .post("/evaluaciones").set("Authorization", "Bearer fake-token")
+      .send({ ...body("inicial"), fecha_creacion: "2026-03-12" });
+
+    expect(res.status).toBe(201);
+    expect(createSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("un cierre no consulta por iniciales: con inicial previa se crea igual", async () => {
+    mockAuthAs("docente", "docente-1");
+    const { dupSpy, createSpy } = prepararAlta(null);
+    dupSpy.mockImplementation(async (params: any) => (params.tipoId === "inicial" ? EXISTENTE : null));
+
+    const res = await request(app).post("/evaluaciones").set("Authorization", "Bearer fake-token").send(body("cierre"));
+
+    expect(res.status).toBe(201);
+    expect(createSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("PATCH /evaluaciones/:id - cambiar tipo", () => {
   const ORIGINAL = {
     id: "ev-1",
