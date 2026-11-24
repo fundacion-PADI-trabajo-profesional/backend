@@ -152,6 +152,7 @@ describe("evaluaciones instancias (API /evaluaciones)", () => {
 
     vi.spyOn(EvaluacionService.prototype as any, "ensureProfesorRecord").mockResolvedValue(undefined);
     vi.spyOn(EvaluacionRepository, "findDuplicadoTipo").mockResolvedValue(null); // sin evaluación previa del mismo tipo
+    vi.spyOn(EvaluacionRepository, "findAulasActivasDeEstudiante").mockResolvedValue([]); // alumno sin aula activa
     vi.spyOn(EvaluacionRepository, "findEstudianteByDni").mockResolvedValue({ id: "s1", sala_id: 1 } as any);
 
     const createSpy = vi.spyOn(EvaluacionRepository, "create").mockResolvedValue({ id: "e200" } as any);
@@ -202,6 +203,7 @@ describe("evaluaciones instancias (API /evaluaciones)", () => {
 
     vi.spyOn(EvaluacionService.prototype as any, "ensureProfesorRecord").mockResolvedValue(undefined);
     vi.spyOn(EvaluacionRepository, "findDuplicadoTipo").mockResolvedValue(null); // sin evaluación previa del mismo tipo
+    vi.spyOn(EvaluacionRepository, "findAulasActivasDeEstudiante").mockResolvedValue([]); // alumno sin aula activa
     vi.spyOn(EvaluacionRepository, "findEstudianteByDni").mockResolvedValue({
       id: "s1",
       sala_id: 1,

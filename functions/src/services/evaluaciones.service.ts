@@ -5,6 +5,7 @@ import { AuthorizationError, NotFoundError, TipoDuplicadoError, ValidationError 
 import { escuelaEnAlcance, type UsuarioAlcance } from "./alcance.service";
 import { normalizarDatosEvaluador } from "../utils/datos-evaluador";
 import { anioDe, diaUTC, esTipoEvaluacion, mensajeInicialDespuesDeCierre, mensajeTipoDuplicado, type TipoEvaluacion } from "../utils/evaluaciones-tipo";
+import { elegirAulaDeEvaluacion } from "../utils/evaluaciones-aula";
 
 /**
  * Servicio de gestión de evaluaciones infantiles.
@@ -108,6 +109,12 @@ export class EvaluacionService {
     await this.verificarTipoDuplicado(estudiante.id, salaId, data.tipo_id, fechaCreacion);
     if (data.tipo_id === "inicial") {
       await this.verificarInicialDespuesDeCierre(estudiante.id, salaId, fechaCreacion);
+    }
+
+    if (!aulaId) {
+      // El formulario no mandó aula: se deduce de las asignaciones del alumno si no hay ambigüedad.
+      const aulasActivas = await this.repo.findAulasActivasDeEstudiante(estudiante.id);
+      aulaId = elegirAulaDeEvaluacion(aulasActivas, salaId);
     }
 
     return await this.repo.create({

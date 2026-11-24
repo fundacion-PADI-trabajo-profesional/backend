@@ -1163,6 +1163,11 @@ paths:
     post:
       tags: [Evaluaciones]
       summary: Crear una evaluación
+      description: |
+        `aula_id` es opcional. Si viene, el alumno tiene que estar asignado a esa aula. Si no viene, el
+        servidor la deduce de las aulas activas del alumno (ADR 0021): la única que tenga o, si tiene
+        varias, la única de la misma sala que la evaluación. Si no puede decidir, la evaluación se crea
+        sin aula.
       security:
         - bearerAuth: []
       requestBody:
