@@ -1117,6 +1117,10 @@ paths:
         - `director`: solo ve evaluaciones de su escuela.
         - `encargado_zona`: ve evaluaciones de las escuelas de su zona.
         - `docente`: ve las evaluaciones de sus aulas activas más las que él mismo tomó; `profesorId` se ignora.
+
+        Con `estudianteId` (historial de un alumno), cada elemento de `evaluaciones_estudiante_area` trae
+        además el avance de carga: `totalPreguntas` (pautas activas del área) y `gruposRespondidos`
+        (pautas respondidas por completo). Es avance, no resultado. Sin `estudianteId` no se calcula.
       security:
         - bearerAuth: []
       parameters:

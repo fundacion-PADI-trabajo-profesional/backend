@@ -86,3 +86,15 @@ export function agruparPorPauta(
   }
   return grupos;
 }
+
+/**
+ * Avance de carga de un área: cuántas pautas tiene y cuántas están respondidas por completo
+ * (todas sus partes). Es avance de carga, no resultado: no dice cuántas se aprobaron.
+ */
+export function avanceDeArea(
+  preguntas: ParteCatalogo[],
+  respuestas: Map<string, number | null | undefined>
+): { totalPautas: number; pautasRespondidas: number } {
+  const grupos = Array.from(agruparPorPauta(preguntas, respuestas).values());
+  return { totalPautas: grupos.length, pautasRespondidas: grupos.filter((g) => g.respondidas === g.total).length };
+}

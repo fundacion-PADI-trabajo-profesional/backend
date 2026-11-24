@@ -200,7 +200,11 @@ export class EvaluacionService {
     escuelaId?: string;
     escuelaIds?: string[];
   }) {
-    return await this.repo.listWithFilters(filters);
+    const evaluaciones = await this.repo.listWithFilters(filters);
+    // El historial de un alumno muestra el avance de carga por área; en los listados generales
+    // (cientos de evaluaciones) no se calcula.
+    if (filters?.estudianteId) return await this.repo.agregarAvancePorArea(evaluaciones as any[]);
+    return evaluaciones;
   }
 
 
