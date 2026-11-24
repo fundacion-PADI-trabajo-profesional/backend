@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { anioDe, esTipoEvaluacion, mensajeTipoDuplicado, rangoAnioUTC } from "../src/utils/evaluaciones-tipo";
+import { anioDe, diaUTC, esTipoEvaluacion, mensajeInicialDespuesDeCierre, mensajeTipoDuplicado, rangoAnioUTC } from "../src/utils/evaluaciones-tipo";
 import { NotFoundError, TipoDuplicadoError, ValidationError } from "../src/utils/errors";
 
 describe("utilidades de tipo de evaluación", () => {
@@ -15,6 +15,18 @@ describe("utilidades de tipo de evaluación", () => {
       "Este alumno ya tiene una evaluación de cierre de sala 5 cargada el 20/11/2026. " +
         "Si la anterior está mal, cambiale el tipo o eliminala."
     );
+  });
+
+  it("mensaje de inicial después del cierre", () => {
+    expect(mensajeInicialDespuesDeCierre(4, new Date("2026-10-20T00:00:00Z"))).toBe(
+      "Este alumno ya tiene la evaluación de cierre de sala 4 cargada el 20/10/2026. " +
+        "No se crea una inicial después del cierre: continuá la evaluación existente."
+    );
+  });
+
+  it("día en UTC: la hora no cuenta", () => {
+    expect(diaUTC(new Date("2026-10-20T23:59:00Z"))).toBe(diaUTC(new Date("2026-10-20T00:00:00Z")));
+    expect(diaUTC(new Date("2026-10-21T00:00:00Z"))).toBeGreaterThan(diaUTC(new Date("2026-10-20T23:59:00Z")));
   });
 
   it("año en UTC: 31/12 a las 23:00 UTC sigue siendo 2026", () => {

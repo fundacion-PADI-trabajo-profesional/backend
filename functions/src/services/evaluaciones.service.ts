@@ -4,7 +4,7 @@ import { withRLSContext } from "../config/prismaClient";
 import { AuthorizationError, NotFoundError, TipoDuplicadoError, ValidationError } from "../utils/errors";
 import { escuelaEnAlcance, type UsuarioAlcance } from "./alcance.service";
 import { normalizarDatosEvaluador } from "../utils/datos-evaluador";
-import { anioDe, esTipoEvaluacion, mensajeTipoDuplicado, type TipoEvaluacion } from "../utils/evaluaciones-tipo";
+import { anioDe, diaUTC, esTipoEvaluacion, mensajeInicialDespuesDeCierre, mensajeTipoDuplicado, type TipoEvaluacion } from "../utils/evaluaciones-tipo";
 
 /**
  * Servicio de gestión de evaluaciones infantiles.
@@ -106,6 +106,9 @@ export class EvaluacionService {
 
     const fechaCreacion = new Date(data.fecha_creacion);
     await this.verificarTipoDuplicado(estudiante.id, salaId, data.tipo_id, fechaCreacion);
+    if (data.tipo_id === "inicial") {
+      await this.verificarInicialDespuesDeCierre(estudiante.id, salaId, fechaCreacion);
+    }
 
     return await this.repo.create({
       estudiante_id: estudiante.id,
@@ -142,6 +145,20 @@ export class EvaluacionService {
     }
   }
 
+
+  /**
+   * No se crea una inicial con fecha igual o posterior a la del cierre del mismo alumno, sala y año (ADR 0021):
+   * es una segunda carga de la misma evaluación (otro evaluador, o el tipo mal elegido), no una inicial.
+   * Una inicial con fecha anterior al cierre sí se acepta (carga atrasada de una inicial real).
+   *
+   * @throws TipoDuplicadoError con el cierre existente, para que el cliente ofrezca continuarlo.
+   */
+  private async verificarInicialDespuesDeCierre(estudianteId: string, salaId: number, fecha: Date): Promise<void> {
+    const cierre = await this.repo.findDuplicadoTipo({ estudianteId, salaId, tipoId: "cierre", anio: anioDe(fecha) });
+    if (cierre && diaUTC(cierre.fecha_creacion) <= diaUTC(fecha)) {
+      throw new TipoDuplicadoError(mensajeInicialDespuesDeCierre(salaId, cierre.fecha_creacion), cierre);
+    }
+  }
 
   /**
    * Obtiene todas las evaluaciones realizadas por un profesor específico.

@@ -1185,6 +1185,8 @@ paths:
             - `TIPO_DUPLICADO`: el alumno ya tiene una evaluación del mismo tipo en la misma sala y año
               calendario. `message` trae el texto para la persona y `error.details.evaluacion_existente`
               `{ id, tipo_id, fecha_creacion }` la evaluación que ya existe.
+            - `TIPO_DUPLICADO` también cuando se pide una inicial con fecha igual o posterior a la del cierre
+              del mismo alumno, sala y año (ADR 0021): `error.details.evaluacion_existente` es ese cierre.
             - `CREATE_ERROR`: cualquier otro error del alta.
           content:
             application/json:

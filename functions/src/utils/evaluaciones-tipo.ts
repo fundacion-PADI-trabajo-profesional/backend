@@ -2,7 +2,7 @@
  * Tipo de evaluación (inicial / cierre): validación, ventana anual y mensaje de duplicado.
  *
  * Regla de negocio: un alumno tiene como mucho una evaluación de cada tipo por sala y por año
- * calendario. El año se toma de `fecha_creacion` en UTC, igual que lo muestra el frontend
+ * calendario, y no se crea una inicial con fecha igual o posterior a la de su cierre (ADR 0021). El año se toma de `fecha_creacion` en UTC, igual que lo muestra el frontend
  * (ver `utils/fechas.ts` del frontend: las fechas se guardan como medianoche UTC).
  */
 
@@ -15,6 +15,11 @@ export function esTipoEvaluacion(valor: unknown): valor is TipoEvaluacion {
 
 export function anioDe(fecha: Date): number {
   return fecha.getUTCFullYear();
+}
+
+/** El día de la fecha (medianoche UTC) en milisegundos: compara fechas sin que la hora del día influya. */
+export function diaUTC(fecha: Date): number {
+  return Date.UTC(fecha.getUTCFullYear(), fecha.getUTCMonth(), fecha.getUTCDate());
 }
 
 /** Rango semiabierto [1/1 del año, 1/1 del año siguiente) en UTC, para filtrar `fecha_creacion`. */
@@ -36,4 +41,15 @@ export function mensajeTipoDuplicado(tipo: TipoEvaluacion, salaId: number, fecha
     );
   }
   return `Este alumno ya tiene una evaluación de cierre ${cuando}. Si la anterior está mal, cambiale el tipo o eliminala.`;
+}
+
+/**
+ * Mensaje cuando se quiere crear una inicial y el alumno ya tiene el cierre de esa sala y ese año:
+ * casi siempre es una segunda persona cargando la misma evaluación, así que se la manda a la existente.
+ */
+export function mensajeInicialDespuesDeCierre(salaId: number, fechaCierre: Date): string {
+  return (
+    `Este alumno ya tiene la evaluación de cierre de sala ${salaId} cargada el ${fechaCorta(fechaCierre)}. ` +
+    "No se crea una inicial después del cierre: continuá la evaluación existente."
+  );
 }
